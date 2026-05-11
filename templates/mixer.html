@@ -14,7 +14,7 @@
       <h2 class="font-semibold text-white">Output</h2>
       <label class="block text-sm">
         <span class="text-slate-300">Volume</span>
-        <input name="volume" type="number" min="0" max="150" value="{{ settings.volume or 80 }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        <input name="volume" type="number" min="0" max="150" value="{{ settings.volume if settings.volume is not none else 80 }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
       </label>
       <label class="inline-flex items-center gap-2 text-sm text-slate-300">
         <input type="checkbox" name="mixer_locked" {% if settings.mixer_locked %}checked{% endif %}>
@@ -48,7 +48,7 @@
       <h2 class="font-semibold text-white">Deck</h2>
       <div class="grid grid-cols-4 gap-2">
         {% for icon in ['skip-start-fill', 'pause-fill', 'play-fill', 'skip-end-fill'] %}
-          <button type="button" class="h-10 rounded-lg border border-ink-600 hover:bg-ink-700" title="{{ icon }}"><i class="bi bi-{{ icon }}"></i></button>
+          <button type="button" disabled aria-disabled="true" class="h-10 rounded-lg border border-ink-600 opacity-50 cursor-not-allowed" title="Bot bridge unavailable"><i class="bi bi-{{ icon }}"></i></button>
         {% endfor %}
       </div>
       <button class="w-full rounded-lg bg-blurple px-4 py-2 text-white">Save mixer settings</button>

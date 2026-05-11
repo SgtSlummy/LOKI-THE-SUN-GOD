@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+BLOCKED_HOSTS = {"localhost", "localhost.localdomain"}
+BLOCKED_HOST_SUFFIXES = (".localhost", ".local", ".internal", ".lan")
 BLOCKED_TERMS = {
     "malware",
     "phishing",
@@ -37,6 +40,8 @@ def safety_status(title: str, summary: str, source_url: str) -> str:
     parsed = urlparse(source_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return "blocked"
+    if not _safe_public_host(parsed.hostname or ""):
+        return "blocked"
     haystack = f"{title} {summary} {source_url}".lower()
     if any(term in haystack for term in BLOCKED_TERMS):
         return "blocked"
@@ -69,3 +74,23 @@ def _normalize_term(term: str) -> str:
 
 def _singularize(term: str) -> str:
     return " ".join(word[:-1] if word.endswith("s") and len(word) > 3 else word for word in term.split())
+
+
+def _safe_public_host(host: str) -> bool:
+    normalized = host.strip().strip("[]").lower().rstrip(".")
+    if not normalized:
+        return False
+    if normalized in BLOCKED_HOSTS or normalized.endswith(BLOCKED_HOST_SUFFIXES):
+        return False
+    try:
+        ip = ipaddress.ip_address(normalized)
+    except ValueError:
+        return True
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )

@@ -25,9 +25,11 @@ class MixerState:
         self.volume = value
 
     def set_preset(self, name: str) -> None:
-        bands_for_preset(name)
+        preset_bands = bands_for_preset(name)
         self.eq_preset = name
-        if name != "Custom":
+        if name == "Custom":
+            self.custom_eq = preset_bands
+        else:
             self.custom_eq = []
 
     def set_custom_eq(self, values: list[float]) -> None:
@@ -47,6 +49,7 @@ class MusicSession:
     current: Track | None = None
     mixer: MixerState = field(default_factory=MixerState)
     loop_mode: str = "off"
+    settings_updated_at: int | None = None
 
     def enqueue(self, track: Track) -> None:
         self.queue.append(track)

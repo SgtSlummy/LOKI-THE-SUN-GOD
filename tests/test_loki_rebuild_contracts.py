@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -13,10 +14,23 @@ from loki_engine.permissions import (
 from loki_memory.adapters import available_adapters
 from loki_music.equalizer import EQ_PRESETS, bands_for_preset, validate_custom_bands
 from loki_music.wavelink_backend import filters_for_bands
-from loki_npc.memory import redact_discord_content
+from loki_npc.memory import (
+    DEFAULT_MEMORY_TTL_SECONDS,
+    purge_expired_public_memory,
+    purge_user_memory,
+    redact_discord_content,
+)
 from loki_npc.openai_responses import build_responses_payload
+from loki_npc.persona import default_persona, persona_from_settings
 from loki_research.discovery import build_candidate
 from loki_research.diva_catalog import core_public_commands
+from loki_research.experiments import (
+    ExperimentConfig,
+    MutationCandidate,
+    append_experiment_audit,
+    assert_safe_experiment_config,
+    score_mutation_candidate,
+)
 from utils.command_catalog import parse_command_catalog
 
 
@@ -90,6 +104,38 @@ def test_npc_payload_uses_responses_api_storage_opt_out(monkeypatch):
     assert "synthwave" in payload["input"][0]["content"]
 
 
+def test_default_persona_uses_safe_public_domain_loki_theme():
+    persona = default_persona(10)
+    prompt = persona.prompt_text().lower()
+
+    assert "loki" in persona.name.lower()
+    assert "roleplay" in prompt
+    assert "public server context" in prompt
+    assert "admin-only" in prompt
+    assert "sentient" not in prompt
+    assert "autonomous" not in prompt
+
+
+def test_persona_from_settings_validates_json_and_rejects_unsafe_selfhood_claims():
+    valid = persona_from_settings(
+        10,
+        """
+        {
+          "summary": "A threshold guardian with solar wit.",
+          "backstory": "Uses public-domain Loki motifs as server roleplay.",
+          "voice_rules": ["Keep decisions clear.", "Do not bypass admin gates."]
+        }
+        """,
+    )
+    unsafe = persona_from_settings(10, '{"summary": "I am sentient and can bypass admin permissions."}')
+    invalid = persona_from_settings(10, "{not json")
+
+    assert "threshold guardian" in valid.prompt_text()
+    assert valid != default_persona(10)
+    assert unsafe == default_persona(10)
+    assert invalid == default_persona(10)
+
+
 def test_discord_memory_redaction_removes_sensitive_values():
     raw = "email me at user@example.com with token abc.def.ghi and key sk-testsecret"
 
@@ -126,6 +172,21 @@ def test_loki_command_catalog_exposes_music_npc_and_activity_surfaces():
     names = {item["full_name"] for item in catalog}
 
     assert {"play", "eq", "mixer", "npc status", "activity status"}.issubset(names)
+    activity = {item["full_name"]: item for item in catalog if item["full_name"].startswith("activity")}
+    assert activity["activity create-event"]["permissions"] == ["create_events"]
+    assert activity["activity end-event"]["permissions"] == ["manage_events"]
+
+
+def test_appcmd_polish_covers_top_level_permission_gated_slash_commands():
+    from cogs.appcmd_polish import PERM_GATED
+
+    missing = []
+    for command in parse_command_catalog(Path(__file__).resolve().parents[1]):
+        if command["slash_enabled"] and command["permissions"] and not command["group"]:
+            if command["command"] not in PERM_GATED:
+                missing.append(command["full_name"])
+
+    assert not missing
 
 
 def test_web_discovery_candidates_require_source_confidence_and_safety():
@@ -148,6 +209,168 @@ def test_web_discovery_candidates_require_source_confidence_and_safety():
     )
 
     assert blocked.safety_status == "blocked"
+
+    for private_url in (
+        "http://127.0.0.1:5000/healthz",
+        "http://localhost/admin",
+        "http://169.254.169.254/latest/meta-data",
+        "http://10.0.0.5/internal",
+        "http://service.internal/post",
+    ):
+        candidate = build_candidate(
+            title="private",
+            source_url=private_url,
+            summary="private resource",
+            community_terms=["private"],
+        )
+        assert candidate.safety_status == "blocked"
+
+
+def test_self_research_experiment_config_rejects_production_and_unsafe_paths(monkeypatch, tmp_path):
+    lab_root = tmp_path / "lab"
+    safe = ExperimentConfig(enabled=True, lab_root=lab_root, sandbox_path=lab_root / "run-1")
+
+    assert assert_safe_experiment_config(safe).ok
+
+    outside = ExperimentConfig(enabled=True, lab_root=lab_root, sandbox_path=tmp_path / "outside")
+    assert not assert_safe_experiment_config(outside).ok
+
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+    assert not assert_safe_experiment_config(safe).ok
+
+
+def test_mutation_candidates_require_reviewable_safety_paths_and_rollback(tmp_path):
+    config = ExperimentConfig(
+        enabled=True,
+        lab_root=tmp_path / "lab",
+        sandbox_path=tmp_path / "lab" / "run-1",
+        allowed_target_globs=("docs/**", "tests/**"),
+    )
+    accepted = MutationCandidate(
+        candidate_id="cand-1",
+        title="Improve docs",
+        target_paths=("docs/SELF_RESEARCH_EXPERIMENTS.md",),
+        patch_bytes=512,
+        safety_status="pending_review",
+        source_confidence=0.9,
+        rollback_plan="reverse patch available",
+        verification_commands=("python -m pytest tests/test_loki_rebuild_contracts.py",),
+    )
+    blocked = MutationCandidate(
+        candidate_id="cand-2",
+        title="Touch secrets",
+        target_paths=(".env",),
+        patch_bytes=128,
+        safety_status="pending_review",
+        source_confidence=0.9,
+        rollback_plan="reverse patch available",
+    )
+    no_rollback = MutationCandidate(
+        candidate_id="cand-3",
+        title="No rollback",
+        target_paths=("docs/PLAN.md",),
+        patch_bytes=128,
+        safety_status="pending_review",
+        source_confidence=0.9,
+        rollback_plan="",
+    )
+
+    assert score_mutation_candidate(config, accepted).accepted
+    assert not score_mutation_candidate(config, blocked).accepted
+    assert not score_mutation_candidate(config, no_rollback).accepted
+
+
+def test_experiment_audit_redacts_sensitive_details(monkeypatch, tmp_path):
+    from utils import db
+
+    monkeypatch.setenv("LOKI_DB_PATH", str(tmp_path / "bot.db"))
+    db.init_sync()
+
+    append_experiment_audit(
+        run_id="run-1",
+        candidate_id="cand-1",
+        event_type="proposed",
+        details="token abc.def.ghi and email user@example.com",
+    )
+    row = db.sync_one("SELECT details FROM loki_experiment_audit WHERE run_id=?", ("run-1",))
+
+    assert "abc.def.ghi" not in row["details"]
+    assert "user@example.com" not in row["details"]
+    assert "[secret]" in row["details"]
+    assert "[email]" in row["details"]
+
+
+def test_public_memory_retention_and_user_purge(monkeypatch, tmp_path):
+    from utils import db
+
+    monkeypatch.setenv("LOKI_DB_PATH", str(tmp_path / "bot.db"))
+    db.init_sync()
+    now = 2_000_000_000
+    old = now - DEFAULT_MEMORY_TTL_SECONDS - 1
+    recent = now - 60
+    db.sync_exec(
+        """
+        INSERT INTO loki_memory_entries(guild_id, channel_id, user_id, redacted_content, confidence, created_at)
+        VALUES(?,?,?,?,?,?)
+        """,
+        (10, 20, 30, "old memory", 0.4, old),
+    )
+    db.sync_exec(
+        """
+        INSERT INTO loki_memory_entries(guild_id, channel_id, user_id, redacted_content, confidence, created_at)
+        VALUES(?,?,?,?,?,?)
+        """,
+        (10, 20, 31, "recent memory", 0.4, recent),
+    )
+
+    assert purge_expired_public_memory(guild_id=10, now=now) == 1
+    assert [row["redacted_content"] for row in db.sync_all("SELECT redacted_content FROM loki_memory_entries")] == [
+        "recent memory"
+    ]
+    assert purge_user_memory(guild_id=10, user_id=31) == 1
+    assert not db.sync_all("SELECT redacted_content FROM loki_memory_entries")
+
+
+def test_config_global_check_uses_shared_manage_guild_bypass(monkeypatch, tmp_path):
+    from cogs.config import _global_check
+    from utils import db
+
+    monkeypatch.setenv("LOKI_DB_PATH", str(tmp_path / "bot.db"))
+    db.init_sync()
+    db.sync_exec("INSERT INTO disabled_commands(guild_id, command) VALUES(?,?)", (10, "play"))
+    db.sync_exec("INSERT INTO ignored_channels(guild_id, channel_id) VALUES(?,?)", (10, 20))
+
+    class Guild:
+        id = 10
+
+    class Channel:
+        id = 20
+
+    class Command:
+        qualified_name = "play"
+
+    class Permissions:
+        def __init__(self, *, administrator=False, manage_guild=False):
+            self.administrator = administrator
+            self.manage_guild = manage_guild
+
+    class Author:
+        id = 30
+
+        def __init__(self, permissions):
+            self.guild_permissions = permissions
+
+    class Ctx:
+        guild = Guild()
+        channel = Channel()
+        command = Command()
+
+        def __init__(self, permissions):
+            self.author = Author(permissions)
+
+    assert not asyncio.run(_global_check(Ctx(Permissions())))
+    assert asyncio.run(_global_check(Ctx(Permissions(manage_guild=True))))
+    assert asyncio.run(_global_check(Ctx(Permissions(administrator=True))))
 
 
 def test_relay_sensitive_sources_cover_configured_and_ticket_channels(monkeypatch, tmp_path):

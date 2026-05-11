@@ -14,12 +14,14 @@ The Diva work is clean-room public parity. The implementation uses public pages 
 - `loki_npc`: generated Discord NPC persona, redaction, and OpenAI Responses API payload construction with `store=false`.
 - `loki_memory`: bounded Codex AGI adapter registry for NOO/Noophyte, Quantum Roots, Swarm Brain, SLIME GOD, and Camelot.
 - `loki_research`: public Diva catalog and recommendation scaffolding.
+- `loki_research.experiments`: dry-run-only self-research and mutation safety contracts for future iteration labs.
 - `loki_mcp`: local/ChatGPT-readable MCP tools and resources.
 
 ## Guardrails
 
 - Raw Discord messages are not direct training data.
 - Private channels, deleted content, secrets, and opted-out users are excluded from memory.
+- Public-channel memory is redacted, expires after the default retention window, and supports per-user purge.
 - NPC listening can be narrowed with `LOKI_NPC_ALLOWED_CHANNEL_IDS`; user memory opt-out uses `LOKI_NPC_MEMORY_OPT_OUT_USER_IDS`.
 - NPC replies can be public, but Discord settings changes require server-side admin/manage-guild checks.
 - Activity changes require Discord event permissions or admin privileges.

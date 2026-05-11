@@ -87,6 +87,13 @@ GET  /guild/<id>/tickets         # Tickets management
 GET  /guild/<id>/events          # Events calendar
 GET  /guild/<id>/streams         # Stream tracking
 GET  /guild/<id>/audit           # Audit log viewer
+GET  /guild/<id>/mixer           # Music mixer and EQ settings
+GET  /guild/<id>/npc             # NPC controls
+GET  /guild/<id>/activities-control # Portal activity controls
+GET  /guild/<id>/developer       # Discord developer settings guide
+GET  /api/guild/<id>/audit.json  # Audit export
+GET  /api/guild/<id>/forms/<name>/submissions.json # Form export
+GET  /api/guild/<id>/tickets/export.json # Ticket export
 ```
 
 **Templates Provided:**

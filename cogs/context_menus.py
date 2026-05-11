@@ -243,6 +243,7 @@ class ContextMenus(commands.Cog):
         await interaction.response.send_modal(WarnModal(member))
 
     # ── Message context callbacks ─────────────────────────────────────
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def star_msg_cb(self, interaction: discord.Interaction, message: discord.Message):
         async with db.get() as c:
             cur = await c.execute(
@@ -312,6 +313,7 @@ class ContextMenus(commands.Cog):
     async def save_tag_cb(self, interaction: discord.Interaction, message: discord.Message):
         await interaction.response.send_modal(SaveTagModal(message.content or "*(no text)*"))
 
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def quote_ch_cb(self, interaction: discord.Interaction, message: discord.Message):
         await interaction.response.send_message(
             embed=info("Pick target channel", "Quote will be posted as embed."),

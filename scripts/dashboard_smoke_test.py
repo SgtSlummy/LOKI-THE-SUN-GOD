@@ -111,8 +111,8 @@ def _seed_database() -> None:
 
 def _login(client) -> None:
     with client.session_transaction() as session:
+        session.clear()
         session["user"] = {"id": "dashboard-smoke", "username": "Dashboard Smoke"}
-        session["token"] = "local-loki"
         session["_csrf_token"] = CSRF_TOKEN
         session["guilds"] = [
             {
@@ -158,11 +158,20 @@ def main() -> int:
         _get_ok(client, "/")
         _get_ok(client, "/healthz")
         _get_ok(client, "/brand/icon.svg")
+        connect = client.get("/dev/connect-loki", follow_redirects=False)
+        if connect.status_code not in (302, 303):
+            raise AssertionError(f"Local connect returned {connect.status_code}")
+        with client.session_transaction() as session:
+            if "token" in session or "guilds" in session:
+                raise AssertionError("Dashboard local connect stored token or guild grants in the client session.")
+            if not session.get("dashboard_session_id"):
+                raise AssertionError("Dashboard local connect did not create a server-side session id.")
         _login(client)
 
         for path in (
             "/guilds",
             "/ops/ai",
+            "/ops/research",
             f"/guild/{GUILD_ID}",
             f"/guild/{GUILD_ID}/events",
             f"/guild/{GUILD_ID}/forms",
@@ -171,8 +180,18 @@ def main() -> int:
             f"/guild/{GUILD_ID}/streams",
             f"/guild/{GUILD_ID}/tickets",
             f"/guild/{GUILD_ID}/commands",
+            f"/guild/{GUILD_ID}/mixer",
+            f"/guild/{GUILD_ID}/npc",
+            f"/guild/{GUILD_ID}/activities-control",
+            f"/guild/{GUILD_ID}/developer",
             f"/guild/{GUILD_ID}/embed",
             f"/guild/{GUILD_ID}/audit",
+            f"/api/guild/{GUILD_ID}/audit.json",
+            f"/api/guild/{GUILD_ID}/audit.json?format=csv",
+            f"/api/guild/{GUILD_ID}/forms/appeal/submissions.json",
+            f"/api/guild/{GUILD_ID}/forms/appeal/submissions.json?format=csv",
+            f"/api/guild/{GUILD_ID}/tickets/export.json",
+            f"/api/guild/{GUILD_ID}/tickets/export.json?format=csv",
         ):
             _get_ok(client, path)
 
@@ -278,6 +297,57 @@ def main() -> int:
             },
         )
         _post_ok(client, f"/guild/{GUILD_ID}/events/{event_id}/delete", {})
+
+        _post_ok(
+            client,
+            f"/guild/{GUILD_ID}/mixer/save",
+            {
+                "volume": "0",
+                "eq_preset": "Podcast",
+                "request_channel_id": "222222222222222222",
+                "dj_role_id": "777777777777777777",
+                "mixer_locked": "on",
+            },
+        )
+        mixer_html = client.get(f"/guild/{GUILD_ID}/mixer").data.decode("utf-8", errors="replace")
+        if 'name="volume" type="number" min="0" max="150" value="0"' not in mixer_html:
+            raise AssertionError("Mixer volume 0 did not round-trip through the dashboard.")
+        if "Bot bridge unavailable" not in mixer_html:
+            raise AssertionError("Mixer deck controls did not expose their disabled state.")
+        invalid_mixer = client.post(
+            f"/guild/{GUILD_ID}/mixer/save",
+            data={"csrf_token": CSRF_TOKEN, "volume": "loud", "eq_preset": "Nightcore"},
+            follow_redirects=True,
+        )
+        if invalid_mixer.status_code != 200 or b"valid LOKI equalizer preset" not in invalid_mixer.data:
+            raise AssertionError("Invalid mixer save was not rejected cleanly.")
+
+        _post_ok(
+            client,
+            f"/guild/{GUILD_ID}/npc/save",
+            {
+                "enabled": "on",
+                "persona_json": json.dumps(
+                    {
+                        "summary": "A threshold guardian with solar wit.",
+                        "backstory": "Uses public-domain Loki motifs as roleplay.",
+                        "voice_rules": ["Respect public context.", "Respect admin gates."],
+                    }
+                ),
+                "channel_allowlist": "222222222222222222",
+                "web_crawl_enabled": "",
+                "auto_post_channel_id": "",
+            },
+        )
+        _post_ok(
+            client,
+            f"/guild/{GUILD_ID}/activities-control/create",
+            {
+                "title": "Smoke Quest",
+                "activity_type": "portal",
+                "status": "planned",
+            },
+        )
 
         for action, payload in (
             ("disable", {"command": "welcome preview"}),

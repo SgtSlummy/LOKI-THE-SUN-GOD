@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from loki_engine.permissions import ADMINISTRATOR, MANAGE_GUILD, PermissionContext
 from utils import db
 
 
@@ -175,20 +176,32 @@ class Config(commands.Cog):
 async def _global_check(ctx):
     if not ctx.guild or not ctx.command:
         return True
+    context = _permission_context(ctx)
     async with db.get() as c:
         cur = await c.execute(
             "SELECT 1 FROM disabled_commands WHERE guild_id=? AND command=?",
             (ctx.guild.id, ctx.command.qualified_name),
         )
-        if await cur.fetchone() and not ctx.author.guild_permissions.administrator:
+        if await cur.fetchone() and not context.can_manage_guild:
             return False
         cur = await c.execute(
             "SELECT 1 FROM ignored_channels WHERE guild_id=? AND channel_id=?",
             (ctx.guild.id, ctx.channel.id),
         )
-        if await cur.fetchone() and not ctx.author.guild_permissions.manage_guild:
+        if await cur.fetchone() and not context.can_manage_guild:
             return False
     return True
+
+
+def _permission_context(ctx) -> PermissionContext:
+    perms = getattr(ctx.author, "guild_permissions", None)
+    value = getattr(perms, "value", 0) if perms is not None else 0
+    if not value and perms is not None:
+        if getattr(perms, "administrator", False):
+            value |= ADMINISTRATOR
+        if getattr(perms, "manage_guild", False):
+            value |= MANAGE_GUILD
+    return PermissionContext(user_id=ctx.author.id, guild_id=ctx.guild.id, permissions=value)
 
 
 async def setup(bot):

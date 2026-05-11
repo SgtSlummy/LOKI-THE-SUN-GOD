@@ -10,7 +10,8 @@ from discord.ext import commands
 from loki_engine.permissions import PermissionContext, assert_admin_action
 from loki_npc.memory import public_memory_allowed, recent_public_memory, remember_public_message
 from loki_npc.openai_responses import ask_npc
-from loki_npc.persona import default_persona
+from loki_npc.persona import persona_from_settings
+from utils import db
 
 log = logging.getLogger("loki.npc")
 
@@ -51,7 +52,7 @@ class LokiNpc(commands.Cog):
         if now - self.cooldowns.get(key, 0) < 20:
             return
         self.cooldowns[key] = now
-        persona = default_persona(message.guild.id)
+        persona = self.persona_for_guild(message.guild.id)
         prompt = message.clean_content.replace(f"@{self.bot.user.display_name}", "").strip()
         try:
             answer = await ask_npc(
@@ -99,6 +100,11 @@ class LokiNpc(commands.Cog):
     def _csv_set(name: str) -> set[str]:
         return {part.strip() for part in (os.getenv(name) or "").split(",") if part.strip()}
 
+    @staticmethod
+    def persona_for_guild(guild_id: int):
+        row = db.sync_one("SELECT persona_json FROM loki_npc_settings WHERE guild_id=?", (guild_id,))
+        return persona_from_settings(guild_id, row["persona_json"] if row else "")
+
     @commands.hybrid_group(name="npc", description="Manage the LOKI NPC")
     async def npc(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
@@ -129,7 +135,7 @@ class LokiNpc(commands.Cog):
     async def npc_personality(self, ctx: commands.Context):
         if not ctx.guild:
             return await ctx.send("Use this inside a server.")
-        await ctx.send(default_persona(ctx.guild.id).prompt_text())
+        await ctx.send(self.persona_for_guild(ctx.guild.id).prompt_text())
 
 
 async def setup(bot):

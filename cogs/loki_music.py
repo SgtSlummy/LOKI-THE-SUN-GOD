@@ -7,6 +7,7 @@ from discord.ext import commands
 from loki_music.equalizer import bands_for_preset, preset_names
 from loki_music.service import MusicSession, Track
 from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired, WavelinkBackend
+from utils import db
 
 
 class LokiMusic(commands.Cog):
@@ -18,7 +19,39 @@ class LokiMusic(commands.Cog):
         self.backend = WavelinkBackend()
 
     def session_for(self, guild_id: int) -> MusicSession:
-        return self.sessions.setdefault(guild_id, MusicSession(guild_id=guild_id))
+        session = self.sessions.setdefault(guild_id, MusicSession(guild_id=guild_id))
+        self._hydrate_session_settings(session)
+        return session
+
+    def _hydrate_session_settings(self, session: MusicSession) -> None:
+        row = db.sync_one("SELECT * FROM loki_music_settings WHERE guild_id=?", (session.guild_id,))
+        if not row:
+            return
+        row_updated_at = row["updated_at"]
+        if session.settings_updated_at is not None and row_updated_at == session.settings_updated_at:
+            return
+        session.mixer.locked = bool(row["mixer_locked"])
+        try:
+            session.mixer.set_volume(int(row["volume"] if row["volume"] is not None else 80))
+        except (TypeError, ValueError):
+            session.mixer.set_volume(80)
+        try:
+            session.mixer.set_preset(row["eq_preset"] or "Flat")
+        except ValueError:
+            session.mixer.set_preset("Flat")
+        session.settings_updated_at = row_updated_at
+
+    def _can_control_mixer(self, ctx: commands.Context, session: MusicSession) -> bool:
+        if not session.mixer.locked:
+            return True
+        permissions = getattr(getattr(ctx.author, "guild_permissions", None), "value", 0)
+        if permissions & 0x8 or permissions & 0x20:
+            return True
+        row = db.sync_one("SELECT dj_role_id FROM loki_music_settings WHERE guild_id=?", (session.guild_id,))
+        dj_role_id = int(row["dj_role_id"] or 0) if row else 0
+        if not dj_role_id:
+            return False
+        return any(getattr(role, "id", None) == dj_role_id for role in getattr(ctx.author, "roles", []))
 
     @commands.hybrid_command(name="play", description="Play a song or add it to the LOKI queue")
     @app_commands.describe(query="Song name, URL, playlist, or search query")
@@ -32,8 +65,6 @@ class LokiMusic(commands.Cog):
             return await ctx.send(str(exc))
         except MusicBackendUnavailable:
             session.enqueue(Track(title=query, uri=query, requester_id=ctx.author.id))
-            if session.current is None:
-                session.dequeue_next()
             title = discord.utils.escape_markdown(query)
             return await ctx.send(f"Queued for LOKI THE SUN GOD: **{title}** (Lavalink node pending)")
 
@@ -89,6 +120,8 @@ class LokiMusic(commands.Cog):
             return await ctx.send("Use volume inside a server.")
         mixer = self.session_for(ctx.guild.id).mixer
         if level is not None:
+            if not self._can_control_mixer(ctx, self.session_for(ctx.guild.id)):
+                return await ctx.send("LOKI mixer is locked to DJ/admin roles.")
             try:
                 mixer.set_volume(level)
             except ValueError as exc:
@@ -147,8 +180,11 @@ class LokiMusic(commands.Cog):
             bands_for_preset(preset)
         except ValueError:
             return await ctx.send("Available EQ presets: " + ", ".join(preset_names()))
-        self.session_for(ctx.guild.id).mixer.set_preset(preset)
-        await self.backend.apply_eq(ctx, self.session_for(ctx.guild.id))
+        session = self.session_for(ctx.guild.id)
+        if not self._can_control_mixer(ctx, session):
+            return await ctx.send("LOKI mixer is locked to DJ/admin roles.")
+        session.mixer.set_preset(preset)
+        await self.backend.apply_eq(ctx, session)
         await ctx.send(f"LOKI EQ preset applied: **{preset}**")
 
     @commands.hybrid_command(name="mixer", description="Show the LOKI mixer state")
@@ -172,6 +208,8 @@ class LokiMusic(commands.Cog):
                 filters=self.backend.filters_for_bands(session.mixer.current_eq_payload()),
             )
             return
+        if session.loop_mode == "queue" and session.current is not None:
+            session.enqueue(session.current)
         if getattr(player, "queue", None) is None or player.queue.is_empty:
             session.current = None
             return

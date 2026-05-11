@@ -21,6 +21,7 @@ class LokiActivities(commands.Cog):
         await ctx.send("LOKI activity control is ready. Event mutations require create/manage-events or admin.")
 
     @activity.command(name="create-event", description="Create a tracked activity event")
+    @commands.has_permissions(create_events=True)
     async def activity_create_event(self, ctx: commands.Context, *, title: str):
         permissions = getattr(ctx.author.guild_permissions, "value", 0)
         decision = can_create_activity_event(
@@ -37,6 +38,7 @@ class LokiActivities(commands.Cog):
         )
 
     @activity.command(name="end-event", description="End or archive a tracked activity event")
+    @commands.has_permissions(manage_events=True)
     async def activity_end_event(self, ctx: commands.Context, event_id: str):
         permissions = getattr(ctx.author.guild_permissions, "value", 0)
         decision = can_manage_activity(

@@ -9,6 +9,8 @@ Requires: DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, REDIRECT_URI, DASHBOARD_SECR
 OAuth2 scopes: identify guilds
 """
 
+import csv
+import io
 import json
 import os
 import secrets
@@ -25,6 +27,9 @@ from utils import runtime_paths
 
 runtime_paths.load_app_dotenv()
 
+from loki_music.equalizer import preset_names
+from loki_npc.persona import persona_from_settings
+from loki_research.experiments import ExperimentConfig, assert_safe_experiment_config
 from utils import db as shared_db
 from utils import operator_surface
 from utils.command_catalog import parse_command_catalog
@@ -56,6 +61,7 @@ TOKEN_URL = f"{API_BASE}/oauth2/token"
 SCOPES = "identify guilds"
 HTTP_TIMEOUT = (5, 20)
 STRUCTURE_TTL_SECONDS = 60
+DASHBOARD_SESSION_TTL_SECONDS = 24 * 60 * 60
 _GUILD_STRUCTURE_CACHE: dict[int, tuple[float, dict[str, object]]] = {}
 
 if REDIRECT_URI.startswith("https://"):
@@ -134,6 +140,63 @@ def db_all(sql, params=()):
 
 def db_exec(sql, params=()):
     return shared_db.sync_exec(sql, params)
+
+
+def _csv_response(filename: str, rows: list[dict[str, object]], fieldnames: list[str]):
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+    response = app.response_class(output.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
+
+def _row_dicts(rows) -> list[dict[str, object]]:
+    return [dict(row) for row in rows]
+
+
+def _store_dashboard_session(user: dict[str, object], guilds: list[dict[str, object]]) -> None:
+    now = int(time.time())
+    session_id = secrets.token_urlsafe(32)
+    db_exec(
+        "INSERT OR REPLACE INTO dashboard_sessions(session_id,user_json,guilds_json,created_at,expires_at) "
+        "VALUES(?,?,?,?,?)",
+        (
+            session_id,
+            json.dumps(user, separators=(",", ":")),
+            json.dumps(guilds, separators=(",", ":")),
+            now,
+            now + DASHBOARD_SESSION_TTL_SECONDS,
+        ),
+    )
+    session["dashboard_session_id"] = session_id
+    session["user"] = user
+    session.pop("guilds", None)
+
+
+def _session_guilds() -> list[dict[str, object]]:
+    session_id = session.get("dashboard_session_id")
+    if session_id:
+        row = db_one(
+            "SELECT guilds_json FROM dashboard_sessions WHERE session_id=? AND expires_at>=?",
+            (session_id, int(time.time())),
+        )
+        if row:
+            try:
+                guilds = json.loads(row["guilds_json"])
+            except (TypeError, ValueError):
+                guilds = []
+            if isinstance(guilds, list):
+                return guilds
+    if is_local_request():
+        return session.get("guilds", [])
+    return []
+
+
+def _session_guild_info(guild_id: int | str) -> dict[str, object]:
+    return next((guild for guild in _session_guilds() if str(guild.get("id")) == str(guild_id)), {})
 
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
@@ -326,7 +389,7 @@ def ops_admin_required(f):
 def guild_admin_required(f):
     @wraps(f)
     def decorated(guild_id, *args, **kwargs):
-        guilds = session.get("guilds", [])
+        guilds = _session_guilds()
         MANAGE_GUILD = 0x20
         guild = next((g for g in guilds if str(g["id"]) == str(guild_id)), None)
         if not guild:
@@ -457,9 +520,7 @@ def callback():
         app.logger.warning("OAuth callback failed: %s", exc)
         flash("Discord OAuth exchange failed.", "danger")
         return redirect(url_for("index"))
-    session["user"] = user
-    session["token"] = access_token
-    session["guilds"] = guilds
+    _store_dashboard_session(user, guilds)
     return redirect(url_for("guilds"))
 
 
@@ -478,9 +539,7 @@ def connect_loki():
     if not guilds:
         flash("No LOKI THE SUN GOD guild data found in the local database.", "danger")
         return redirect(url_for("index"))
-    session["user"] = {"id": "local-loki-admin", "username": "Local LOKI THE SUN GOD Admin"}
-    session["token"] = "local-loki"
-    session["guilds"] = guilds
+    _store_dashboard_session({"id": "local-loki-admin", "username": "Local LOKI THE SUN GOD Admin"}, guilds)
     flash("Connected dashboard to the local LOKI THE SUN GOD database.", "success")
     return redirect(url_for("guilds"))
 
@@ -491,7 +550,7 @@ def guilds():
     MANAGE_GUILD = 0x20
     admin_guilds = [
         g
-        for g in session.get("guilds", [])
+        for g in _session_guilds()
         if (int(g.get("permissions", 0)) & MANAGE_GUILD) or (int(g.get("permissions", 0)) & 0x8)
     ]
     # Check which guilds have bot installed
@@ -513,6 +572,28 @@ def guilds():
 def ai_ops():
     snapshot = operator_surface.ai_router_snapshot()
     return render_template("ai_router.html", ai=snapshot, user=session["user"])
+
+
+@app.route("/ops/research")
+@login_required
+@ops_admin_required
+def research_ops():
+    config = ExperimentConfig(
+        enabled=os.getenv("LOKI_RESEARCH_LAB_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+        lab_root=runtime_paths.bundle_root() / ".loki_lab",
+        sandbox_path=runtime_paths.bundle_root() / ".loki_lab" / "dashboard-preview",
+    )
+    decision = assert_safe_experiment_config(config)
+    runs = db_all("SELECT * FROM loki_experiment_runs ORDER BY created_at DESC LIMIT 20")
+    audits = db_all("SELECT * FROM loki_experiment_audit ORDER BY created_at DESC LIMIT 20")
+    return render_template(
+        "research_lab.html",
+        config=config,
+        decision=decision,
+        runs=runs,
+        audits=audits,
+        user=session["user"],
+    )
 
 
 @app.route("/ops/ai/app-env/save", methods=["POST"])
@@ -690,7 +771,7 @@ def guild(guild_id):
         ),
         "disabled_cmds": len(disabled_cmds),
     }
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "guild.html",
         cfg=cfg,
@@ -776,7 +857,7 @@ def guild_events(guild_id):
     ]
     for event in events:
         event["starts_at_input"] = _event_datetime_input(event["starts_at"])
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     structure = _guild_template_context(guild_id)
     return render_template(
         "events.html", events=events, guild_id=guild_id, guild_info=g_info, user=session["user"], **structure
@@ -874,7 +955,7 @@ def guild_forms(guild_id):
     for form in forms:
         cnt = db_one("SELECT COUNT(*) FROM form_responses WHERE guild_id=? AND form_name=?", (guild_id, form["name"]))
         form_responses[form["name"]] = cnt[0] if cnt else 0
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     structure = _guild_template_context(guild_id)
     return render_template(
         "forms.html",
@@ -910,7 +991,7 @@ def guild_commands(guild_id):
             1 for command in commands if any(option.get("autocomplete") for option in command.get("options", []))
         ),
     }
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "commands.html",
         commands=commands,
@@ -940,7 +1021,7 @@ def guild_mixer(guild_id):
             (guild_id, int(time.time())),
         )
         settings = db_one("SELECT * FROM loki_music_settings WHERE guild_id=?", (guild_id,))
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "mixer.html",
         guild_id=guild_id,
@@ -957,7 +1038,15 @@ def guild_mixer(guild_id):
 def guild_mixer_save(guild_id):
     guild_id = int(guild_id)
     preset = request.form.get("eq_preset", "Flat").strip() or "Flat"
-    volume = max(0, min(150, int(request.form.get("volume", "80") or "80")))
+    if preset not in preset_names():
+        flash("Choose a valid LOKI equalizer preset.", "danger")
+        return redirect(url_for("guild_mixer", guild_id=guild_id))
+    try:
+        volume = int(request.form.get("volume", "80") or "80")
+    except ValueError:
+        flash("Volume must be a number from 0 to 150.", "danger")
+        return redirect(url_for("guild_mixer", guild_id=guild_id))
+    volume = max(0, min(150, volume))
     db_exec(
         """
         INSERT OR REPLACE INTO loki_music_settings(
@@ -991,7 +1080,7 @@ def guild_npc(guild_id):
             (guild_id, int(time.time())),
         )
         settings = db_one("SELECT * FROM loki_npc_settings WHERE guild_id=?", (guild_id,))
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "npc.html",
         guild_id=guild_id,
@@ -1007,6 +1096,15 @@ def guild_npc(guild_id):
 @guild_admin_required
 def guild_npc_save(guild_id):
     guild_id = int(guild_id)
+    persona_json = request.form.get("persona_json", "").strip()
+    if persona_json:
+        parsed = persona_from_settings(guild_id, persona_json)
+        if parsed.prompt_text() == persona_from_settings(guild_id, "").prompt_text():
+            flash(
+                "Persona JSON was rejected by the LOKI safety parser and the default persona will remain active.",
+                "warning",
+            )
+            return redirect(url_for("guild_npc", guild_id=guild_id))
     db_exec(
         """
         INSERT OR REPLACE INTO loki_npc_settings(
@@ -1016,7 +1114,7 @@ def guild_npc_save(guild_id):
         (
             guild_id,
             1 if request.form.get("enabled") == "on" else 0,
-            request.form.get("persona_json", "").strip(),
+            persona_json,
             request.form.get("channel_allowlist", "").strip(),
             1 if request.form.get("web_crawl_enabled") == "on" else 0,
             _int_or_none(request.form.get("auto_post_channel_id")),
@@ -1037,7 +1135,7 @@ def guild_activities_control(guild_id):
         "SELECT * FROM loki_activity_controls WHERE guild_id=? ORDER BY created_at DESC LIMIT 50",
         (guild_id,),
     )
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "activities_control.html",
         guild_id=guild_id,
@@ -1067,7 +1165,7 @@ def guild_activities_control_create(guild_id):
             title,
             request.form.get("status", "planned").strip() or "planned",
             request.form.get("activity_type", "portal").strip() or "portal",
-            int(session.get("user", {}).get("id", "0") or 0),
+            _int_or_none(session.get("user", {}).get("id")) or 0,
             int(time.time()),
             int(time.time()),
         ),
@@ -1082,12 +1180,12 @@ def guild_activities_control_create(guild_id):
 def guild_developer(guild_id):
     guild_id = int(guild_id)
     structure = _guild_template_context(guild_id)
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "developer_settings.html",
         guild_id=guild_id,
         guild_info=g_info,
-        app_env=operator_surface.ai_router_settings().get("app_env", {}),
+        app_env=operator_surface.ai_router_snapshot().get("app_env", {}),
         user=session["user"],
         **structure,
     )
@@ -1176,7 +1274,7 @@ def form_responses_page(guild_id, form_name):
                 "decision_note": r["decision_note"] or "",
             }
         )
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     return render_template(
         "form_responses.html",
         responses=parsed,
@@ -1215,7 +1313,7 @@ def guild_streams(guild_id):
         "FROM stream_subs WHERE guild_id=? ORDER BY platform, channel_name",
         (guild_id,),
     )
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     structure = _guild_template_context(guild_id)
     return render_template(
         "streams.html", streams=streams, guild_id=guild_id, guild_info=g_info, user=session["user"], **structure
@@ -1328,7 +1426,7 @@ def form_edit(guild_id, form_name):
         existing_fields = json.loads(form["fields"] or "[]")
     except Exception:
         existing_fields = []
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), {})
+    g_info = _session_guild_info(guild_id)
     structure = _guild_template_context(guild_id)
     return render_template(
         "form_builder.html",
@@ -1426,12 +1524,33 @@ def _bot_post(path: str, payload: dict):
     )
 
 
+def _guild_text_channel_allowed(guild_id: int, channel_id: str | int) -> bool:
+    try:
+        requested_id = int(channel_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        channels = _bot_get(f"/guilds/{guild_id}/channels")
+    except requests.RequestException:
+        return False
+    if not channels.ok:
+        return False
+    for channel in channels.json():
+        try:
+            current_id = int(channel.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if current_id == requested_id and channel.get("type") in (0, 5):
+            return True
+    return False
+
+
 @app.route("/guild/<guild_id>/embed", methods=["GET"])
 @login_required
 @guild_admin_required
 def guild_embed_builder(guild_id):
     guild_id = int(guild_id)
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), None)
+    g_info = _session_guild_info(guild_id)
     structure = _guild_template_context(guild_id)
     # Channels — fetched from Discord (cache could be added later)
     channels = []
@@ -1471,6 +1590,8 @@ def guild_embed_send(guild_id):
         return jsonify(
             {"ok": False, "error": "DISCORD_TOKEN format looks invalid; check the dashboard environment."}
         ), 400
+    if not _guild_text_channel_allowed(int(guild_id), channel_id):
+        return jsonify({"ok": False, "error": "channel_id must be a text channel in this guild."}), 400
 
     embed = payload.get("embed") or {}
     # Build a sanitized Discord embed object
@@ -1534,14 +1655,8 @@ def guild_embed_send(guild_id):
 # ─── Audit log timeline ──────────────────────────────────────────────────────
 
 
-@app.route("/guild/<guild_id>/audit")
-@login_required
-@guild_admin_required
-def guild_audit(guild_id):
-    guild_id = int(guild_id)
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), None)
-    # Unified timeline: warnings + notes + tickets + form responses
-    events = []
+def _audit_events(guild_id: int) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
     for r in db_all(
         "SELECT id, user_id, mod_id, reason, created_at FROM warnings "
         "WHERE guild_id=? ORDER BY created_at DESC LIMIT 200",
@@ -1624,9 +1739,85 @@ def guild_audit(guild_id):
                     "id": r["id"],
                 }
             )
-    events.sort(key=lambda e: e["ts"], reverse=True)
-    events = events[:300]
+    events.sort(key=lambda event: event["ts"] or 0, reverse=True)
+    return events[:300]
+
+
+@app.route("/guild/<guild_id>/audit")
+@login_required
+@guild_admin_required
+def guild_audit(guild_id):
+    guild_id = int(guild_id)
+    g_info = _session_guild_info(guild_id)
+    events = _audit_events(guild_id)
     return render_template("audit.html", guild_id=guild_id, guild_info=g_info, user=session["user"], events=events)
+
+
+@app.route("/api/guild/<guild_id>/audit.json")
+@login_required
+@guild_admin_required
+def guild_audit_export(guild_id):
+    guild_id = int(guild_id)
+    rows = [
+        {
+            "timestamp": event["ts"],
+            "type": event["type"],
+            "subject": event["subject"],
+            "actor": event["actor"],
+            "detail": event["detail"],
+        }
+        for event in _audit_events(guild_id)
+    ]
+    if request.args.get("format") == "csv":
+        return _csv_response(
+            f"loki-audit-{guild_id}.csv",
+            rows,
+            ["timestamp", "type", "subject", "actor", "detail"],
+        )
+    return jsonify({"guild_id": guild_id, "events": rows})
+
+
+@app.route("/api/guild/<guild_id>/forms/<form_name>/submissions.json")
+@login_required
+@guild_admin_required
+def guild_form_submissions_export(guild_id, form_name):
+    guild_id = int(guild_id)
+    rows = _row_dicts(
+        db_all(
+            "SELECT id, user_id, responses, submitted_at, COALESCE(status,'pending') AS status, "
+            "decided_by, decided_at, decision_note FROM form_responses "
+            "WHERE guild_id=? AND form_name=? ORDER BY submitted_at DESC",
+            (guild_id, form_name),
+        )
+    )
+    if request.args.get("format") == "csv":
+        return _csv_response(
+            f"loki-form-{guild_id}-{form_name}.csv",
+            rows,
+            ["id", "user_id", "responses", "submitted_at", "status", "decided_by", "decided_at", "decision_note"],
+        )
+    return jsonify({"guild_id": guild_id, "form_name": form_name, "submissions": rows})
+
+
+@app.route("/api/guild/<guild_id>/tickets/export.json")
+@login_required
+@guild_admin_required
+def guild_tickets_export(guild_id):
+    guild_id = int(guild_id)
+    rows = _row_dicts(
+        db_all(
+            "SELECT id, channel_id, opener_id, status, opened_at, closed_at, reason "
+            "FROM tickets WHERE guild_id=? ORDER BY opened_at DESC",
+            (guild_id,),
+        )
+    )
+    if request.args.get("format") == "csv":
+        return _csv_response(
+            f"loki-tickets-{guild_id}.csv",
+            rows,
+            ["id", "channel_id", "opener_id", "status", "opened_at", "closed_at", "reason"],
+        )
+    return jsonify({"guild_id": guild_id, "tickets": rows})
 
 
 # ─── Tickets dashboard panel ─────────────────────────────────────────────────
@@ -1637,7 +1828,7 @@ def guild_audit(guild_id):
 @guild_admin_required
 def guild_tickets(guild_id):
     guild_id = int(guild_id)
-    g_info = next((g for g in session.get("guilds", []) if str(g["id"]) == str(guild_id)), None)
+    g_info = _session_guild_info(guild_id)
     cfg = db_one(
         "SELECT tickets_category_id, tickets_log_channel, tickets_staff_role FROM guild_config WHERE guild_id=?",
         (guild_id,),

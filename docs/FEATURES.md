@@ -202,7 +202,7 @@ Download all submissions for a form as CSV.
 ```
 GET /api/guild/<id>/tickets/export.json
 ```
-All tickets with transcript (channel messages).
+All tracked ticket metadata. Message transcripts are produced by the ticket close workflow/log channel when available.
 
 ## Advanced Workflows
 

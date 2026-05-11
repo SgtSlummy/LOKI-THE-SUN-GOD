@@ -463,6 +463,63 @@ CREATE TABLE IF NOT EXISTS loki_audit_receipts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_loki_audit_receipts_guild ON loki_audit_receipts(guild_id, created_at);
+
+CREATE TABLE IF NOT EXISTS loki_experiment_runs (
+    run_id TEXT PRIMARY KEY,
+    status TEXT DEFAULT 'draft',
+    objective TEXT DEFAULT '',
+    dry_run INTEGER DEFAULT 1,
+    max_iterations INTEGER DEFAULT 100,
+    created_by INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS loki_experiment_candidates (
+    candidate_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    target_paths TEXT DEFAULT '',
+    score REAL DEFAULT 0,
+    safety_status TEXT DEFAULT 'pending_review',
+    rollback_plan TEXT DEFAULT '',
+    verification_commands TEXT DEFAULT '',
+    approved INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_loki_experiment_candidates_run ON loki_experiment_candidates(run_id, score);
+
+CREATE TABLE IF NOT EXISTS loki_experiment_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    candidate_id TEXT DEFAULT '',
+    event_type TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_loki_experiment_audit_run ON loki_experiment_audit(run_id, created_at);
+
+CREATE TABLE IF NOT EXISTS loki_experiment_approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    candidate_id TEXT NOT NULL,
+    approved INTEGER DEFAULT 0,
+    approver_id INTEGER,
+    note TEXT DEFAULT '',
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dashboard_sessions (
+    session_id TEXT PRIMARY KEY,
+    user_json TEXT NOT NULL,
+    guilds_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at);
 """
 
 MIGRATION_COLUMNS = {
@@ -546,6 +603,9 @@ PG_CONFLICT_TARGETS = {
     "worker_leases": ("lease_name",),
     "loki_music_settings": ("guild_id",),
     "loki_npc_settings": ("guild_id",),
+    "loki_experiment_runs": ("run_id",),
+    "loki_experiment_candidates": ("candidate_id",),
+    "dashboard_sessions": ("session_id",),
 }
 
 PG_SERIAL_TABLES = {
@@ -568,6 +628,8 @@ PG_SERIAL_TABLES = {
     "loki_research_sources",
     "loki_activity_controls",
     "loki_audit_receipts",
+    "loki_experiment_audit",
+    "loki_experiment_approvals",
 }
 
 

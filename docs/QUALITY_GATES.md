@@ -28,7 +28,7 @@ Status meanings:
 | 5 | Manual | Bot process inspected during restart checks. |
 | 6 | Manual | Relay readiness is written to `data/relay.log`. |
 | 7 | Automated | OAuth required fields checked by strict env preflight. |
-| 8 | Automated | Dashboard route tests cover `/healthz`, `/callback`, `/guilds`, and guild pages. |
+| 8 | Automated | Dashboard route tests cover `/healthz`, `/callback`, `/guilds`, guild pages, mixer/NPC/activity/developer pages, and JSON/CSV exports. |
 | 9 | Implemented | PyInstaller build script targets `LOKI-THE-SUN-GOD-Dashboard.exe`. |
 | 10 | Implemented | Baseline captured in MemPalace notes and fallback memory. |
 | 11 | Automated | Cog compile, catalog, slash signature, and relay checks. |
@@ -54,7 +54,7 @@ Status meanings:
 | 31 | Automated | Python compile check. |
 | 32 | Automated | Strict release preflight. |
 | 33 | Automated | MCP smoke test. |
-| 34 | Automated | Dashboard route tests. |
+| 34 | Automated | Dashboard route, button, form-submit, mixer, NPC, activity, and export smoke tests. |
 | 35 | Automated | SQLite migration smoke; Postgres when `DATABASE_URL` is set. |
 | 36 | Automated | Relay config/readiness check. |
 | 37 | Automated | OAuth callback guard test. |
