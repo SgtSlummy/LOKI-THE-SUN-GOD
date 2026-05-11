@@ -71,3 +71,21 @@ Status meanings:
 | 48 | Implemented | Final docs pass staged in docs. |
 | 49 | Manual | Final risk review after hosted deploy; live Discord checks remain. |
 | 50 | Manual | Hosted RC still requires deployment plus browser OAuth consent, live `/dashboard`, and live post-restart relay checks. |
+
+## Activity Bridge Addendum
+
+The Activity Bridge adds release gates without changing the original 50-gate
+baseline:
+
+- `Automated`: TypeScript install, typecheck, and build pass from
+  `services/activity-bridge`.
+- `Automated`: Python dashboard smoke covers the Activity Control panel and
+  disabled bridge states.
+- `Automated`: bridge API auth fails closed when `ACTIVITY_BRIDGE_TOKEN` is
+  missing and rejects unauthenticated room API calls.
+- `Manual`: Discord Activity OAuth and Activity Instance API validation require
+  a real hosted Discord application.
+- `Manual`: Railway preview must include the separate Activity Bridge API/WS
+  service plus a separately hosted static Activity client bundle.
+- `Manual`: stream start/stop controls remain disabled until
+  `ALLOW_STREAM_START_STOP=true` is set and the confirmation path is reviewed.

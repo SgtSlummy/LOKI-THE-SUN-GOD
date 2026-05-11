@@ -27,6 +27,11 @@ The optional Discord Activity stream bridge is a separate TypeScript service at
 [ACTIVITY_BRIDGE.md](/C:/LOKI%20THE%20SUN%20GOD/docs/ACTIVITY_BRIDGE.md). LOKI
 Python remains the production Discord command owner.
 
+The current execution sequence is tracked in
+[V123_EXECUTION_MAP.md](/C:/LOKI%20THE%20SUN%20GOD/docs/V123_EXECUTION_MAP.md):
+V1 is local stable, V2 is hosted Railway/live Discord acceptance, and V3 is
+safe dry-run research plus advanced agents.
+
 The shared database schema is bootstrapped from [utils/db.py](/C:/LOKI%20THE%20SUN%20GOD/utils/db.py), so deployments should always run the shared preflight before first launch.
 
 ## Install
