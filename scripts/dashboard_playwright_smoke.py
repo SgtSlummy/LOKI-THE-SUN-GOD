@@ -69,6 +69,13 @@ def _start_desktop_server(port: int, env: dict[str, str]) -> subprocess.Popen:
     )
 
 
+def _assert_nonempty_body(page, path: str) -> str:
+    body_text = page.locator("body").inner_text(timeout=5000).strip()
+    if body_text == "":
+        raise AssertionError(f"Page rendered empty: {path}")
+    return body_text
+
+
 def _run_browser(base_url: str, desktop_url: str, screenshot_dir: Path) -> None:
     try:
         from playwright.sync_api import sync_playwright
@@ -102,6 +109,26 @@ def _run_browser(base_url: str, desktop_url: str, screenshot_dir: Path) -> None:
             page.get_by_role("button", name=tab).click()
         page.screenshot(path=screenshot_dir / "dashboard-desktop.png", full_page=True)
 
+        sidebar_links = [
+            ("Commands", f"/guild/{GUILD_ID}/commands"),
+            ("Mixer", f"/guild/{GUILD_ID}/mixer"),
+            ("NPC", f"/guild/{GUILD_ID}/npc"),
+            ("Embed builder", f"/guild/{GUILD_ID}/embed"),
+            ("Forms", f"/guild/{GUILD_ID}/forms"),
+            ("Tickets", f"/guild/{GUILD_ID}/tickets"),
+            ("Events", f"/guild/{GUILD_ID}/events"),
+            ("Activities", f"/guild/{GUILD_ID}/activities-control"),
+            ("Streams", f"/guild/{GUILD_ID}/streams"),
+            ("Developer", f"/guild/{GUILD_ID}/developer"),
+            ("Audit log", f"/guild/{GUILD_ID}/audit"),
+            ("AI and router", "/ops/ai"),
+        ]
+        for label, path in sidebar_links:
+            page.goto(f"{base_url}/guild/{GUILD_ID}", wait_until="domcontentloaded")
+            page.locator("aside").get_by_role("link", name=label).click()
+            page.wait_for_url(f"**{path}")
+            _assert_nonempty_body(page, path)
+
         pages = [
             f"/guild/{GUILD_ID}/events",
             f"/guild/{GUILD_ID}/forms",
@@ -113,11 +140,19 @@ def _run_browser(base_url: str, desktop_url: str, screenshot_dir: Path) -> None:
             f"/guild/{GUILD_ID}/embed",
             f"/guild/{GUILD_ID}/audit",
             "/ops/ai",
+            "/ops/research",
         ]
         for path in pages:
             page.goto(f"{base_url}{path}", wait_until="domcontentloaded")
-            if page.locator("body").inner_text(timeout=5000).strip() == "":
-                raise AssertionError(f"Page rendered empty: {path}")
+            _assert_nonempty_body(page, path)
+
+        page.goto(f"{base_url}/ops/ai", wait_until="domcontentloaded")
+        page.get_by_role("link", name="Research lab").click()
+        page.wait_for_url("**/ops/research")
+        research_text = _assert_nonempty_body(page, "/ops/research")
+        for required in ("LOKI research lab", "No production hot-edit path"):
+            if required not in research_text:
+                raise AssertionError(f"Research lab is missing {required!r}.")
 
         page.goto(f"{base_url}/ops/ai", wait_until="domcontentloaded")
         page.get_by_label("Ollama host").nth(0).fill("http://127.0.0.1:11434")

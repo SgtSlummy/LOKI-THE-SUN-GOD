@@ -137,6 +137,32 @@ def _post_ok(client, path: str, data: dict[str, object]) -> None:
         raise AssertionError(f"POST {path} returned {response.status_code}")
 
 
+def _assert_server_side_dashboard_session(client, session_id: str) -> None:
+    from utils import db as shared_db
+
+    row = shared_db.sync_one(
+        "SELECT user_json, guilds_json FROM dashboard_sessions WHERE session_id = ?",
+        (session_id,),
+    )
+    if not row:
+        raise AssertionError("Dashboard local connect did not persist a server-side session row.")
+
+    guilds = json.loads(row["guilds_json"])
+    if not any(str(guild.get("id")) == str(GUILD_ID) for guild in guilds):
+        raise AssertionError("Server-side dashboard session is missing the smoke guild grant.")
+
+    response = client.get("/guilds")
+    if response.status_code != 200:
+        raise AssertionError(f"Server-side dashboard session could not load /guilds: {response.status_code}")
+    expected_guild_name = f"LOKI THE SUN GOD Guild {GUILD_ID}".encode()
+    if expected_guild_name not in response.data:
+        raise AssertionError("Server-side dashboard session did not render the smoke guild.")
+
+    with client.session_transaction() as session:
+        if "guilds" in session:
+            raise AssertionError("Server-side dashboard session round trip repopulated client-side guild grants.")
+
+
 def _first_id(query: str, params: tuple = ()) -> int:
     from utils import db as shared_db
 
@@ -164,8 +190,10 @@ def main() -> int:
         with client.session_transaction() as session:
             if "token" in session or "guilds" in session:
                 raise AssertionError("Dashboard local connect stored token or guild grants in the client session.")
-            if not session.get("dashboard_session_id"):
+            dashboard_session_id = session.get("dashboard_session_id")
+            if not dashboard_session_id:
                 raise AssertionError("Dashboard local connect did not create a server-side session id.")
+        _assert_server_side_dashboard_session(client, str(dashboard_session_id))
         _login(client)
 
         for path in (
