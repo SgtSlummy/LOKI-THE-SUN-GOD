@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["awesome-codex-skills", ".mythos"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"dashboard_app.py" = ["E402"]
+"dashboard_standalone.py" = ["E501"]
+"desktop_app.py" = ["E501"]

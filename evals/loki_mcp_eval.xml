@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eval name="loki_mcp_fixture_eval">
+  <context>
+    <fixture guild_id="123456789012345678" />
+    <notes>These questions assume the seeded fixture created by tests/fixtures/mcp/seed_fixture.py.</notes>
+  </context>
+  <case id="1">
+    <question>How many guilds are stored in the fixture?</question>
+    <expected>1</expected>
+  </case>
+  <case id="2">
+    <question>What prefix is configured for the fixture guild?</question>
+    <expected>!</expected>
+  </case>
+  <case id="3">
+    <question>Which welcome message is stored for the fixture guild?</question>
+    <expected>Welcome to LOKI THE SUN GOD HQ!</expected>
+  </case>
+  <case id="4">
+    <question>What is the configured star threshold?</question>
+    <expected>4</expected>
+  </case>
+  <case id="5">
+    <question>How many sticky entries exist in the fixture?</question>
+    <expected>2</expected>
+  </case>
+  <case id="6">
+    <question>Which AI doc mentions Ollama direct mode?</question>
+    <expected>AI Operator Library</expected>
+  </case>
+  <case id="7">
+    <question>What local URL is stored as the Anthropic base URL in the fixture Codex settings?</question>
+    <expected>http://127.0.0.1:20128/v1</expected>
+  </case>
+  <case id="8">
+    <question>Should diagnostics report a runtime log as present in the seeded fixture?</question>
+    <expected>true</expected>
+  </case>
+  <case id="9">
+    <question>What stream platform entries are stored in the fixture?</question>
+    <expected>twitch,youtube</expected>
+  </case>
+  <case id="10">
+    <question>Does the fixture require DISCORD_TOKEN for saved guild config retrieval?</question>
+    <expected>no</expected>
+  </case>
+</eval>

@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import logging
+import os
+import time
+
+import discord
+from discord.ext import commands
+
+from loki_engine.permissions import PermissionContext, assert_admin_action
+from loki_npc.memory import public_memory_allowed, recent_public_memory, remember_public_message
+from loki_npc.openai_responses import ask_npc
+from loki_npc.persona import default_persona
+
+log = logging.getLogger("loki.npc")
+
+
+class LokiNpc(commands.Cog):
+    """Public NPC responder with admin-only settings changes."""
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+        self.cooldowns: dict[tuple[int, int], float] = {}
+
+    def enabled(self) -> bool:
+        return os.getenv("LOKI_NPC_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if not self.enabled() or message.author.bot or not message.guild:
+            return
+        if not self._channel_allowed(message.channel):
+            return
+        author_opted_out = str(message.author.id) in self._csv_set("LOKI_NPC_MEMORY_OPT_OUT_USER_IDS")
+        is_private_channel = self._is_private_channel(message.channel, message.guild)
+        if public_memory_allowed(
+            is_private_channel=is_private_channel,
+            author_opted_out=author_opted_out,
+            deleted=False,
+        ):
+            remember_public_message(
+                guild_id=message.guild.id,
+                channel_id=message.channel.id,
+                user_id=message.author.id,
+                content=message.clean_content,
+            )
+        if self.bot.user not in message.mentions:
+            return
+        key = (message.guild.id, message.author.id)
+        now = time.time()
+        if now - self.cooldowns.get(key, 0) < 20:
+            return
+        self.cooldowns[key] = now
+        persona = default_persona(message.guild.id)
+        prompt = message.clean_content.replace(f"@{self.bot.user.display_name}", "").strip()
+        try:
+            answer = await ask_npc(
+                prompt=prompt,
+                persona=persona.prompt_text(),
+                memory_context=recent_public_memory(message.guild.id),
+            )
+        except Exception:
+            log.exception("LOKI NPC provider failed")
+            answer = "NPC brain is not available yet. An operator can check the bot logs."
+        await message.reply(answer[:1900], mention_author=False)
+
+    def _channel_allowed(self, channel: discord.abc.Messageable) -> bool:
+        allowed = self._csv_set("LOKI_NPC_ALLOWED_CHANNEL_IDS")
+        if not allowed:
+            return True
+        channel_ids = self._channel_scope_ids(channel)
+        return bool(channel_ids & allowed)
+
+    @staticmethod
+    def _is_private_channel(channel: discord.abc.Messageable, guild: discord.Guild) -> bool:
+        target = channel.parent if isinstance(channel, discord.Thread) and channel.parent is not None else channel
+        if not hasattr(target, "permissions_for"):
+            return True
+        permissions = target.permissions_for(guild.default_role)
+        return not bool(getattr(permissions, "view_channel", False))
+
+    @classmethod
+    def _channel_scope_ids(cls, channel: discord.abc.Messageable) -> set[str]:
+        ids: set[str] = set()
+        for value in (
+            getattr(channel, "id", None),
+            getattr(channel, "parent_id", None),
+            getattr(channel, "category_id", None),
+        ):
+            if value:
+                ids.add(str(value))
+        parent = getattr(channel, "parent", None) or getattr(channel, "category", None)
+        parent_id = getattr(parent, "id", None)
+        if parent_id:
+            ids.add(str(parent_id))
+        return ids
+
+    @staticmethod
+    def _csv_set(name: str) -> set[str]:
+        return {part.strip() for part in (os.getenv(name) or "").split(",") if part.strip()}
+
+    @commands.hybrid_group(name="npc", description="Manage the LOKI NPC")
+    async def npc(self, ctx: commands.Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Use a subcommand: status, reset, or personality.")
+
+    @npc.command(name="status", description="Show LOKI NPC status")
+    async def npc_status(self, ctx: commands.Context):
+        state = "enabled" if self.enabled() else "disabled"
+        await ctx.send(f"LOKI NPC is **{state}**. Public replies require mentioning the bot.")
+
+    @npc.command(name="reset", description="Reset LOKI NPC personality for this server")
+    @commands.has_permissions(manage_guild=True)
+    async def npc_reset(self, ctx: commands.Context):
+        permissions = getattr(ctx.author.guild_permissions, "value", 0)
+        decision = assert_admin_action(
+            PermissionContext(
+                user_id=ctx.author.id,
+                guild_id=ctx.guild.id if ctx.guild else None,
+                permissions=permissions,
+            ),
+            "reset_npc_personality",
+        )
+        if not decision.allowed:
+            return await ctx.send(decision.reason)
+        await ctx.send("LOKI NPC personality reset to the generated default for this server.")
+
+    @npc.command(name="personality", description="Show the generated LOKI NPC personality")
+    async def npc_personality(self, ctx: commands.Context):
+        if not ctx.guild:
+            return await ctx.send("Use this inside a server.")
+        await ctx.send(default_persona(ctx.guild.id).prompt_text())
+
+
+async def setup(bot):
+    await bot.add_cog(LokiNpc(bot))

@@ -1,0 +1,50 @@
+{# Reusable guild sidebar — pass `active` and `guild_id` #}
+<aside class="col-span-12 lg:col-span-3 space-y-2">
+  <div class="rounded-xl border border-ink-600/60 bg-ink-800/60 p-4">
+    <div class="flex items-center gap-3">
+      {% if guild_info.icon %}
+        <img src="https://cdn.discordapp.com/icons/{{ guild_id }}/{{ guild_info.icon }}.png?size=64"
+             class="w-12 h-12 rounded-xl ring-2 ring-ink-700">
+      {% else %}
+        <div class="w-12 h-12 rounded-xl bg-ink-700 grid place-items-center text-lg font-bold">
+          {{ (guild_info.name or '?')[0]|upper }}
+        </div>
+      {% endif %}
+      <div class="min-w-0">
+        <div class="font-semibold truncate">{{ guild_info.name or guild_id }}</div>
+        <div class="text-xs text-slate-500 truncate">ID {{ guild_id }}</div>
+      </div>
+    </div>
+  </div>
+  <nav class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-2 space-y-0.5 text-sm">
+    {% set items = [
+      ('config',  'sliders',          'Configuration', '/guild/' ~ guild_id),
+      ('commands','slash-circle',     'Commands',      '/guild/' ~ guild_id ~ '/commands'),
+      ('mixer',   'sliders2',         'Mixer',         '/guild/' ~ guild_id ~ '/mixer'),
+      ('npc',     'person-badge',     'NPC',           '/guild/' ~ guild_id ~ '/npc'),
+      ('embed',   'card-text',        'Embed builder', '/guild/' ~ guild_id ~ '/embed'),
+      ('forms',   'ui-checks',        'Forms',         '/guild/' ~ guild_id ~ '/forms'),
+      ('tickets', 'ticket-detailed',  'Tickets',       '/guild/' ~ guild_id ~ '/tickets'),
+      ('events',  'calendar-event',   'Events',        '/guild/' ~ guild_id ~ '/events'),
+      ('activities-control', 'joystick', 'Activities', '/guild/' ~ guild_id ~ '/activities-control'),
+      ('streams', 'broadcast-pin',    'Streams',       '/guild/' ~ guild_id ~ '/streams'),
+      ('developer', 'braces',         'Developer',     '/guild/' ~ guild_id ~ '/developer'),
+      ('audit',   'journal-text',     'Audit log',     '/guild/' ~ guild_id ~ '/audit'),
+    ] %}
+    {% for key, icon, label, href in items %}
+      {% set is_active = request.path == href or (key == 'config' and request.path == '/guild/' ~ guild_id) %}
+      <a href="{{ href }}"
+         class="flex items-center gap-2 px-3 py-2 rounded-lg
+                {% if is_active %}bg-blurple/15 text-blurple{% else %}text-slate-300 hover:bg-ink-700/60{% endif %}">
+        <i class="bi bi-{{ icon }} w-5 text-center"></i>{{ label }}
+      </a>
+    {% endfor %}
+    <hr class="border-ink-600/60 my-1">
+    <a href="{{ url_for('ai_ops') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-300 hover:bg-ink-700/60">
+      <i class="bi bi-cpu w-5 text-center"></i>AI and router
+    </a>
+    <a href="/guilds" class="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:text-slate-300">
+      <i class="bi bi-arrow-left w-5 text-center"></i>All servers
+    </a>
+  </nav>
+</aside>

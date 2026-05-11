@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}LOKI THE SUN GOD Login{% endblock %}
+{% block content %}
+<section class="min-h-[70vh] grid lg:grid-cols-[1.1fr_.9fr] gap-6 items-center">
+  <div class="space-y-5">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blurple/30 bg-blurple/10 text-blurple text-sm">
+      <i class="bi bi-discord"></i> Discord-managed admin access
+    </div>
+    <div>
+      <h1 class="text-4xl sm:text-5xl font-semibold text-white tracking-tight">Run LOKI THE SUN GOD from one clean dashboard.</h1>
+      <p class="text-slate-400 mt-4 max-w-2xl">Configure automod, forms, tickets, streams, embeds, and audit workflows from one place. Sign in with Discord to manage the servers where you have permissions.</p>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      {% if oauth_ready %}
+        <a href="{{ url_for('login') }}" class="px-5 py-3 rounded-xl bg-blurple hover:bg-blurple-600 text-white font-medium shadow-glow inline-flex items-center gap-2">
+          <i class="bi bi-box-arrow-in-right"></i> Continue with Discord
+        </a>
+      {% else %}
+        <div class="px-5 py-3 rounded-xl border border-amber/30 bg-amber/10 text-amber inline-flex items-center gap-2">
+          <i class="bi bi-exclamation-triangle"></i> Discord OAuth not configured
+        </div>
+      {% endif %}
+      {% if local_bridge_available %}
+        <a href="{{ url_for('connect_loki') }}" class="px-5 py-3 rounded-xl border border-ink-600 text-slate-200 hover:bg-ink-800/70 inline-flex items-center gap-2">
+          <i class="bi bi-hdd-network"></i> Connect local LOKI THE SUN GOD
+        </a>
+      {% endif %}
+    </div>
+    {% if not oauth_ready %}
+      <div class="rounded-2xl border border-amber/30 bg-amber/10 px-4 py-3 text-sm text-amber max-w-2xl">
+        Set
+        {% for name in missing_oauth %}
+          <code class="px-1.5 py-0.5 rounded bg-ink-900 text-slate-200">{{ name }}</code>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        before using Discord sign-in on a deployed dashboard.
+      </div>
+    {% endif %}
+  </div>
+  <div class="rounded-3xl border border-ink-700 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6 shadow-glow">
+    <div class="grid sm:grid-cols-2 gap-3">
+      {% for icon, title, copy, tone in [
+        ('shield-check', 'AutoMod', 'Toggles and thresholds for invite, spam, caps, and mention abuse.', 'blurple'),
+        ('ui-checks', 'Forms', 'Create application flows and review submissions.', 'amber'),
+        ('ticket-detailed', 'Tickets', 'See support load and recent issue history.', 'mint'),
+        ('journal-text', 'Audit', 'Track warnings, notes, tickets, and application decisions.', 'rose')
+      ] %}
+        <div class="rounded-2xl border border-ink-700 bg-ink-900/60 p-4">
+          <i class="bi bi-{{ icon }} text-{{ tone }} text-xl"></i>
+          <h2 class="text-white font-medium mt-3">{{ title }}</h2>
+          <p class="text-sm text-slate-400 mt-2">{{ copy }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Audit log — {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+{% set active = 'audit' %}
+
+{% set TYPE_META = {
+  'warning':       ('shield-exclamation', 'rose',    'Warning issued'),
+  'note':          ('sticky',             'amber',   'Note added'),
+  'ticket-open':   ('ticket-detailed',    'mint',    'Ticket opened'),
+  'ticket-close':  ('archive',            'slate-400','Ticket closed'),
+  'form-submit':   ('inbox',              'blurple', 'Form submitted'),
+  'form-approved': ('check-circle-fill',  'mint',    'Application approved'),
+  'form-denied':   ('x-circle-fill',      'rose',    'Application denied'),
+} %}
+
+<div x-data="{ filter: 'all', search: '' }" class="space-y-4">
+
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h2 class="text-2xl font-semibold text-white">Audit log</h2>
+      <p class="text-sm text-slate-400">Unified timeline of mod actions, tickets, and form submissions.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="relative">
+        <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+        <input x-model="search" placeholder="Filter by user ID or text…"
+               class="pl-9 pr-3 py-2 rounded-lg bg-ink-900 border border-ink-600 text-sm w-64 focus:outline-none focus:border-blurple focus:ring-2 focus:ring-blurple/30">
+      </div>
+    </div>
+  </div>
+
+  <!-- Type chip filter -->
+  <div class="flex flex-wrap gap-2 text-xs">
+    {% set types = [
+      ('all',           'list',                 'All',         'slate-300'),
+      ('warning',       'shield-exclamation',   'Warnings',    'rose'),
+      ('note',          'sticky',               'Notes',       'amber'),
+      ('ticket-open',   'ticket-detailed',      'Tickets',     'mint'),
+      ('form-submit',   'inbox',                'Submissions', 'blurple'),
+      ('form-approved', 'check-circle-fill',    'Approved',    'mint'),
+      ('form-denied',   'x-circle-fill',        'Denied',      'rose'),
+    ] %}
+    {% for key, icon, label, color in types %}
+      <button type="button" @click="filter='{{ key }}'"
+              :class="filter === '{{ key }}' ? 'bg-{{ color }}/15 border-{{ color }}/40 text-{{ color }}' : 'border-ink-600 text-slate-400 hover:text-slate-200'"
+              class="px-3 py-1.5 rounded-lg border inline-flex items-center gap-1.5 transition">
+        <i class="bi bi-{{ icon }}"></i> {{ label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  {% if events %}
+    <ol class="relative border-l-2 border-ink-700 ml-3 space-y-3">
+      {% for e in events %}
+        {% set meta = TYPE_META.get(e.type, ('circle','slate-400', e.type)) %}
+        <li x-show="(filter==='all' || filter==='{{ e.type }}') && (!search || '{{ e.subject }}{{ e.actor }}{{ e.detail|e }}'.toLowerCase().includes(search.toLowerCase()))"
+            x-cloak
+            class="ml-6">
+          <span class="absolute -left-[13px] grid place-items-center w-6 h-6 rounded-full bg-ink-900 border-2 border-{{ meta[1] }}/60 text-{{ meta[1] }} text-xs">
+            <i class="bi bi-{{ meta[0] }}"></i>
+          </span>
+          <div class="rounded-lg border border-ink-700 bg-ink-800/40 p-3 hover:border-{{ meta[1] }}/40 transition">
+            <div class="flex items-baseline gap-2 flex-wrap">
+              <span class="text-sm font-semibold text-{{ meta[1] }}">{{ meta[2] }}</span>
+              <span class="text-xs text-slate-400">subject <span class="font-mono">{{ e.subject }}</span></span>
+              {% if e.actor %}
+                <span class="text-xs text-slate-500">by <span class="font-mono">{{ e.actor }}</span></span>
+              {% endif %}
+              <span class="ml-auto text-xs text-slate-500" x-data x-text="new Date({{ e.ts }} * 1000).toLocaleString()"></span>
+            </div>
+            {% if e.detail %}
+              <div class="text-sm text-slate-300 mt-1 line-clamp-3">{{ e.detail }}</div>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <div class="rounded-xl border border-dashed border-ink-600 bg-ink-800/30 p-10 text-center">
+      <i class="bi bi-journal-x text-4xl text-slate-500"></i>
+      <p class="mt-2 text-slate-400">No audit events yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

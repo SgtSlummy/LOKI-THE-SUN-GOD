@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Forms - {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+<div x-data="{ query: '' }" class="space-y-4">
+  <div class="flex items-end justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold text-white">Forms</h1>
+      <p class="text-sm text-slate-400">Create application flows and review submission volume.</p>
+    </div>
+    <form method="POST" action="{{ url_for('guild_forms_create', guild_id=guild_id) }}" class="flex flex-wrap gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input name="name" placeholder="internal-name" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      <input name="title" placeholder="Public form title" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm min-w-56">
+      <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Create form</button>
+    </form>
+  </div>
+  <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+    <div class="relative">
+      <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+      <input x-model="query" type="text" placeholder="Search forms, titles, or target channels" class="w-full rounded-xl bg-ink-900 border border-ink-600 pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blurple focus:border-blurple">
+    </div>
+  </div>
+  <div class="rounded-2xl border border-ink-700 bg-ink-800/40 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-ink-900/80 text-slate-400">
+        <tr>
+          <th class="text-left px-4 py-3">Name</th>
+          <th class="text-left px-4 py-3">Title</th>
+          <th class="text-left px-4 py-3">Target channel</th>
+          <th class="text-left px-4 py-3">Responses</th>
+          <th class="text-left px-4 py-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for form in forms %}
+          <tr class="border-t border-ink-700/80"
+              x-show="!query || {{ (form.name ~ ' ' ~ form.title ~ ' ' ~ (channel_map.get(form.target_channel_id|string, '') if form.target_channel_id else ''))|tojson }}.toLowerCase().includes(query.toLowerCase())">
+            <td class="px-4 py-3 font-mono text-slate-300">{{ form.name }}</td>
+            <td class="px-4 py-3 text-white">{{ form.title }}</td>
+            <td class="px-4 py-3 text-slate-400">{{ channel_map.get(form.target_channel_id|string, '#' ~ form.target_channel_id) if form.target_channel_id else '-' }}</td>
+            <td class="px-4 py-3 text-amber">{{ form_responses.get(form.name, 0) }}</td>
+            <td class="px-4 py-3">
+              <div class="flex gap-2">
+                <a href="{{ url_for('form_edit', guild_id=guild_id, form_name=form.name) }}" class="px-3 py-1.5 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Edit</a>
+                <a href="{{ url_for('form_responses_page', guild_id=guild_id, form_name=form.name) }}" class="px-3 py-1.5 rounded-lg bg-blurple/15 text-blurple hover:bg-blurple/25">Responses</a>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="px-4 py-8 text-center text-slate-500">No forms created yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

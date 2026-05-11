@@ -1,0 +1,104 @@
+{
+  "boundary": "Clean-room public feature parity only. Excludes decompilation, private API probing, auth bypass, copying protected internals, or using non-public source.",
+  "sources": [
+    {
+      "id": "diva-home",
+      "url": "https://divabot.xyz/",
+      "summary": "Public home page describes Diva as a Discord music bot with YouTube, Spotify, Apple Music, web dashboard, button controls, song request channel, smart queue management, filters, playlists, and broad source support.",
+      "confidence": 0.9
+    },
+    {
+      "id": "diva-commands",
+      "url": "https://divabot.xyz/commands",
+      "summary": "Public commands page lists music playback, queue, DJ/admin settings, webplayer, song request setup, playlist, profile, premium, and audio filter commands.",
+      "confidence": 0.95
+    },
+    {
+      "id": "diva-guide",
+      "url": "https://guide.divabot.xyz/",
+      "summary": "Public guide says commands use slash prefix examples such as /play, /queue, /skip, and documents premium/custom bot setup paths.",
+      "confidence": 0.85
+    },
+    {
+      "id": "diva-terms",
+      "url": "https://divabot.xyz/terms",
+      "summary": "Public terms describe Diva as a user-controlled utility that retrieves publicly available third-party media on request and does not retain media after delivery.",
+      "confidence": 0.8
+    }
+  ],
+  "public_command_targets": {
+    "music_core": [
+      "play",
+      "stop",
+      "queue",
+      "skip",
+      "pause",
+      "resume",
+      "nowplaying",
+      "volume",
+      "lyrics",
+      "grab",
+      "loop",
+      "shuffle",
+      "seek",
+      "rewind",
+      "forward",
+      "clear",
+      "remove",
+      "move",
+      "join",
+      "leave",
+      "webplayer",
+      "music-panel"
+    ],
+    "server_settings": [
+      "setup",
+      "settings",
+      "dj",
+      "settext",
+      "setvc",
+      "defaultvolume",
+      "announce",
+      "cleanup",
+      "dashboard"
+    ],
+    "playlist_profile": [
+      "create",
+      "delete",
+      "addsong",
+      "removesong",
+      "load",
+      "playlists",
+      "favourites",
+      "spotify",
+      "profile"
+    ],
+    "excluded_public_audio_filters": [
+      "8d",
+      "bassboost",
+      "karaoke",
+      "lowpass",
+      "nightcore",
+      "pitch",
+      "rate",
+      "reset",
+      "rotation",
+      "speed",
+      "tremolo",
+      "vibrato"
+    ],
+    "loki_extensions": [
+      "eq",
+      "mixer",
+      "npc",
+      "activity",
+      "mythos",
+      "codex-agi"
+    ]
+  },
+  "implementation_policy": {
+    "filters": "Do not expose arbitrary public audio filter commands in LOKI v1. Equalizer presets are allowed through the mixer/EQ surface.",
+    "training": "Use redacted public-channel memory/RAG; do not fine-tune on raw Discord content.",
+    "admin_actions": "Discord settings, activity creation, and NPC configuration mutations require server-side permission checks."
+  }
+}

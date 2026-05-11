@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Events - {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+<div x-data="{ query: '' }" class="space-y-4">
+  <div class="flex items-end justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold text-white">Events</h1>
+      <p class="text-sm text-slate-400">Create and edit scheduled event records without leaving the dashboard.</p>
+    </div>
+  </div>
+
+  <form method="POST" action="{{ url_for('guild_events_create', guild_id=guild_id) }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <h2 class="text-lg font-semibold text-white">Create event</h2>
+      <p class="text-sm text-slate-400 mt-1">Add the title, start time, location, description, and optional color in one place.</p>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-3">
+      <input name="title" placeholder="Community game night" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      <input type="datetime-local" name="starts_at" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      <input name="location" placeholder="Voice Lounge or external link" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      <input name="color" value="#57F287" placeholder="#57F287" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      <textarea name="description" rows="3" placeholder="Tell members what the event is about." class="lg:col-span-2 rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm"></textarea>
+    </div>
+    <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Create event</button>
+  </form>
+
+  <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+    <div class="relative">
+      <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+      <input x-model="query" type="text" placeholder="Search event title, location, or description" class="w-full rounded-xl bg-ink-900 border border-ink-600 pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blurple focus:border-blurple">
+    </div>
+  </div>
+
+  <div class="space-y-3">
+    {% for event in events %}
+      <article x-data="{ open: false }" x-show="!query || {{ (event.title ~ ' ' ~ (event.location or '') ~ ' ' ~ (event.description or ''))|tojson }}.toLowerCase().includes(query.toLowerCase())" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-white font-semibold text-lg">{{ event.title }}</span>
+              <span class="px-2 py-1 rounded-full bg-amber/10 text-amber text-xs">{{ event.pending_reminders }} pending reminder{{ '' if event.pending_reminders == 1 else 's' }}</span>
+              <span class="px-2 py-1 rounded-full bg-ink-900 text-slate-300 text-xs">{{ event.reposts }} repost record{{ '' if event.reposts == 1 else 's' }}</span>
+            </div>
+            <div class="text-sm text-slate-300 mt-2" x-data x-text="new Date({{ event.starts_at }} * 1000).toLocaleString()"></div>
+            <div class="text-sm text-slate-500 mt-1">{{ event.location or 'No location set' }}</div>
+            <p class="text-sm text-slate-400 mt-3 whitespace-pre-wrap">{{ event.description }}</p>
+          </div>
+          <button type="button" @click="open = !open" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60 text-sm">
+            <span x-text="open ? 'Hide editor' : 'Edit event'"></span>
+          </button>
+        </div>
+
+        <form x-show="open" x-cloak method="POST" action="{{ url_for('guild_events_save', guild_id=guild_id, event_id=event.id) }}" class="mt-4 grid lg:grid-cols-2 gap-3 rounded-2xl border border-ink-700 bg-ink-900/60 p-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Title</label>
+            <input name="title" value="{{ event.title }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Start time</label>
+            <input type="datetime-local" name="starts_at" value="{{ event.starts_at_input }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Location</label>
+            <input name="location" value="{{ event.location or '' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Color</label>
+            <input name="color" value="{{ '#%06X' % (event.color or 0x57F287) }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          </div>
+          <div class="lg:col-span-2">
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Description</label>
+            <textarea name="description" rows="3" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">{{ event.description }}</textarea>
+          </div>
+          <div class="lg:col-span-2">
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Optional reminder offset</label>
+            <input name="reminder_offset" placeholder="30m, 1h, 1d" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          </div>
+          <div class="lg:col-span-2 flex gap-2 flex-wrap">
+            <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save event</button>
+          </div>
+        </form>
+
+        <form method="POST" action="{{ url_for('guild_events_delete', guild_id=guild_id, event_id=event.id) }}" class="mt-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="px-3 py-1.5 rounded-lg bg-rose/15 text-rose hover:bg-rose/25 text-sm">Delete event</button>
+        </form>
+      </article>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-ink-600 bg-ink-800/20 p-8 text-center text-slate-500">No events found.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

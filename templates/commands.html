@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Commands - {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+<div x-data="commandLibraryPage({{ commands|tojson }})" class="space-y-4">
+  <section class="rounded-2xl border border-ink-700 bg-ink-800/40 p-5">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <div class="text-xs uppercase tracking-[0.24em] text-blurple/80">Slash Reference</div>
+        <h1 class="text-2xl font-semibold text-white mt-1">Searchable / command library</h1>
+        <p class="text-sm text-slate-400 mt-2 max-w-3xl">
+          Research-backed command index for LOKI THE SUN GOD. Every slash-capable command shows its purpose,
+          required permissions, and each option so admins can understand what will happen before they run it.
+        </p>
+      </div>
+      <a href="{{ url_for('guild', guild_id=guild_id) }}" class="px-4 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">
+        Back to configuration
+      </a>
+    </div>
+  </section>
+
+  <section class="grid xl:grid-cols-3 gap-4">
+    <form method="POST" action="{{ url_for('guild_commands_save', guild_id=guild_id) }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="disable">
+      <div>
+        <h2 class="text-lg font-semibold text-white">Disable or re-enable commands</h2>
+        <p class="text-sm text-slate-400 mt-1">Pick a slash command to block for non-admin members, or re-enable one that is already disabled.</p>
+      </div>
+      <input name="command" list="command-name-list" placeholder="command name" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      <div class="flex gap-2">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Disable</button>
+        <button type="submit" onclick="this.form.querySelector('[name=action]').value='enable'" class="px-4 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Re-enable</button>
+      </div>
+      <div class="text-xs text-slate-500">
+        Current: {{ disabled_commands|join(', ') if disabled_commands else 'No commands are disabled.' }}
+      </div>
+      <datalist id="command-name-list">
+        {% for command_name in command_names %}
+          <option value="{{ command_name }}"></option>
+        {% endfor %}
+      </datalist>
+    </form>
+
+    <form method="POST" action="{{ url_for('guild_commands_save', guild_id=guild_id) }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="ignore">
+      <div>
+        <h2 class="text-lg font-semibold text-white">Ignored channels</h2>
+        <p class="text-sm text-slate-400 mt-1">Choose where regular commands should be ignored, or remove a channel from the ignore list.</p>
+      </div>
+      {% if channel_choices %}
+        <select name="channel_id" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          <option value="">Choose a channel</option>
+          {% for channel in channel_choices %}
+            <option value="{{ channel.id }}">#{{ channel.name }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input name="channel_id" placeholder="channel ID" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      {% endif %}
+      <div class="flex gap-2">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Ignore</button>
+        <button type="submit" onclick="this.form.querySelector('[name=action]').value='unignore'" class="px-4 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Restore</button>
+      </div>
+      <div class="text-xs text-slate-500">
+        Current: {% if ignored_channels %}{% for channel_id in ignored_channels %}{{ channel_map.get(channel_id|string, '#' ~ channel_id) }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}No ignored channels configured.{% endif %}
+      </div>
+    </form>
+
+    <form method="POST" action="{{ url_for('guild_commands_save', guild_id=guild_id) }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 space-y-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_mod_role">
+      <div>
+        <h2 class="text-lg font-semibold text-white">Moderator roles</h2>
+        <p class="text-sm text-slate-400 mt-1">Add or remove roles that should count as LOKI THE SUN GOD moderator roles.</p>
+      </div>
+      {% if role_choices %}
+        <select name="role_id" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+          <option value="">Choose a role</option>
+          {% for role in role_choices %}
+            <option value="{{ role.id }}">{{ role.name }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input name="role_id" placeholder="role ID" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-sm">
+      {% endif %}
+      <div class="flex gap-2">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Add role</button>
+        <button type="submit" onclick="this.form.querySelector('[name=action]').value='remove_mod_role'" class="px-4 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Remove role</button>
+      </div>
+      <div class="text-xs text-slate-500">
+        Current: {% if mod_roles %}{% for role_id in mod_roles %}{{ role_map.get(role_id|string, '@' ~ role_id) }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}No moderator roles configured.{% endif %}
+      </div>
+    </form>
+  </section>
+
+  <section class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Slash commands</div>
+      <div class="text-3xl font-semibold text-white mt-2">{{ stats.total }}</div>
+      <div class="text-sm text-slate-400 mt-1">Commands currently exposed through `/`.</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Commands with options</div>
+      <div class="text-3xl font-semibold text-white mt-2">{{ stats.with_options }}</div>
+      <div class="text-sm text-slate-400 mt-1">Entries that accept one or more slash options.</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Total options</div>
+      <div class="text-3xl font-semibold text-white mt-2">{{ stats.option_total }}</div>
+      <div class="text-sm text-slate-400 mt-1">All documented parameters across the slash surface.</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Autocomplete helpers</div>
+      <div class="text-3xl font-semibold text-white mt-2">{{ stats.autocomplete_total }}</div>
+      <div class="text-sm text-slate-400 mt-1">Commands where Discord can suggest live option values.</div>
+    </div>
+  </section>
+
+  <section class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div class="relative flex-1">
+        <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+        <input
+          x-model="query"
+          type="text"
+          placeholder="Search commands, options, permissions, or descriptions"
+          class="w-full rounded-xl bg-ink-900 border border-ink-600 pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blurple focus:border-blurple"
+        >
+      </div>
+      <select
+        x-model="category"
+        class="rounded-xl bg-ink-900 border border-ink-600 px-3 py-2.5 text-sm min-w-56 focus:ring-2 focus:ring-blurple focus:border-blurple"
+      >
+        <option value="">All categories</option>
+        {% for label, count in category_counts %}
+          <option value="{{ label }}">{{ label }} ({{ count }})</option>
+        {% endfor %}
+      </select>
+      <div class="text-sm text-slate-400">
+        Showing <span class="text-white font-medium" x-text="filteredCommands().length"></span> commands
+      </div>
+    </div>
+    <p class="text-xs text-slate-500 mt-3">
+      Discord surfaces concise descriptions in the command picker, so this page keeps the quick summary short and moves the deeper option guidance below.
+    </p>
+  </section>
+
+  <section class="space-y-3">
+    <template x-if="!filteredCommands().length">
+      <div class="rounded-2xl border border-dashed border-ink-600 bg-ink-800/20 p-8 text-center text-slate-500">
+        No slash commands matched this search yet.
+      </div>
+    </template>
+
+    <template x-for="command in filteredCommands()" :key="command.id">
+      <article x-data="{ expanded: false }" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-white font-semibold text-lg" x-text="`/${command.full_name}`"></span>
+              <span class="px-2 py-1 rounded-full bg-blurple/15 text-blurple text-xs" x-text="command.kind"></span>
+              <span class="px-2 py-1 rounded-full bg-ink-900 text-slate-300 text-xs" x-text="command.category"></span>
+              <span x-show="command.option_count" class="px-2 py-1 rounded-full bg-mint/10 text-mint text-xs">
+                <span x-text="`${command.option_count} options`"></span>
+              </span>
+            </div>
+            <p class="text-sm text-slate-300 mt-2" x-text="command.description"></p>
+            <div class="flex flex-wrap gap-2 mt-3 text-xs text-slate-400">
+              <span x-show="command.aliases?.length" class="px-2 py-1 rounded-full bg-ink-900 border border-ink-700">
+                Aliases: <span x-text="command.aliases.join(', ')"></span>
+              </span>
+              <span x-show="command.permission_labels?.length" class="px-2 py-1 rounded-full bg-ink-900 border border-ink-700">
+                Needs: <span x-text="command.permission_labels.join(', ')"></span>
+              </span>
+              <span class="px-2 py-1 rounded-full bg-ink-900 border border-ink-700">
+                Source: <span x-text="command.file"></span>
+              </span>
+            </div>
+          </div>
+
+          <button
+            x-show="command.option_count"
+            @click="expanded = !expanded"
+            class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60 text-sm"
+          >
+            <span x-text="expanded ? 'Hide options' : `View ${command.option_count} options`"></span>
+          </button>
+        </div>
+
+        <div x-show="expanded && command.option_count" x-cloak class="mt-4 rounded-2xl border border-ink-700 bg-ink-900/60 p-4">
+          <div class="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
+            <i class="bi bi-sliders2"></i> Slash options
+          </div>
+          <div class="grid gap-2 mt-3">
+            <template x-for="option in command.options" :key="`${command.id}-${option.name}`">
+              <div class="rounded-xl border border-ink-700 bg-ink-800/50 px-3 py-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <code class="text-sm text-white" x-text="option.name"></code>
+                  <span class="px-2 py-1 rounded-full bg-ink-900 text-slate-300 text-xs" x-text="option.type"></span>
+                  <span
+                    class="px-2 py-1 rounded-full text-xs"
+                    :class="option.required ? 'bg-rose/10 text-rose' : 'bg-slate-700/50 text-slate-300'"
+                    x-text="option.required ? 'required' : 'optional'"
+                  ></span>
+                  <span x-show="option.autocomplete" class="px-2 py-1 rounded-full bg-amber/10 text-amber text-xs">
+                    autocomplete
+                  </span>
+                </div>
+                <p class="text-sm text-slate-300 mt-2" x-text="option.description"></p>
+                <div class="flex flex-wrap gap-2 mt-3 text-xs text-slate-400">
+                  <span x-show="option.annotation" class="px-2 py-1 rounded-full bg-ink-900 border border-ink-700">
+                    Signature: <span x-text="option.annotation"></span>
+                  </span>
+                  <span x-show="option.default_display" class="px-2 py-1 rounded-full bg-ink-900 border border-ink-700">
+                    Default: <span x-text="option.default_display"></span>
+                  </span>
+                  <span x-show="option.choices?.length" class="px-2 py-1 rounded-full bg-ink-900 border border-ink-700">
+                    Choices: <span x-text="option.choices.join(', ')"></span>
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </article>
+    </template>
+  </section>
+</div>
+
+<script>
+function commandLibraryPage(commands) {
+  return {
+    commands,
+    query: '',
+    category: '',
+    filteredCommands() {
+      const query = (this.query || '').toLowerCase().trim();
+      return this.commands.filter((command) => {
+        const categoryOk = !this.category || command.category === this.category;
+        const queryOk = !query || (command.search || '').includes(query);
+        return categoryOk && queryOk;
+      });
+    },
+  };
+}
+</script>
+{% endblock %}

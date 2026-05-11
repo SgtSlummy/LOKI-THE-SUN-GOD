@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Streams - {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+<div x-data="{ query: '' }" class="space-y-4">
+  <div class="flex items-end justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-semibold text-white">Stream subscriptions</h1>
+      <p class="text-sm text-slate-400">Track creators and route alerts into Discord channels.</p>
+    </div>
+  </div>
+  <form method="POST" action="{{ url_for('guild_streams_add', guild_id=guild_id) }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 grid md:grid-cols-4 gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="platform" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <option value="twitch">twitch</option>
+      <option value="kick">kick</option>
+      <option value="tiktok">tiktok</option>
+    </select>
+    <input name="channel_name" placeholder="creator-name" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+    {% if channel_choices %}
+      <select name="target_channel_id" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        <option value="">Target channel</option>
+        {% for channel in channel_choices %}
+          <option value="{{ channel.id }}">#{{ channel.name }}</option>
+        {% endfor %}
+      </select>
+    {% else %}
+      <input name="target_channel_id" placeholder="target channel ID" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+    {% endif %}
+    {% if role_choices %}
+      <select name="mention_role_id" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        <option value="">Mention role (optional)</option>
+        {% for role in role_choices %}
+          <option value="{{ role.id }}">{{ role.name }}</option>
+        {% endfor %}
+      </select>
+    {% else %}
+      <input name="mention_role_id" placeholder="mention role ID (optional)" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+    {% endif %}
+    <div class="md:col-span-4">
+      <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Add stream</button>
+    </div>
+  </form>
+  <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+    <div class="relative">
+      <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+      <input x-model="query" type="text" placeholder="Search platform, creator, channel, or role" class="w-full rounded-xl bg-ink-900 border border-ink-600 pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-blurple focus:border-blurple">
+    </div>
+  </div>
+  <div class="rounded-2xl border border-ink-700 bg-ink-800/40 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-ink-900/80 text-slate-400">
+        <tr>
+          <th class="text-left px-4 py-3">Platform</th>
+          <th class="text-left px-4 py-3">Channel</th>
+          <th class="text-left px-4 py-3">Target</th>
+          <th class="text-left px-4 py-3">Mention role</th>
+          <th class="text-left px-4 py-3">Status</th>
+          <th class="text-left px-4 py-3">Actions</th>
+        </tr>
+      </thead>
+      {% for stream in streams %}
+          <tbody x-data="{ editing: false }">
+          <tr class="border-t border-ink-700/80"
+              x-show="!query || {{ (stream.platform ~ ' ' ~ stream.channel_name ~ ' ' ~ channel_map.get(stream.target_channel_id|string, '') ~ ' ' ~ role_map.get(stream.mention_role_id|string, ''))|tojson }}.toLowerCase().includes(query.toLowerCase())">
+            <td class="px-4 py-3 text-white">{{ stream.platform }}</td>
+            <td class="px-4 py-3 text-slate-300">{{ stream.channel_name }}</td>
+            <td class="px-4 py-3 text-slate-400">{{ channel_map.get(stream.target_channel_id|string, '#' ~ stream.target_channel_id) }}</td>
+            <td class="px-4 py-3 text-slate-400">{{ role_map.get(stream.mention_role_id|string, '@' ~ stream.mention_role_id) if stream.mention_role_id else '-' }}</td>
+            <td class="px-4 py-3 {{ 'text-mint' if stream.last_status else 'text-slate-500' }}">{{ 'Live' if stream.last_status else 'Offline' }}</td>
+            <td class="px-4 py-3">
+              <div class="flex gap-2">
+                <button type="button" @click="editing = !editing" class="px-3 py-1.5 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Edit</button>
+                <form method="POST" action="{{ url_for('guild_streams_delete', guild_id=guild_id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="id" value="{{ stream.id }}">
+                  <button type="submit" class="px-3 py-1.5 rounded-lg bg-rose/15 text-rose hover:bg-rose/25">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <tr x-show="editing" x-cloak class="border-t border-ink-700/40 bg-ink-900/40">
+            <td colspan="6" class="px-4 py-4">
+              <form method="POST" action="{{ url_for('guild_streams_save', guild_id=guild_id, stream_id=stream.id) }}" class="grid md:grid-cols-4 gap-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="platform" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+                  {% for platform_name in ['twitch', 'kick', 'tiktok'] %}
+                    <option value="{{ platform_name }}" {% if stream.platform == platform_name %}selected{% endif %}>{{ platform_name }}</option>
+                  {% endfor %}
+                </select>
+                <input name="channel_name" value="{{ stream.channel_name }}" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+                {% if channel_choices %}
+                  <select name="target_channel_id" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+                    {% for channel in channel_choices %}
+                      <option value="{{ channel.id }}" {% if stream.target_channel_id == channel.id %}selected{% endif %}>#{{ channel.name }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input name="target_channel_id" value="{{ stream.target_channel_id }}" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+                {% endif %}
+                {% if role_choices %}
+                  <select name="mention_role_id" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+                    <option value="">No mention role</option>
+                    {% for role in role_choices %}
+                      <option value="{{ role.id }}" {% if stream.mention_role_id == role.id %}selected{% endif %}>{{ role.name }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input name="mention_role_id" value="{{ stream.mention_role_id or '' }}" placeholder="mention role ID" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+                {% endif %}
+                <div class="md:col-span-4">
+                  <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save stream</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          </tbody>
+        {% else %}
+          <tbody>
+          <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">No stream subscriptions configured.</td></tr>
+          </tbody>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Developer Settings — {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="border-b border-ink-700 pb-4">
+    <div class="text-xs uppercase text-slate-500">Discord Developer</div>
+    <h1 class="text-2xl font-semibold text-white">LOKI developer settings</h1>
+  </div>
+
+  <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 grid md:grid-cols-2 gap-4 text-sm">
+    <div>
+      <div class="text-slate-400">Client ID</div>
+      <div class="font-mono text-white break-all">{{ app_env.DISCORD_CLIENT_ID or 'Not configured' }}</div>
+    </div>
+    <div>
+      <div class="text-slate-400">Redirect URI</div>
+      <div class="font-mono text-white break-all">{{ app_env.REDIRECT_URI or 'Not configured' }}</div>
+    </div>
+    <div>
+      <div class="text-slate-400">Dashboard URL</div>
+      <div class="font-mono text-white break-all">{{ app_env.DASHBOARD_PUBLIC_URL or 'Not configured' }}</div>
+    </div>
+    <div>
+      <div class="text-slate-400">LLM model</div>
+      <div class="font-mono text-white break-all">{{ app_env.LOKI_LLM_MODEL or 'gpt-5.5' }}</div>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "LokiOperator (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "LokiOperator (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

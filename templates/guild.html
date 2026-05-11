@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ guild_info.name or guild_id }} — LOKI THE SUN GOD{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+{% set active = 'config' %}
+
+<!-- KPI strip -->
+<section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+  {% set kpi_items = [
+    ('forms',         'ui-checks',        'Forms',        '/guild/' ~ guild_id ~ '/forms',  'blurple'),
+    ('pending_apps',  'hourglass-split',  'Pending apps', '/guild/' ~ guild_id ~ '/forms',  'amber'),
+    ('tickets_open',  'ticket-detailed',  'Open tickets', '/guild/' ~ guild_id ~ '/tickets','mint'),
+    ('events',        'calendar-event',   'Events',       '/guild/' ~ guild_id ~ '/events', 'blurple'),
+    ('streams',       'broadcast-pin',    'Streams',      '/guild/' ~ guild_id ~ '/streams','rose'),
+    ('tags',          'tag-fill',         'Tags',         '/guild/' ~ guild_id,             'mint'),
+    ('warnings',      'shield-exclamation','Warnings',    '/guild/' ~ guild_id ~ '/audit',  'rose'),
+    ('disabled_cmds', 'slash-circle',     'Disabled',     '/guild/' ~ guild_id ~ '/commands','amber'),
+  ] %}
+  {% for key, icon, label, href, color in kpi_items %}
+    <a href="{{ href }}"
+       class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-3 hover:border-{{ color }}/60 hover:-translate-y-0.5 transition group">
+      <div class="flex items-center gap-2">
+        <i class="bi bi-{{ icon }} text-{{ color }}"></i>
+        <span class="text-2xl font-bold text-{{ color }} ml-auto">{{ kpis[key] }}</span>
+      </div>
+      <div class="text-[11px] uppercase tracking-wide text-slate-400 mt-1.5 truncate">{{ label }}</div>
+    </a>
+  {% endfor %}
+</section>
+
+<!-- Audit shortcut -->
+<a href="/guild/{{ guild_id }}/audit"
+   class="block rounded-lg border border-ink-700 bg-ink-800/30 hover:bg-ink-800/60 px-4 py-3 text-sm text-slate-400 hover:text-slate-200 inline-flex items-center gap-2 transition">
+  <i class="bi bi-journal-text"></i> View audit timeline
+  <i class="bi bi-chevron-right ml-auto"></i>
+</a>
+
+<!-- Config form w/ tabs -->
+<form method="POST" action="/guild/{{ guild_id }}/save"
+      x-data="{ tab: 'general' }" class="space-y-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <nav class="flex flex-wrap gap-1 border-b border-ink-600/60">
+    {% for key, icon, label in [
+      ('general',  'sliders',         'General'),
+      ('automod',  'shield-check',    'AutoMod'),
+      ('welcome',  'door-open',       'Welcome'),
+      ('levels',   'graph-up',        'Levels'),
+      ('logging',  'journal-text',    'Logging') ] %}
+      <button type="button" @click="tab = '{{ key }}'"
+              :class="tab === '{{ key }}' ? 'text-blurple border-blurple' : 'text-slate-400 border-transparent hover:text-slate-200'"
+              class="px-4 py-2 text-sm font-medium border-b-2 transition inline-flex items-center gap-2">
+        <i class="bi bi-{{ icon }}"></i>{{ label }}
+      </button>
+    {% endfor %}
+  </nav>
+
+  <!-- General -->
+  <section x-show="tab === 'general'" x-cloak class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-5 space-y-4">
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Command prefix</label>
+        <input name="prefix" maxlength="10" value="{{ cfg['prefix'] if cfg else '!' }}"
+               class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Starboard channel</label>
+        {% if channel_choices %}
+          <select name="starboard_channel"
+                  class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+            <option value="">Not set</option>
+            {% for channel in channel_choices %}
+              <option value="{{ channel.id }}" {% if cfg and cfg['starboard_channel'] == channel.id %}selected{% endif %}>#{{ channel.name }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input type="number" name="starboard_channel"
+                 value="{{ cfg['starboard_channel'] if cfg and cfg['starboard_channel'] else '' }}"
+                 class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+        {% endif %}
+        {% if cfg and cfg['starboard_channel'] %}
+          <div class="mt-1 text-xs text-slate-500">{{ channel_map.get(cfg['starboard_channel']|string, '#' ~ cfg['starboard_channel']) }}</div>
+        {% endif %}
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Star threshold</label>
+        <input type="number" name="star_threshold" min="1" max="99"
+               value="{{ cfg['star_threshold'] if cfg else 3 }}"
+               class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Mute role</label>
+      {% if role_choices %}
+        <select name="mute_role" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+          <option value="">Not set</option>
+          {% for role in role_choices %}
+            <option value="{{ role.id }}" {% if cfg and cfg['mute_role'] == role.id %}selected{% endif %}>{{ role.name }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input type="number" name="mute_role" value="{{ cfg['mute_role'] if cfg and cfg['mute_role'] else '' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+      {% endif %}
+      {% if cfg and cfg['mute_role'] %}
+        <div class="mt-1 text-xs text-slate-500">{{ role_map.get(cfg['mute_role']|string, '@' ~ cfg['mute_role']) }}</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- AutoMod -->
+  <section x-show="tab === 'automod'" x-cloak class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-5 space-y-4">
+    {% set am = automod %}
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="space-y-3">
+        {% for fld, label in [('anti_invite','Block invite links'),
+                              ('anti_spam','Anti-spam'),
+                              ('anti_caps','Anti-caps'),
+                              ('anti_mention','Anti mass-mention')] %}
+          <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-ink-900/60 border border-ink-600/60 cursor-pointer hover:border-blurple/40">
+            <span class="text-sm">{{ label }}</span>
+            <input type="checkbox" name="{{ fld }}" {{ 'checked' if am and am[fld] }}
+                   class="w-9 h-5 appearance-none rounded-full bg-ink-700 checked:bg-blurple relative
+                          before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-4 before:h-4
+                          before:bg-white before:rounded-full before:transition checked:before:translate-x-4 cursor-pointer">
+          </label>
+        {% endfor %}
+      </div>
+      <div class="space-y-3">
+        {% for fld, label, mn, mx, dflt in [('max_mentions','Max mentions',1,50,5),
+                                            ('spam_threshold','Spam: msgs / 5s',2,20,5),
+                                            ('caps_percent','Caps %',10,100,70)] %}
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">{{ label }}</label>
+            <input type="number" name="{{ fld }}" min="{{ mn }}" max="{{ mx }}"
+                   value="{{ am[fld] if am else dflt }}"
+                   class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Blocked words and phrases</label>
+      <textarea name="bad_words" rows="3" placeholder="comma,separated,phrases" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 focus:ring-2 focus:ring-blurple focus:border-blurple">{{ am['bad_words'] if am and am['bad_words'] else '' }}</textarea>
+      <p class="text-xs text-slate-500 mt-1">Separate entries with commas. These feed the built-in blocked word filter.</p>
+    </div>
+  </section>
+
+  <!-- Welcome -->
+  <section x-show="tab === 'welcome'" x-cloak class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-5 space-y-4">
+    <p class="text-xs text-slate-400">
+      Placeholders: <code class="px-1 bg-ink-900 rounded">{user}</code>
+      <code class="px-1 bg-ink-900 rounded">{username}</code>
+      <code class="px-1 bg-ink-900 rounded">{server}</code>
+      <code class="px-1 bg-ink-900 rounded">{count}</code>
+    </p>
+    <div>
+      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Welcome channel</label>
+      {% if channel_choices %}
+        <select name="welcome_channel" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+          <option value="">Not set</option>
+          {% for channel in channel_choices %}
+            <option value="{{ channel.id }}" {% if cfg and cfg['welcome_channel'] == channel.id %}selected{% endif %}>#{{ channel.name }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input type="number" name="welcome_channel"
+               value="{{ cfg['welcome_channel'] if cfg and cfg['welcome_channel'] else '' }}"
+               class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      {% endif %}
+      {% if cfg and cfg['welcome_channel'] %}
+        <div class="mt-1 text-xs text-slate-500">{{ channel_map.get(cfg['welcome_channel']|string, '#' ~ cfg['welcome_channel']) }}</div>
+      {% endif %}
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Welcome message</label>
+      <textarea name="welcome_msg" rows="3" maxlength="500"
+                class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">{{ cfg['welcome_msg'] if cfg and cfg['welcome_msg'] else '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Goodbye message</label>
+      <textarea name="goodbye_msg" rows="3" maxlength="500"
+                class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">{{ cfg['goodbye_msg'] if cfg and cfg['goodbye_msg'] else '' }}</textarea>
+    </div>
+  </section>
+
+  <!-- Levels -->
+  <section x-show="tab === 'levels'" x-cloak class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-5 space-y-3">
+    <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-ink-900/60 border border-ink-600/60 cursor-pointer">
+      <span class="text-sm">Enable XP leveling</span>
+      <input type="checkbox" name="level_enabled" {{ 'checked' if not cfg or cfg['level_enabled'] }}
+             class="w-9 h-5 appearance-none rounded-full bg-ink-700 checked:bg-blurple relative
+                    before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-4 before:h-4
+                    before:bg-white before:rounded-full before:transition checked:before:translate-x-4">
+    </label>
+    <p class="text-xs text-slate-500">Granular level config (rewards, blacklists, rate) via <code class="px-1 bg-ink-900 rounded">/level</code></p>
+  </section>
+
+  <!-- Logging -->
+  <section x-show="tab === 'logging'" x-cloak class="rounded-xl border border-ink-600/60 bg-ink-800/40 p-5 space-y-3">
+    <div>
+      <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Log channel</label>
+      {% if channel_choices %}
+        <select name="log_channel" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+          <option value="">Not set</option>
+          {% for channel in channel_choices %}
+            <option value="{{ channel.id }}" {% if cfg and cfg['log_channel'] == channel.id %}selected{% endif %}>#{{ channel.name }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input type="number" name="log_channel"
+               value="{{ cfg['log_channel'] if cfg and cfg['log_channel'] else '' }}"
+               class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      {% endif %}
+      {% if cfg and cfg['log_channel'] %}
+        <div class="mt-1 text-xs text-slate-500">{{ channel_map.get(cfg['log_channel']|string, '#' ~ cfg['log_channel']) }}</div>
+      {% endif %}
+    </div>
+    <p class="text-xs text-slate-500">All mod actions, message edits/deletes, joins/leaves logged here.</p>
+  </section>
+
+  <div class="flex gap-2 pt-3">
+    <button type="submit" class="px-5 py-2.5 rounded-lg bg-blurple hover:bg-blurple-600 text-white font-medium shadow-glow inline-flex items-center gap-2">
+      <i class="bi bi-save"></i> Save settings
+    </button>
+    <a href="/guilds" class="px-5 py-2.5 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Cancel</a>
+  </div>
+</form>
+{% endblock %}

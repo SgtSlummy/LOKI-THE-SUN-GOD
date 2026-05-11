@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}LOKI Mixer — {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="border-b border-ink-700 pb-4">
+    <div class="text-xs uppercase text-slate-500">Music</div>
+    <h1 class="text-2xl font-semibold text-white">LOKI mixer</h1>
+  </div>
+
+  <form method="post" action="{{ url_for('guild_mixer_save', guild_id=guild_id) }}" class="grid lg:grid-cols-2 gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-4">
+      <h2 class="font-semibold text-white">Output</h2>
+      <label class="block text-sm">
+        <span class="text-slate-300">Volume</span>
+        <input name="volume" type="number" min="0" max="150" value="{{ settings.volume or 80 }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </label>
+      <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+        <input type="checkbox" name="mixer_locked" {% if settings.mixer_locked %}checked{% endif %}>
+        Lock mixer to DJ/admin roles
+      </label>
+    </section>
+
+    <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-4">
+      <h2 class="font-semibold text-white">Equalizer</h2>
+      <select name="eq_preset" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        {% for preset in ['Flat', 'Bass Boost', 'Vocal Clarity', 'Night Mode', 'Podcast', 'Treble', 'Custom'] %}
+          <option value="{{ preset }}" {% if settings.eq_preset == preset %}selected{% endif %}>{{ preset }}</option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-slate-500">Only equalizer presets are exposed; arbitrary Lavalink filters are intentionally hidden.</p>
+    </section>
+
+    <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-4">
+      <h2 class="font-semibold text-white">Song Requests</h2>
+      <label class="block text-sm">
+        <span class="text-slate-300">Request channel ID</span>
+        <input name="request_channel_id" value="{{ settings.request_channel_id or '' }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </label>
+      <label class="block text-sm">
+        <span class="text-slate-300">DJ role ID</span>
+        <input name="dj_role_id" value="{{ settings.dj_role_id or '' }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </label>
+    </section>
+
+    <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-3">
+      <h2 class="font-semibold text-white">Deck</h2>
+      <div class="grid grid-cols-4 gap-2">
+        {% for icon in ['skip-start-fill', 'pause-fill', 'play-fill', 'skip-end-fill'] %}
+          <button type="button" class="h-10 rounded-lg border border-ink-600 hover:bg-ink-700" title="{{ icon }}"><i class="bi bi-{{ icon }}"></i></button>
+        {% endfor %}
+      </div>
+      <button class="w-full rounded-lg bg-blurple px-4 py-2 text-white">Save mixer settings</button>
+    </section>
+  </form>
+</div>
+{% endblock %}

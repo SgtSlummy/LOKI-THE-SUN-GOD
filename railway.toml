@@ -1,0 +1,10 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# Create two Railway services from this repo:
+# web    -> gunicorn dashboard_app:app --bind 0.0.0.0:$PORT
+# worker -> python -m bot

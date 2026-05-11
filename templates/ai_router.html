@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}AI and Router Settings{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <section class="rounded-2xl border border-ink-700 bg-ink-800/40 p-5">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <div class="text-xs uppercase tracking-[0.24em] text-blurple/80">Local and Routed AI</div>
+        <h1 class="text-2xl font-semibold text-white mt-1">AI, Ollama, Codex, 9router, and memory setup</h1>
+        <p class="text-sm text-slate-400 mt-2 max-w-3xl">
+          Fillable control surface for the local app env, Codex routing settings, the 9router runtime env, and MemPalace status.
+          Use this page when you want Ollama local-first, a direct OpenAI or OpenRouter key path, a routed Codex setup through 9router, or a quick read on local memory health.
+        </p>
+      </div>
+      <div class="flex gap-2 flex-wrap text-xs">
+        <a href="http://localhost:20128/dashboard" target="_blank" class="px-3 py-2 rounded-lg bg-blurple/15 text-blurple hover:bg-blurple/25">Open 9router</a>
+        <a href="http://localhost:20128/v1/models" target="_blank" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">View router models</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid md:grid-cols-2 xl:grid-cols-6 gap-3">
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Ollama</div>
+      <div class="text-2xl font-semibold mt-2 {{ 'text-mint' if ai.status.ollama_up else 'text-rose' }}">{{ 'Online' if ai.status.ollama_up else 'Offline' }}</div>
+      <div class="text-sm text-slate-400 mt-1">{{ ai.status.ollama_models|length }} model(s) detected</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">9router</div>
+      <div class="text-2xl font-semibold mt-2 {{ 'text-mint' if ai.status.router_up else 'text-rose' }}">{{ 'Online' if ai.status.router_up else 'Offline' }}</div>
+      <div class="text-sm text-slate-400 mt-1">{{ ai.status.router_models|length }} routed model(s) exposed</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Codex route</div>
+      <div class="text-sm font-semibold text-white mt-2 break-all">{{ ai.codex_env.ANTHROPIC_BASE_URL or 'Not set' }}</div>
+      <div class="text-sm text-slate-400 mt-1">{{ 'Auth token present' if ai.codex_env.ANTHROPIC_AUTH_TOKEN_present else 'Auth token missing' }}</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Local default</div>
+      <div class="text-lg font-semibold mt-2 {{ 'text-bart' if ai.local_model_ready else 'text-amber-300' }}">{{ ai.preferred_local_model or 'No model' }}</div>
+      <div class="text-sm text-slate-400 mt-1">{{ ai.local_model_route or ai.local_model_setup_hint }}</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">MemPalace</div>
+      <div class="text-2xl font-semibold mt-2 {{ 'text-mint' if ai.memory.ready else 'text-amber-300' }}">{{ 'Ready' if ai.memory.ready else 'Needs attention' }}</div>
+      <div class="text-sm text-slate-400 mt-1">{{ ai.memory.total_drawers }} drawer(s), {{ ai.memory.wing_count }} wing(s), {{ ai.memory.room_count }} room(s)</div>
+    </div>
+    <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4">
+      <div class="text-xs uppercase tracking-wide text-slate-500">Paths</div>
+      <div class="text-xs text-slate-400 mt-2 break-all">App env: {{ ai.app_env_path }}</div>
+      <div class="text-xs text-slate-400 mt-1 break-all">Router env: {{ ai.router_env_path }}</div>
+      <div class="text-xs text-slate-400 mt-1 break-all">Codex settings: {{ ai.codex_settings_path }}</div>
+    </div>
+  </section>
+
+  <form method="POST" action="{{ url_for('ai_ops_save_local_model') }}" class="rounded-2xl border border-bart/30 bg-bart/5 p-5 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <h2 class="text-lg font-semibold text-white">Local-first model routing</h2>
+      <p class="text-sm text-slate-300 mt-1">Choose the Ollama model LOKI THE SUN GOD and 9router should prefer before falling back to cloud routes.</p>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Ollama host</label>
+        <input name="OLLAMA_HOST" value="{{ ai.ollama_base_url }}" placeholder="http://127.0.0.1:11434" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Preferred local model</label>
+        {% if ai.status.ollama_models %}
+          <select name="PREFERRED_LOCAL_MODEL" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+            {% for model in ai.status.ollama_models %}
+              <option value="{{ model }}" {% if model == ai.preferred_local_model %}selected{% endif %}>{{ model }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input name="PREFERRED_LOCAL_MODEL" value="{{ ai.preferred_local_model }}" placeholder="qwen2.5-coder:7b" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        {% endif %}
+      </div>
+      <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-ink-900/60 border border-ink-600/60 cursor-pointer self-end">
+        <span class="text-sm">Configure 9router alias</span>
+        <input type="checkbox" name="CONFIGURE_9ROUTER" checked class="w-9 h-5 appearance-none rounded-full bg-ink-700 checked:bg-bart relative before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-4 before:h-4 before:bg-white before:rounded-full before:transition checked:before:translate-x-4">
+      </label>
+    </div>
+    <div class="grid md:grid-cols-3 gap-3 text-sm">
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">OpenAI-compatible base</div>
+        <div class="mt-2 break-all text-slate-200">{{ ai.status.openai_compatible_base_url }}</div>
+      </div>
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">9router alias</div>
+        <div class="mt-2 break-all text-slate-200">{{ ai.local_model_alias }} -> {{ ai.local_model_route or 'not configured' }}</div>
+      </div>
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">9router DB</div>
+        <div class="mt-2 break-all text-slate-200">{{ ai.router_db_path }}</div>
+      </div>
+    </div>
+    {% if not ai.local_model_ready %}
+      <div class="rounded-xl border border-amber/30 bg-amber/10 px-4 py-3 text-sm text-amber-100">
+        {{ ai.local_model_setup_hint }}
+      </div>
+    {% endif %}
+    <button type="submit" class="px-4 py-2 rounded-lg bg-bart text-ink-950 hover:bg-amber font-medium">Save local model routing</button>
+  </form>
+
+  <form method="POST" action="{{ url_for('ai_ops_save_app_env') }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-5 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <h2 class="text-lg font-semibold text-white">App and local AI environment</h2>
+      <p class="text-sm text-slate-400 mt-1">Use these fields when LOKI THE SUN GOD or local scripts should talk directly to OpenAI, OpenRouter, Anthropic-compatible routes, or Ollama.</p>
+      <div class="flex flex-wrap gap-2 mt-3 text-sm">
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" class="px-3 py-2 rounded-lg border border-bart/40 text-bart hover:bg-bart/10 inline-flex items-center gap-2">
+          <i class="bi bi-key"></i> OpenAI API keys
+        </a>
+        <a href="https://platform.openai.com/docs/api-reference/chat/create" target="_blank" rel="noreferrer" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60 inline-flex items-center gap-2">
+          <i class="bi bi-book"></i> Chat Completions docs
+        </a>
+      </div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">OpenAI base URL</label>
+        <input name="OPENAI_BASE_URL" value="{{ ai.app_env.OPENAI_BASE_URL }}" placeholder="http://127.0.0.1:11434/v1 or https://api.openai.com/v1" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">OpenAI API key</label>
+        <input type="password" name="OPENAI_API_KEY" placeholder="{{ 'Saved. Enter a new key to replace it.' if ai.app_env.OPENAI_API_KEY_present else 'sk-...' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">OpenRouter base URL</label>
+        <input name="OPENROUTER_BASE_URL" value="{{ ai.app_env.OPENROUTER_BASE_URL }}" placeholder="https://openrouter.ai/api/v1" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">OpenRouter API key</label>
+        <input type="password" name="OPENROUTER_API_KEY" placeholder="{{ 'Saved. Enter a new key to replace it.' if ai.app_env.OPENROUTER_API_KEY_present else 'sk-or-...' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Anthropic-compatible base URL</label>
+        <input name="ANTHROPIC_BASE_URL" value="{{ ai.app_env.ANTHROPIC_BASE_URL }}" placeholder="http://127.0.0.1:11434/v1" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Anthropic auth token</label>
+        <input type="password" name="ANTHROPIC_AUTH_TOKEN" placeholder="{{ 'Saved. Enter a new token to replace it.' if ai.app_env.ANTHROPIC_AUTH_TOKEN_present else 'sk_9router or provider token' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div class="lg:col-span-2">
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Ollama host</label>
+        <input name="OLLAMA_HOST" value="{{ ai.app_env.OLLAMA_HOST }}" placeholder="http://127.0.0.1:11434" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div class="lg:col-span-2">
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">LOKI THE SUN GOD Discord LLM model</label>
+        <input name="LOKI_LLM_MODEL" value="{{ ai.app_env.LOKI_LLM_MODEL }}" placeholder="gpt-5.5" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+    </div>
+    <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save app AI env</button>
+  </form>
+
+  <form method="POST" action="{{ url_for('ai_ops_save_codex') }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-5 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <h2 class="text-lg font-semibold text-white">Codex routing settings</h2>
+      <p class="text-sm text-slate-400 mt-1">These fields write into Codex settings so the tool can use a routed Anthropic/OpenAI endpoint, stable aliases, or a 9router handoff.</p>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Codex Anthropic base URL</label>
+        <input name="ANTHROPIC_BASE_URL" value="{{ ai.codex_env.ANTHROPIC_BASE_URL }}" placeholder="http://localhost:20128/v1" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Codex Anthropic auth token</label>
+        <input type="password" name="ANTHROPIC_AUTH_TOKEN" placeholder="{{ 'Saved. Enter a new token to replace it.' if ai.codex_env.ANTHROPIC_AUTH_TOKEN_present else 'sk_9router' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Default Haiku model</label>
+        <input name="ANTHROPIC_DEFAULT_HAIKU_MODEL" value="{{ ai.codex_env.ANTHROPIC_DEFAULT_HAIKU_MODEL }}" placeholder="Codex-haiku" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Default Sonnet model</label>
+        <input name="ANTHROPIC_DEFAULT_SONNET_MODEL" value="{{ ai.codex_env.ANTHROPIC_DEFAULT_SONNET_MODEL }}" placeholder="Codex-sonnet" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Default Opus model</label>
+        <input name="ANTHROPIC_DEFAULT_OPUS_MODEL" value="{{ ai.codex_env.ANTHROPIC_DEFAULT_OPUS_MODEL }}" placeholder="Codex-opus" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Codex OpenAI base URL</label>
+        <input name="OPENAI_BASE_URL" value="{{ ai.codex_env.OPENAI_BASE_URL }}" placeholder="http://localhost:20128/v1" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div class="lg:col-span-2">
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Codex OpenAI API key</label>
+        <input type="password" name="OPENAI_API_KEY" placeholder="{{ 'Saved. Enter a new key to replace it.' if ai.codex_env.OPENAI_API_KEY_present else 'Paste a routed or direct OpenAI key' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+    </div>
+    <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save Codex settings</button>
+  </form>
+
+  <form method="POST" action="{{ url_for('ai_ops_save_router') }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-5 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <h2 class="text-lg font-semibold text-white">9router runtime environment</h2>
+      <p class="text-sm text-slate-400 mt-1">These values control the local 9router service itself. Provider accounts and subscription logins still need to be connected inside the 9router dashboard.</p>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Port</label><input name="PORT" value="{{ ai.router_env.PORT }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Base URL</label><input name="BASE_URL" value="{{ ai.router_env.BASE_URL }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Cloud URL</label><input name="CLOUD_URL" value="{{ ai.router_env.CLOUD_URL }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Public base URL</label><input name="NEXT_PUBLIC_BASE_URL" value="{{ ai.router_env.NEXT_PUBLIC_BASE_URL }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Public cloud URL</label><input name="NEXT_PUBLIC_CLOUD_URL" value="{{ ai.router_env.NEXT_PUBLIC_CLOUD_URL }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Data directory</label><input name="DATA_DIR" value="{{ ai.router_env.DATA_DIR }}" placeholder="/var/lib/9router or local path" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">JWT secret</label><input type="password" name="JWT_SECRET" placeholder="{{ 'Saved. Enter a new secret to replace it.' if ai.router_env.JWT_SECRET_present else 'Long random secret' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Initial password</label><input type="password" name="INITIAL_PASSWORD" placeholder="{{ 'Saved. Enter a new password to replace it.' if ai.router_env.INITIAL_PASSWORD_present else 'Dashboard bootstrap password' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">API key secret</label><input type="password" name="API_KEY_SECRET" placeholder="{{ 'Saved. Enter a new secret to replace it.' if ai.router_env.API_KEY_SECRET_present else 'HMAC secret for generated API keys' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+      <div><label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Machine ID salt</label><input type="password" name="MACHINE_ID_SALT" placeholder="{{ 'Saved. Enter a new salt to replace it.' if ai.router_env.MACHINE_ID_SALT_present else 'Salt used for stable machine IDs' }}" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></div>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {% for field, label in [('ENABLE_REQUEST_LOGS', 'Enable request logs'), ('OBSERVABILITY_ENABLED', 'Enable observability'), ('AUTH_COOKIE_SECURE', 'Secure auth cookies'), ('REQUIRE_API_KEY', 'Require API key on /v1')] %}
+        <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-ink-900/60 border border-ink-600/60 cursor-pointer">
+          <span class="text-sm">{{ label }}</span>
+          <input type="checkbox" name="{{ field }}" {{ 'checked' if ai.router_env[field] }} class="w-9 h-5 appearance-none rounded-full bg-ink-700 checked:bg-blurple relative before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-4 before:h-4 before:bg-white before:rounded-full before:transition checked:before:translate-x-4">
+        </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save 9router runtime env</button>
+  </form>
+
+  <form method="POST" action="{{ url_for('ai_ops_save_memory') }}" class="rounded-2xl border border-ink-700 bg-ink-800/40 p-5 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div>
+      <h2 class="text-lg font-semibold text-white">Memory and MemPalace status</h2>
+      <p class="text-sm text-slate-400 mt-1">Edit the MemPalace config fields that are safe to manage here, while keeping CLI discovery and fallback memory wiring visible for troubleshooting.</p>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Status summary</label>
+        <input value="{{ ai.memory.summary }}" readonly class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-slate-200">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">MemPalace CLI</label>
+        <input value="{{ ai.memory.cli_path or 'Not found on PATH' }}" readonly class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-slate-200">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Config path</label>
+        <input value="{{ ai.memory.config_path }}" readonly class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-slate-200">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Palace path</label>
+        <input name="palace_path" value="{{ ai.memory.palace_path }}" placeholder="C:/Users/you/.mempalace/palace or /path/to/palace" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Collection name</label>
+        <input name="collection_name" value="{{ ai.memory.collection_name }}" placeholder="loki-memory" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Fallback memory file</label>
+        <input value="{{ ai.memory.fallback_memory_path }}" readonly class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 text-slate-200">
+      </div>
+      <div class="lg:col-span-2">
+        <label class="block text-xs uppercase tracking-wide text-slate-400 mb-1">Topic wings</label>
+        <textarea name="topic_wings" rows="4" placeholder="One wing per line or comma-separated" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">{{ ai.memory.topic_wings|join('\n') }}</textarea>
+        <p class="text-xs text-slate-500 mt-2">Saved to {{ ai.memory.config_path }}. Leave a field blank to fall back to MemPalace defaults.</p>
+      </div>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Config file</div>
+        <div class="text-sm font-semibold mt-2 {{ 'text-mint' if ai.memory.config_present else 'text-amber-300' }}">{{ 'Present' if ai.memory.config_present else 'Missing' }}</div>
+      </div>
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Palace storage</div>
+        <div class="text-sm font-semibold mt-2 {{ 'text-mint' if ai.memory.palace_present else 'text-amber-300' }}">{{ 'Present' if ai.memory.palace_present else 'Missing' }}</div>
+      </div>
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Fallback memory</div>
+        <div class="text-sm font-semibold mt-2 {{ 'text-mint' if ai.memory.fallback_memory_present else 'text-amber-300' }}">{{ 'Present' if ai.memory.fallback_memory_present else 'Missing' }}</div>
+      </div>
+      <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+        <div class="text-xs uppercase tracking-wide text-slate-500">Keyword groups</div>
+        <div class="text-sm font-semibold text-white mt-2">{{ ai.memory.hall_keyword_group_count }}</div>
+      </div>
+    </div>
+    {% if ai.memory.wings %}
+      <div>
+        <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Wing layout</div>
+        <div class="grid md:grid-cols-3 gap-3">
+          {% for wing in ai.memory.wings %}
+            <div class="rounded-xl border border-ink-700/80 bg-ink-900/50 p-3">
+              <div class="text-sm font-semibold text-white">{{ wing.name }}</div>
+              <div class="text-xs text-slate-500 mt-1">{{ wing.rooms|length }} room(s)</div>
+              <div class="mt-3 space-y-2">
+                {% for room in wing.rooms %}
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-slate-300">{{ room.name }}</span>
+                    <span class="text-slate-500">{{ room.drawers }} drawer(s)</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+    {% if ai.memory.error %}
+      <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+        Status note: {{ ai.memory.error }}
+      </div>
+    {% endif %}
+    <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save MemPalace config</button>
+  </form>
+</div>
+{% endblock %}

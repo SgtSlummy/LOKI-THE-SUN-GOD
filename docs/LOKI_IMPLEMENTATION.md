@@ -1,0 +1,26 @@
+# LOKI THE SUN GOD Implementation Notes
+
+LOKI is rebuilt from the legacy Discord bot base as a standalone Discord bot, dashboard, desktop surface, MCP server, and ChatGPT Apps bridge.
+
+## Public Diva Parity
+
+The Diva work is clean-room public parity. The implementation uses public pages and permitted observed behavior to shape command names and UX, then implements original LOKI code. The public audio filter command family is intentionally excluded from v1; LOKI exposes equalizer presets and a mixer instead.
+
+## Core Modules
+
+- `loki_engine`: shared permission decisions and audit records for bot, dashboard, MCP, ChatGPT app, and background agents.
+- `loki_music`: music session, mixer state, and Lavalink-compatible equalizer preset payloads.
+- `loki_music.wavelink_backend`: Wavelink/Lavalink v4 runtime adapter for node connection, voice player creation, search resolution, queueing, playback controls, volume, EQ filters, and track-end advancement.
+- `loki_npc`: generated Discord NPC persona, redaction, and OpenAI Responses API payload construction with `store=false`.
+- `loki_memory`: bounded Codex AGI adapter registry for NOO/Noophyte, Quantum Roots, Swarm Brain, SLIME GOD, and Camelot.
+- `loki_research`: public Diva catalog and recommendation scaffolding.
+- `loki_mcp`: local/ChatGPT-readable MCP tools and resources.
+
+## Guardrails
+
+- Raw Discord messages are not direct training data.
+- Private channels, deleted content, secrets, and opted-out users are excluded from memory.
+- NPC listening can be narrowed with `LOKI_NPC_ALLOWED_CHANNEL_IDS`; user memory opt-out uses `LOKI_NPC_MEMORY_OPT_OUT_USER_IDS`.
+- NPC replies can be public, but Discord settings changes require server-side admin/manage-guild checks.
+- Activity changes require Discord event permissions or admin privileges.
+- Codex AGI adapters are advisory and must produce auditable receipts before external actions.

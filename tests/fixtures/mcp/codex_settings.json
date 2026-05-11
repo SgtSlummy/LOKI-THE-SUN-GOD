@@ -1,0 +1,9 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128/v1",
+    "ANTHROPIC_AUTH_TOKEN": "sk_9router",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "ollama/qwen2.5:7b",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "ollama/llama3.1:8b",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "openrouter/anthropic/claude-sonnet-4.5"
+  }
+}

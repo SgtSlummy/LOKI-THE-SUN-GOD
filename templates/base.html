@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ dashboard_brand.name }}{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            blurple: { DEFAULT: '#5865F2', 600: '#4752C4' },
+            bart: '#f6c244',
+            shirt: '#e24732',
+            ink: { 950: '#0c0d10', 900: '#15171b', 800: '#1e2025', 700: '#2b2d31', 600: '#3f4147' },
+            mint: '#22c55e',
+            amber: '#f59e0b',
+            rose: '#ef4444'
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(88,101,242,.25), 0 18px 40px rgba(0,0,0,.25)'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root { {{ dashboard_css_variables() }}; }
+    body { background:var(--loki-ink-950); color:#dbdee1; font-family:Inter,system-ui,sans-serif; }
+    [x-cloak] { display:none !important; }
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--loki-bart-yellow);
+      outline-offset: 2px;
+    }
+    ::-webkit-scrollbar { width:8px; height:8px; }
+    ::-webkit-scrollbar-thumb { background:#3f4147; border-radius:999px; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="sticky top-0 z-30 border-b border-ink-700 bg-ink-900/90 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
+      <a href="{{ url_for('index') }}" class="inline-flex items-center gap-3">
+        <img src="{{ url_for('brand_icon') }}"
+             alt="{{ dashboard_brand.icon_alt }}"
+             class="w-9 h-9 rounded-xl ring-1 ring-bart/40 shadow-glow">
+        <div>
+          <div class="font-semibold tracking-tight text-white">{{ dashboard_brand.dashboard_title }}</div>
+          <div class="text-xs text-slate-500">{{ dashboard_brand.subtitle }}</div>
+        </div>
+      </a>
+      <div class="ml-auto flex items-center gap-3">
+        {% if user %}
+          <a href="{{ url_for('ai_ops') }}" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-800/60 inline-flex items-center gap-2">
+            <i class="bi bi-cpu"></i> AI and Router
+          </a>
+          <div class="text-right hidden sm:block">
+            <div class="text-sm text-slate-200">{{ user.username }}{% if user.discriminator %}#{{ user.discriminator }}{% endif %}</div>
+            <div class="text-xs text-slate-500">Discord admin session</div>
+          </div>
+          <a href="{{ url_for('logout') }}" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-800/60">Log out</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2 mb-4">
+          {% for category, message in messages %}
+            {% set tone = 'blurple' %}
+            {% if category in ('danger', 'error') %}{% set tone = 'rose' %}{% endif %}
+            {% if category == 'success' %}{% set tone = 'mint' %}{% endif %}
+            {% if category == 'warning' %}{% set tone = 'amber' %}{% endif %}
+            <div class="rounded-xl border border-{{ tone }}/30 bg-{{ tone }}/10 px-4 py-3 text-sm text-slate-100">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% set has_sidebar = self.sidebar()|trim %}
+    <div class="{{ 'grid grid-cols-12 gap-4 items-start' if has_sidebar else '' }}">
+      {% if has_sidebar %}
+        {% block sidebar %}{% endblock %}
+      {% endif %}
+      <section class="{{ 'col-span-12 lg:col-span-9 space-y-4' if has_sidebar else 'space-y-4' }}">
+        {% block content %}{% endblock %}
+      </section>
+    </div>
+  </main>
+</body>
+</html>

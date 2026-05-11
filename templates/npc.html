@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}LOKI NPC — {{ guild_info.name or guild_id }}{% endblock %}
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="border-b border-ink-700 pb-4">
+    <div class="text-xs uppercase text-slate-500">AI</div>
+    <h1 class="text-2xl font-semibold text-white">LOKI NPC</h1>
+  </div>
+
+  <form method="post" action="{{ url_for('guild_npc_save', guild_id=guild_id) }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-4">
+      <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+        <input type="checkbox" name="enabled" {% if settings.enabled %}checked{% endif %}>
+        Enable public NPC replies when mentioned
+      </label>
+      <label class="block text-sm">
+        <span class="text-slate-300">Persona JSON</span>
+        <textarea name="persona_json" rows="6" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">{{ settings.persona_json or '' }}</textarea>
+      </label>
+      <label class="block text-sm">
+        <span class="text-slate-300">Allowed public channel IDs</span>
+        <input name="channel_allowlist" value="{{ settings.channel_allowlist or '' }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </label>
+    </section>
+
+    <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-4">
+      <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+        <input type="checkbox" name="web_crawl_enabled" {% if settings.web_crawl_enabled %}checked{% endif %}>
+        Enable curated web recommendations
+      </label>
+      <label class="block text-sm">
+        <span class="text-slate-300">Auto-post channel ID</span>
+        <input name="auto_post_channel_id" value="{{ settings.auto_post_channel_id or '' }}" class="mt-1 w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </label>
+      <p class="text-xs text-slate-500">NPC learning stores redacted public-channel memory only. Admin-only changes are enforced server-side.</p>
+      <button class="rounded-lg bg-blurple px-4 py-2 text-white">Save NPC settings</button>
+    </section>
+  </form>
+</div>
+{% endblock %}

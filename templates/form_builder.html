@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Form Builder{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+<div x-data="formBuilder()" x-init="init({{ existing_fields|default([])|tojson }})" class="space-y-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-white">{{ form_name or 'Form Builder' }}</h1>
+    <p class="text-sm text-slate-400">Edit form metadata and fields. Up to five fields are saved.</p>
+  </div>
+  <form method="POST" action="{% if form_name %}{{ url_for('form_save', guild_id=guild_id, form_name=form_name) }}{% else %}#{% endif %}" class="space-y-4">
+    {% if form_name %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="grid md:grid-cols-3 gap-3">
+        <input name="title" value="{{ form.title if form else '' }}" placeholder="Form title" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        <input name="button_label" value="{{ form.button_label if form else '' }}" placeholder="Button label" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        {% if channel_choices %}
+          <select name="target_channel_id" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+            <option value="">Target channel</option>
+            {% for channel in channel_choices %}
+              <option value="{{ channel.id }}" {% if form and form.target_channel_id == channel.id %}selected{% endif %}>#{{ channel.name }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input name="target_channel_id" value="{{ form.target_channel_id if form else '' }}" placeholder="Target channel ID" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        {% endif %}
+      </div>
+      <input type="hidden" name="fields_json" :value="JSON.stringify(fields)">
+      <div class="space-y-3">
+        <template x-for="(field, index) in fields" :key="index">
+          <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 grid md:grid-cols-2 gap-3">
+            <input x-model="field.label" placeholder="Label" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+            <select x-model="field.style" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+              <option value="short">short</option>
+              <option value="long">long</option>
+            </select>
+            <input x-model="field.placeholder" placeholder="Placeholder" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 md:col-span-2">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-300"><input x-model="field.required" type="checkbox"> Required</label>
+            <button type="button" @click="removeField(index)" class="justify-self-start px-3 py-2 rounded-lg bg-rose/15 text-rose hover:bg-rose/25">Remove field</button>
+          </div>
+        </template>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" @click="addField()" class="px-4 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Add field</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Save form</button>
+      </div>
+    {% else %}
+      <div class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 text-slate-400">Open this page from a form entry to edit fields.</div>
+    {% endif %}
+  </form>
+</div>
+<script>
+function formBuilder() {
+  return {
+    fields: [],
+    init(existing) { this.fields = Array.isArray(existing) ? existing : []; },
+    addField() {
+      if (this.fields.length >= 5) return;
+      this.fields.push({ label: '', style: 'short', required: true, placeholder: '' });
+    },
+    removeField(index) { this.fields.splice(index, 1); }
+  };
+}
+</script>
+{% endblock %}

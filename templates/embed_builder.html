@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Embed Builder{% endblock %}
+{% block sidebar %}{% include '_sidebar.html' with context %}{% endblock %}
+{% block content %}
+<div x-data="embedBuilder()" class="space-y-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-white">Embed builder</h1>
+    <p class="text-sm text-slate-400">Compose a Discord embed and send it with the bot token configured for this dashboard.</p>
+  </div>
+  <div class="grid xl:grid-cols-[1fr_.9fr] gap-4">
+    <section class="rounded-2xl border border-ink-700 bg-ink-800/40 p-4 space-y-3">
+      <label class="sr-only" for="embed-channel">Target channel</label>
+      <select id="embed-channel" x-model="channel_id" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        <option value="">Select target channel</option>
+        {% for channel in channels %}
+          <option value="{{ channel.id }}">#{{ channel.name }} ({{ channel.id }})</option>
+        {% endfor %}
+      </select>
+      <input x-model="content" aria-label="Optional message content" placeholder="Optional message content" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <input x-model="embed.title" aria-label="Embed title" placeholder="Embed title" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <textarea x-model="embed.description" aria-label="Embed description" rows="6" placeholder="Embed description" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2"></textarea>
+      <div class="grid md:grid-cols-2 gap-3">
+        <input x-model="embed.color" aria-label="Embed color" placeholder="#5865F2" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+        <input x-model="embed.url" aria-label="Embed URL" placeholder="https://example.com" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      </div>
+      <div class="flex gap-2">
+        <button type="button" @click="send()" class="px-4 py-2 rounded-lg bg-blurple hover:bg-blurple-600 text-white">Send embed</button>
+        <span class="text-sm text-slate-400" role="status" aria-live="polite" x-text="status"></span>
+      </div>
+    </section>
+    <section class="rounded-2xl border border-ink-700 bg-ink-900/70 p-4">
+      <div class="rounded-xl border-l-4 border-blurple bg-[#2b2d31] p-4">
+        <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Preview</div>
+        <a x-show="embed.title" :href="embed.url || '#'" class="font-semibold text-[#00a8fc]" x-text="embed.title"></a>
+        <div class="text-sm text-slate-200 whitespace-pre-wrap mt-2" x-text="embed.description || 'Embed preview text will appear here.'"></div>
+        <div x-show="content" class="text-sm text-slate-400 mt-4 border-t border-ink-700 pt-3" x-text="content"></div>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+function embedBuilder() {
+  return {
+    channel_id: '',
+    content: '',
+    status: '',
+    embed: { title: '', description: '', color: '#5865F2', url: '' },
+    async send() {
+      this.status = 'Sending...';
+      const r = await fetch('{{ url_for("guild_embed_send", guild_id=guild_id) }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ channel_id: this.channel_id, content: this.content, embed: this.embed })
+      });
+      const d = await r.json();
+      this.status = d.ok ? 'Sent.' : (d.error || 'Send failed');
+    }
+  };
+}
+</script>
+{% endblock %}
