@@ -1,0 +1,26 @@
+{
+  "name": "loki-activity-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LOKI Activity bridge for Discord Activity rooms, OBS controls, and Twitch metadata.",
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -n client,server -c auto \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm --workspace client run dev",
+    "dev:server": "npm --workspace server run dev",
+    "build": "node node_modules/typescript/bin/tsc -p shared/tsconfig.json && node node_modules/typescript/bin/tsc -p client/tsconfig.json && cd client && node ../node_modules/vite/bin/vite.js build && cd .. && node node_modules/typescript/bin/tsc -p server/tsconfig.json",
+    "typecheck": "node node_modules/typescript/bin/tsc -p shared/tsconfig.json --noEmit && node node_modules/typescript/bin/tsc -p client/tsconfig.json --noEmit && node node_modules/typescript/bin/tsc -p server/tsconfig.json --noEmit",
+    "register:commands": "npm --workspace server run register:commands",
+    "start": "node server/dist/index.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

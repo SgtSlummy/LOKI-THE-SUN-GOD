@@ -376,6 +376,9 @@ def main() -> int:
                 "status": "planned",
             },
         )
+        activities_html = client.get(f"/guild/{GUILD_ID}/activities-control").data.decode("utf-8", errors="replace")
+        if "Activity stream rooms" not in activities_html:
+            raise AssertionError("Activity bridge dashboard panel did not render.")
 
         for action, payload in (
             ("disable", {"command": "welcome preview"}),

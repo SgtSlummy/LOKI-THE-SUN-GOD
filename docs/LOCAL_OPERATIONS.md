@@ -55,6 +55,21 @@ python .\scripts\mcp_smoke_test.py
 
 This seeds a stable fixture database and docs shelf, launches `python -m loki_mcp`, and verifies the MCP tools, resources, and prompts over `stdio`.
 
+## Activity Stream Bridge
+
+The Discord Activity stream bridge is a separate TypeScript service:
+
+```powershell
+cd .\services\activity-bridge
+npm install
+npm run build
+npm run start
+```
+
+Keep `ENABLE_BRIDGE_DISCORD_BOT=false`; LOKI Python owns Discord commands. Set
+`ACTIVITY_BRIDGE_URL` and `ACTIVITY_BRIDGE_TOKEN` in the LOKI dashboard
+environment before using the Activity Control bridge panel.
+
 ## Strict Release Check
 
 Use:

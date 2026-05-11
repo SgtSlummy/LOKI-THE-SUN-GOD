@@ -23,6 +23,10 @@ LOKI THE SUN GOD has three operator surfaces:
 - Web dashboard: [dashboard_app.py](/C:/LOKI%20THE%20SUN%20GOD/dashboard_app.py)
 - Desktop control center: [desktop_app.py](/C:/LOKI%20THE%20SUN%20GOD/desktop_app.py)
 
+The optional Discord Activity stream bridge is a separate TypeScript service at
+[ACTIVITY_BRIDGE.md](/C:/LOKI%20THE%20SUN%20GOD/docs/ACTIVITY_BRIDGE.md). LOKI
+Python remains the production Discord command owner.
+
 The shared database schema is bootstrapped from [utils/db.py](/C:/LOKI%20THE%20SUN%20GOD/utils/db.py), so deployments should always run the shared preflight before first launch.
 
 ## Install
@@ -52,6 +56,21 @@ Optional stream integrations:
 
 - `TWITCH_CLIENT_ID`
 - `TWITCH_CLIENT_SECRET`
+
+Optional Activity bridge:
+
+- `ACTIVITY_BRIDGE_URL`
+- `ACTIVITY_BRIDGE_TOKEN`
+- `ACTIVITY_CLIENT_PUBLIC_URL`
+- `PUBLIC_SERVER_ORIGIN`
+- `PUBLIC_CLIENT_ORIGIN`
+- `VITE_DISCORD_CLIENT_ID`
+- `VITE_SERVER_ORIGIN`
+- `VITE_WS_ORIGIN`
+- `OBS_WEBSOCKET_URL`
+- `OBS_WEBSOCKET_PASSWORD`
+- `ALLOW_ACTIVITY_SIDE_CONTROLS=false`
+- `ALLOW_STREAM_START_STOP=false`
 
 ## Discord Portal Checklist
 

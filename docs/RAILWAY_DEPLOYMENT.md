@@ -12,6 +12,15 @@ Manual acceptance gates after deploying are:
 
 LOKI THE SUN GOD is split into two Railway services that share the same repo and the same Postgres database.
 
+The optional Activity stream bridge adds a third Railway service rooted at
+`services/activity-bridge`. Keep it separate from the Python web and worker
+services so Discord command ownership remains with LOKI Python.
+
+The Discord Activity client is a static Vite bundle produced from the same
+workspace (`services/activity-bridge/client/dist`). Host it separately from the
+bridge API/WS process, either as a Railway static service or another static
+host. The bridge service does not serve the client bundle.
+
 ## Services
 
 Bot worker:
@@ -24,6 +33,19 @@ Web dashboard:
 
 ```text
 gunicorn dashboard_app:app --bind 0.0.0.0:$PORT
+```
+
+Activity bridge:
+
+```text
+npm run start
+```
+
+Discord Activity client:
+
+```text
+npm run build
+# publish services/activity-bridge/client/dist as the static site
 ```
 
 The repo includes a `Procfile` with both process names for hosts that read Procfiles, but Railway should be configured as two services so the bot worker and dashboard can restart independently.
@@ -58,6 +80,50 @@ DASHBOARD_DEBUG=false
 ```
 
 Set `DASHBOARD_PUBLIC_URL=https://<railway-domain>` on the worker service too, so the Discord `/dashboard` command returns the hosted dashboard URL.
+
+Set these for bridge-aware dashboard controls:
+
+```text
+ACTIVITY_BRIDGE_URL=https://<activity-bridge-domain>
+ACTIVITY_BRIDGE_TOKEN=<shared secret>
+ACTIVITY_CLIENT_PUBLIC_URL=https://<activity-client-domain>
+ALLOW_ACTIVITY_SIDE_CONTROLS=false
+ALLOW_STREAM_START_STOP=false
+OBS_WEBSOCKET_URL
+OBS_WEBSOCKET_PASSWORD
+```
+
+Set `ACTIVITY_BRIDGE_TOKEN` on the Activity bridge service too. Do not put it
+in `VITE_*` variables or client-side Activity bundles.
+
+Set these on the Activity bridge service:
+
+```text
+ACTIVITY_BRIDGE_TOKEN=<shared secret>
+DISCORD_CLIENT_ID
+DISCORD_CLIENT_SECRET
+PUBLIC_SERVER_ORIGIN=https://<activity-bridge-domain>
+PUBLIC_CLIENT_ORIGIN=https://<activity-client-domain>
+ENABLE_BRIDGE_DISCORD_BOT=false
+ALLOW_ACTIVITY_SIDE_CONTROLS=false
+ALLOW_STREAM_START_STOP=false
+OBS_WEBSOCKET_URL
+OBS_WEBSOCKET_PASSWORD
+TWITCH_CLIENT_ID
+TWITCH_CLIENT_SECRET
+TWITCH_BROADCASTER_ID
+TWITCH_ACCESS_TOKEN
+```
+
+Set these on the static Discord Activity client build environment. These are
+safe public client values and must not include bot tokens, bridge tokens,
+client secrets, Twitch tokens, or OBS passwords:
+
+```text
+VITE_DISCORD_CLIENT_ID=<discord application/client id>
+VITE_SERVER_ORIGIN=https://<activity-bridge-domain>
+VITE_WS_ORIGIN=wss://<activity-bridge-domain>
+```
 
 `DATABASE_URL` switches LOKI THE SUN GOD from local SQLite to Postgres. Without it, local/dev keeps using `data/bot.db`.
 

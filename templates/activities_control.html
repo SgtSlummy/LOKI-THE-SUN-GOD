@@ -8,6 +8,106 @@
     <h1 class="text-2xl font-semibold text-white">LOKI activity control</h1>
   </div>
 
+  <section class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 space-y-4">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <div class="text-xs uppercase text-slate-500">Bridge service</div>
+        <h2 class="text-lg font-semibold text-white">Activity stream rooms</h2>
+        <p class="text-sm text-slate-400">
+          {{ bridge_health.message or ('online' if bridge_health.ok else 'offline') }}
+        </p>
+      </div>
+      <div class="flex gap-2 flex-wrap text-xs">
+        <span class="rounded-full border border-ink-600 px-3 py-1 {{ 'text-mint' if bridge_health.ok else 'text-rose' }}">
+          {{ 'Online' if bridge_health.ok else 'Offline' }}
+        </span>
+        <span class="rounded-full border border-ink-600 px-3 py-1 text-slate-300">
+          {{ bridge_config.url or 'ACTIVITY_BRIDGE_URL not set' }}
+        </span>
+        <span class="rounded-full border border-ink-600 px-3 py-1 {{ 'text-mint' if bridge_health.apiAuthConfigured else 'text-amber-200' }}">
+          {{ 'API token set' if bridge_health.apiAuthConfigured else 'API token missing' }}
+        </span>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('guild_activities_bridge_control', guild_id=guild_id) }}" class="grid lg:grid-cols-6 gap-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input name="room_id" value="{{ bridge_default_room_id }}" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 lg:col-span-2" aria-label="Room ID">
+      {% if channel_choices %}
+        <select name="channel_id" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+          <option value="">Dashboard room</option>
+          {% for channel in channel_choices %}
+            <option value="{{ channel.id }}">#{{ channel.name }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input name="channel_id" placeholder="channel ID" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      {% endif %}
+      <input name="url" placeholder="https://media.example/video.mp4" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 lg:col-span-2">
+      <input name="title" placeholder="title or overlay text" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <input name="seconds" type="number" min="0" step="1" placeholder="seek seconds" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <input name="host_user_id" placeholder="host user ID" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <label class="rounded-lg border border-ink-600 px-3 py-2 text-sm text-slate-300 flex items-center gap-2">
+        <input type="checkbox" name="locked">
+        Locked
+      </label>
+      <div class="lg:col-span-6 flex gap-2 flex-wrap">
+        <button name="action" value="set" class="rounded-lg bg-blurple px-4 py-2 text-white">Set media</button>
+        <button name="action" value="queue" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Queue</button>
+        <button name="action" value="play" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Play</button>
+        <button name="action" value="pause" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Pause</button>
+        <button name="action" value="seek" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Seek</button>
+        <button name="action" value="next" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Next</button>
+        <button name="action" value="lock" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Lock room</button>
+        <button name="action" value="host" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Assign host</button>
+        <button name="action" value="end" class="rounded-lg bg-rose/15 px-4 py-2 text-rose">End room</button>
+      </div>
+    </form>
+
+    <form method="post" action="{{ url_for('guild_activities_bridge_control', guild_id=guild_id) }}" class="grid md:grid-cols-5 gap-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="room_id" value="{{ bridge_default_room_id }}">
+      <input name="scene_name" placeholder="OBS scene" value="Live" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <input name="source_name" placeholder="source / overlay" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+      <label class="rounded-lg border border-ink-600 px-3 py-2 text-sm text-slate-300 flex items-center gap-2">
+        <input type="checkbox" name="visible" checked>
+        Visible
+      </label>
+      <button name="action" value="scene" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Switch scene</button>
+      <button name="action" value="overlay" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Set overlay</button>
+      <button name="action" value="obs-status" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Refresh OBS</button>
+      <button name="action" value="twitch-status" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Refresh Twitch</button>
+      <button name="action" value="title" class="rounded-lg border border-ink-600 px-4 py-2 text-slate-200">Update title</button>
+      <label class="rounded-lg border border-amber-500/40 px-3 py-2 text-sm text-amber-100 flex items-center gap-2">
+        <input type="checkbox" name="confirm_stream">
+        Confirm stream start/stop
+      </label>
+      <button name="action" value="stream-start" {% if not bridge_health.streamStartStopEnabled %}disabled{% endif %} class="rounded-lg bg-amber-500/15 px-4 py-2 text-amber-200 disabled:opacity-40">Start stream</button>
+      <button name="action" value="stream-stop" {% if not bridge_health.streamStartStopEnabled %}disabled{% endif %} class="rounded-lg bg-amber-500/15 px-4 py-2 text-amber-200 disabled:opacity-40">Stop stream</button>
+    </form>
+
+    <div class="rounded-lg border border-ink-700 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-ink-900 text-slate-400">
+          <tr><th class="text-left p-3">Room</th><th class="text-left p-3">Playback</th><th class="text-left p-3">Queue</th><th class="text-left p-3">OBS</th><th class="text-left p-3">Twitch</th></tr>
+        </thead>
+        <tbody>
+          {% for room in bridge_rooms %}
+            <tr class="border-t border-ink-700">
+              <td class="p-3 text-white">{{ room.roomId }}</td>
+              <td class="p-3 text-slate-300">{{ room.status }} @ {{ room.positionSeconds|round(1) }}s</td>
+              <td class="p-3 text-slate-400">{{ room.queue|length }}</td>
+              <td class="p-3 {{ 'text-mint' if room.obs.connected else 'text-slate-500' }}">{{ room.obs.currentScene or 'offline' }}</td>
+              <td class="p-3 {{ 'text-mint' if room.twitch.live else 'text-slate-500' }}">{{ room.twitch.channelTitle or 'not live' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="p-4 text-slate-500">No bridge rooms reported.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <form method="post" action="{{ url_for('guild_activities_control_create', guild_id=guild_id) }}" class="rounded-lg border border-ink-600 bg-ink-800/50 p-4 grid lg:grid-cols-4 gap-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input name="title" placeholder="Activity title" class="rounded-lg bg-ink-900 border border-ink-600 px-3 py-2 lg:col-span-2">

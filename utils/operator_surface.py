@@ -11,6 +11,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 
+from loki_activity_bridge import ActivityBridgeClient
 from utils import db as shared_db
 from utils import runtime_paths
 from utils.command_catalog import parse_command_catalog as shared_parse_command_catalog
@@ -1059,11 +1060,21 @@ def loki_activity_snapshot(guild_id: int | None = None) -> dict[str, Any]:
         )
     else:
         rows = shared_db.sync_all("SELECT * FROM loki_activity_controls ORDER BY created_at DESC LIMIT 25")
+    bridge = ActivityBridgeClient()
+    bridge_health = bridge.health()
+    bridge_rooms = bridge.list_rooms().get("rooms", []) if bridge.config.configured else []
     return {
         "guild_id": guild_id,
         "activities": [dict(row) for row in rows],
         "supported_layers": ["Discord scheduled events", "embedded activity launch handoff", "portal quests"],
         "permission_gate": "create-events, manage-events, manage-guild, or administrator depending on action",
+        "bridge": {
+            "configured": bridge.config.configured,
+            "url": bridge.config.url,
+            "client_public_url": bridge.config.client_public_url,
+            "health": bridge_health,
+            "rooms": bridge_rooms if isinstance(bridge_rooms, list) else [],
+        },
     }
 
 

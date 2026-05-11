@@ -27,6 +27,7 @@ from utils import runtime_paths
 
 runtime_paths.load_app_dotenv()
 
+from loki_activity_bridge import ActivityBridgeClient, room_id_for
 from loki_music.equalizer import preset_names
 from loki_npc.persona import persona_from_settings
 from loki_research.experiments import ExperimentConfig, assert_safe_experiment_config
@@ -1135,12 +1136,22 @@ def guild_activities_control(guild_id):
         "SELECT * FROM loki_activity_controls WHERE guild_id=? ORDER BY created_at DESC LIMIT 50",
         (guild_id,),
     )
+    bridge = ActivityBridgeClient()
+    bridge_health = bridge.health()
+    bridge_rooms_payload = bridge.list_rooms()
+    bridge_rooms = bridge_rooms_payload.get("rooms") if isinstance(bridge_rooms_payload, dict) else []
+    if not isinstance(bridge_rooms, list):
+        bridge_rooms = []
     g_info = _session_guild_info(guild_id)
     return render_template(
         "activities_control.html",
         guild_id=guild_id,
         guild_info=g_info,
         activities=activities,
+        bridge_config=bridge.config,
+        bridge_health=bridge_health,
+        bridge_rooms=bridge_rooms,
+        bridge_default_room_id=room_id_for(guild_id),
         user=session["user"],
         **structure,
     )
@@ -1171,6 +1182,72 @@ def guild_activities_control_create(guild_id):
         ),
     )
     flash("LOKI activity created.", "success")
+    return redirect(url_for("guild_activities_control", guild_id=guild_id))
+
+
+@app.route("/guild/<guild_id>/activities-control/bridge", methods=["POST"])
+@login_required
+@guild_admin_required
+def guild_activities_bridge_control(guild_id):
+    guild_id = int(guild_id)
+    action = request.form.get("action", "").strip()
+    channel_id = _int_or_none(request.form.get("channel_id"))
+    submitted_room_id = request.form.get("room_id", "").strip()
+    default_room_id = room_id_for(guild_id)
+    if channel_id is not None and (not submitted_room_id or submitted_room_id == default_room_id):
+        room_id = room_id_for(guild_id, channel_id)
+    else:
+        room_id = submitted_room_id or default_room_id
+
+    payload: dict[str, object] = {}
+    if request.form.get("url"):
+        payload["url"] = request.form.get("url", "").strip()
+    if request.form.get("title"):
+        payload["title"] = request.form.get("title", "").strip()
+    if request.form.get("seconds"):
+        payload["seconds"] = _safe_int(request.form.get("seconds"), 0)
+    if request.form.get("locked") is not None:
+        payload["locked"] = request.form.get("locked") == "on"
+    if request.form.get("host_user_id"):
+        payload["hostUserId"] = request.form.get("host_user_id", "").strip()
+    if request.form.get("scene_name"):
+        payload["sceneName"] = request.form.get("scene_name", "").strip()
+    if request.form.get("source_name"):
+        payload["sourceName"] = request.form.get("source_name", "").strip()
+    if request.form.get("visible") is not None:
+        payload["visible"] = request.form.get("visible") == "on"
+    if request.form.get("obs_source"):
+        payload["obsSource"] = request.form.get("obs_source", "").strip()
+
+    allowed_actions = {
+        "set",
+        "queue",
+        "play",
+        "pause",
+        "seek",
+        "next",
+        "lock",
+        "host",
+        "end",
+        "obs-status",
+        "twitch-status",
+        "scene",
+        "overlay",
+        "title",
+        "stream-start",
+        "stream-stop",
+    }
+    if action not in allowed_actions:
+        flash("Unsupported activity bridge action.", "danger")
+        return redirect(url_for("guild_activities_control", guild_id=guild_id))
+
+    if action in {"stream-start", "stream-stop"} and request.form.get("confirm_stream") != "on":
+        flash("Stream start/stop requires explicit confirmation.", "danger")
+        return redirect(url_for("guild_activities_control", guild_id=guild_id))
+
+    result = ActivityBridgeClient().control(room_id, action, **payload)
+    category = "success" if result.get("ok") else "danger"
+    flash(str(result.get("message") or f"Activity bridge action {action} processed."), category)
     return redirect(url_for("guild_activities_control", guild_id=guild_id))
 
 

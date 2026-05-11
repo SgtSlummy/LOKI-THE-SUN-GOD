@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Discord Activity Stream Control</title>
+  </head>
+  <body>
+    <main id="app">
+      <section class="panel hero">
+        <div>
+          <p class="eyebrow">Discord Activity</p>
+          <h1>Stream Control Room</h1>
+          <p id="connection-status">Starting...</p>
+        </div>
+        <div class="badge" id="room-badge">room: unknown</div>
+      </section>
+
+      <section class="grid">
+        <section class="panel player-panel">
+          <video id="player" controls playsinline></video>
+          <div class="controls">
+            <button id="play-button">Play</button>
+            <button id="pause-button">Pause</button>
+            <button id="seek-button">Seek 0</button>
+          </div>
+        </section>
+
+        <section class="panel status-panel">
+          <h2>Room status</h2>
+          <pre id="room-state">Waiting for state...</pre>
+        </section>
+      </section>
+
+      <section class="panel">
+        <h2>How to control this room</h2>
+        <p>Use the integrated bot in Discord:</p>
+        <pre>/watch set url:https://example.com/video.mp4
+/watch play
+/watch pause
+/watch seek seconds:120
+/watch scene name:Live</pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

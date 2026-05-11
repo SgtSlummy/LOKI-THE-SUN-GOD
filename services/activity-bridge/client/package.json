@@ -1,0 +1,21 @@
+{
+  "name": "@activity/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@activity/shared": "file:../shared",
+    "@discord/embedded-app-sdk": "^1.8.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.1.1"
+  }
+}

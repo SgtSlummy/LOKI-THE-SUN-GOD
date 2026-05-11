@@ -27,6 +27,9 @@ Base app: [dashboard_app.py](/C:/LOKI%20THE%20SUN%20GOD/dashboard_app.py)
 - `GET /guild/<guild_id>/forms/<form_name>/responses`
 - `POST /guild/<guild_id>/forms/<form_name>/responses/<resp_id>/decide`
 - `GET /guild/<guild_id>/events`
+- `GET /guild/<guild_id>/activities-control`
+- `POST /guild/<guild_id>/activities-control/create`
+- `POST /guild/<guild_id>/activities-control/bridge`
 - `GET /guild/<guild_id>/streams`
 - `POST /guild/<guild_id>/streams/add`
 - `POST /guild/<guild_id>/streams/delete`
@@ -84,6 +87,22 @@ Base app: [desktop_app.py](/C:/LOKI%20THE%20SUN%20GOD/desktop_app.py)
 - `GET /api/diagnostics`
 
 These desktop operator endpoints now share their read logic with the offline MCP surface through [utils/operator_surface.py](/C:/LOKI%20THE%20SUN%20GOD/utils/operator_surface.py).
+
+## Activity bridge service
+
+Service root: `services/activity-bridge`
+
+- `GET /healthz`
+- `GET /api/rooms`
+- `GET /api/rooms/:roomId`
+- `POST /api/rooms/:roomId/control`
+- `POST /api/token`
+- `WS /ws`
+
+`/api/rooms*` routes require `Authorization: Bearer ACTIVITY_BRIDGE_TOKEN`.
+If the bridge token is missing, room APIs fail closed with
+`bridge_token_not_configured`. LOKI dashboard routes call this service through
+[loki_activity_bridge](/C:/LOKI%20THE%20SUN%20GOD/loki_activity_bridge/client.py).
 
 ## Offline MCP
 
