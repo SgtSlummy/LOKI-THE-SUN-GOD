@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LOKI THE SUN GOD Operator Portal</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101114;
+      --panel: #181b20;
+      --panel-2: #20242b;
+      --text: #f6f2e8;
+      --muted: #a8b0b8;
+      --line: #333942;
+      --gold: #f1b636;
+      --teal: #42c8a4;
+      --red: #ee6b60;
+      --blue: #74a7ff;
+      --ink: #0b0c0f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 248px 1fr;
+    }
+
+    .rail {
+      border-right: 1px solid var(--line);
+      background: #14161a;
+      padding: 20px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .brand {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 28px;
+    }
+
+    .brand img {
+      width: 48px;
+      height: 48px;
+    }
+
+    .brand strong {
+      display: block;
+      line-height: 1.05;
+      font-size: 17px;
+    }
+
+    .brand span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav a {
+      text-decoration: none;
+      color: var(--muted);
+      padding: 9px 10px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+
+    .nav a[aria-current="page"],
+    .nav a:hover {
+      color: var(--text);
+      border-color: var(--line);
+      background: var(--panel);
+    }
+
+    main {
+      padding: 24px;
+      display: grid;
+      gap: 20px;
+      align-content: start;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 1;
+      max-width: 760px;
+    }
+
+    h2 {
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .status-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 32px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--muted);
+      padding: 5px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .dot.ready {
+      background: var(--teal);
+    }
+
+    .dot.warn {
+      background: var(--gold);
+    }
+
+    .dot.blocked {
+      background: var(--red);
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid.cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .metric {
+      display: grid;
+      gap: 8px;
+      min-height: 132px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .metric p,
+    .card p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .deck {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+      gap: 16px;
+    }
+
+    .track {
+      display: grid;
+      gap: 16px;
+    }
+
+    .progress {
+      height: 10px;
+      border-radius: 999px;
+      background: #2b3038;
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      width: 64%;
+      height: 100%;
+      background: var(--gold);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(5, 44px);
+      gap: 8px;
+    }
+
+    button,
+    .button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 8px;
+      min-height: 40px;
+      padding: 9px 12px;
+      font: inherit;
+      font-size: 14px;
+      cursor: default;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .icon-button {
+      width: 44px;
+      padding: 0;
+      font-size: 16px;
+    }
+
+    .button.primary {
+      background: var(--gold);
+      color: var(--ink);
+      border-color: #d99f25;
+      font-weight: 700;
+    }
+
+    .eq-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(28px, 1fr));
+      gap: 10px;
+      align-items: end;
+      min-height: 180px;
+    }
+
+    .fader {
+      display: grid;
+      gap: 8px;
+      justify-items: center;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .bar {
+      height: 112px;
+      width: 14px;
+      border-radius: 999px;
+      background: #2c323b;
+      display: flex;
+      align-items: end;
+      overflow: hidden;
+    }
+
+    .bar span {
+      width: 100%;
+      background: var(--teal);
+      display: block;
+      min-height: 10%;
+    }
+
+    .table {
+      display: grid;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr 0.8fr;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      min-width: 0;
+    }
+
+    .row:last-child {
+      border-bottom: 0;
+    }
+
+    .row span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .row .muted {
+      color: var(--muted);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .step b {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--panel-2);
+      color: var(--gold);
+      font-size: 12px;
+      border: 1px solid var(--line);
+    }
+
+    .step p {
+      padding-top: 2px;
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .topbar,
+      .deck,
+      .grid.cols-4,
+      .grid.cols-3,
+      .grid.cols-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .status-strip {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 560px) {
+      main,
+      .rail {
+        padding: 16px;
+      }
+
+      .nav {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .controls {
+        grid-template-columns: repeat(5, minmax(38px, 44px));
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <img src="assets/loki-dashboard-icon.svg" alt="LOKI THE SUN GOD mark">
+        <div>
+          <strong>LOKI THE SUN GOD</strong>
+          <span>operator preview</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Portal">
+        <a href="#overview" aria-current="page">Overview <span>01</span></a>
+        <a href="#mixer">Mixer <span>02</span></a>
+        <a href="#npc">NPC <span>03</span></a>
+        <a href="#activities">Activities <span>04</span></a>
+        <a href="#agents">Agents <span>05</span></a>
+        <a href="#deploy">Deploy <span>06</span></a>
+      </nav>
+    </aside>
+
+    <main>
+      <section class="topbar" id="overview">
+        <div>
+          <h1>Command center for the rebuilt Discord bot, portal, agents, and music engine.</h1>
+        </div>
+        <div class="status-strip" aria-label="Readiness">
+          <span class="pill"><span class="dot ready"></span>Local tests ready</span>
+          <span class="pill"><span class="dot warn"></span>Preview locked</span>
+          <span class="pill"><span class="dot blocked"></span>Docker offline</span>
+        </div>
+      </section>
+
+      <section class="grid cols-4" aria-label="Current metrics">
+        <article class="card metric">
+          <span>Commands</span>
+          <strong>263</strong>
+          <p>Indexed Discord commands with 202 slash-capable entries.</p>
+        </article>
+        <article class="card metric">
+          <span>Music</span>
+          <strong>7 EQ</strong>
+          <p>Flat, Bass Boost, Vocal Clarity, Night Mode, Podcast, Treble, Custom.</p>
+        </article>
+        <article class="card metric">
+          <span>Memory</span>
+          <strong>1672</strong>
+          <p>MemPalace drawers available in the LOKI wing after bounded mining.</p>
+        </article>
+        <article class="card metric">
+          <span>Gate</span>
+          <strong>4</strong>
+          <p>External gates left: GitHub remote, Railway, OAuth, live Discord.</p>
+        </article>
+      </section>
+
+      <section id="mixer" class="grid">
+        <div class="section-title">
+          <h2>Music Mixer</h2>
+          <span class="pill"><span class="dot warn"></span>DJ controls locked in preview</span>
+        </div>
+        <div class="deck">
+          <article class="card track">
+            <div>
+              <p class="pill">Now playing</p>
+              <h2>Solar queue session</h2>
+              <p>Requester, vote-skip state, queue mirror, and Lavalink node health bind here in the live portal.</p>
+            </div>
+            <div class="progress" aria-label="Track progress"><span></span></div>
+            <div class="controls" aria-label="Playback controls">
+              <button class="icon-button" aria-label="Previous track">|&lt;</button>
+              <button class="icon-button" aria-label="Pause">||</button>
+              <button class="icon-button" aria-label="Next track">&gt;|</button>
+              <button class="icon-button" aria-label="Shuffle">SH</button>
+              <button class="icon-button" aria-label="Loop">LP</button>
+            </div>
+          </article>
+          <article class="card">
+            <div class="section-title">
+              <h2>Equalizer</h2>
+              <span class="pill"><span class="dot ready"></span>Bass Boost</span>
+            </div>
+            <div class="eq-grid" aria-label="Equalizer preview">
+              <div class="fader"><div class="bar"><span style="height: 80%"></span></div><span>60</span></div>
+              <div class="fader"><div class="bar"><span style="height: 74%"></span></div><span>170</span></div>
+              <div class="fader"><div class="bar"><span style="height: 54%"></span></div><span>310</span></div>
+              <div class="fader"><div class="bar"><span style="height: 48%"></span></div><span>600</span></div>
+              <div class="fader"><div class="bar"><span style="height: 42%"></span></div><span>1k</span></div>
+              <div class="fader"><div class="bar"><span style="height: 46%"></span></div><span>3k</span></div>
+              <div class="fader"><div class="bar"><span style="height: 52%"></span></div><span>12k</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="grid cols-2" id="npc">
+        <article class="card">
+          <div class="section-title">
+            <h2>NPC Persona</h2>
+            <span class="pill"><span class="dot ready"></span>Admin gated</span>
+          </div>
+          <p>LOKI speaks in public allowlisted channels, uses redacted memory, and routes setting changes through server-side Discord permission checks.</p>
+        </article>
+        <article class="card">
+          <div class="section-title">
+            <h2>Research Feed</h2>
+            <span class="pill"><span class="dot warn"></span>Dry run</span>
+          </div>
+          <p>Candidate links carry source URL, confidence, reason-for-fit, and safety status before any approved channel post.</p>
+        </article>
+      </section>
+
+      <section class="grid cols-3" id="activities">
+        <article class="card">
+          <h2>Discord Events</h2>
+          <p>Create, update, end, and audit scheduled events when the requesting user has manage-event permissions.</p>
+        </article>
+        <article class="card">
+          <h2>Community Quests</h2>
+          <p>Gamified portal quests track participation, reward rules, and moderator review state.</p>
+        </article>
+        <article class="card">
+          <h2>Developer Settings</h2>
+          <p>OAuth, intents, callback URLs, and application identifiers stay visible without exposing secrets.</p>
+        </article>
+      </section>
+
+      <section class="grid cols-2" id="agents">
+        <article class="card">
+          <div class="section-title">
+            <h2>Agent Lanes</h2>
+            <span class="pill"><span class="dot ready"></span>Mythos packet</span>
+          </div>
+          <div class="timeline">
+            <div class="step"><b>1</b><p>public-diva-indexer maintains clean-room command parity evidence.</p></div>
+            <div class="step"><b>2</b><p>music-engine-architect verifies Wavelink/Lavalink boundaries.</p></div>
+            <div class="step"><b>3</b><p>npc-persona-guardian checks memory, privacy, cooldown, and admin gates.</p></div>
+            <div class="step"><b>4</b><p>security-privacy-verifier blocks secret leakage and private-channel ingestion.</p></div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="section-title">
+            <h2>Codex AGI Adapters</h2>
+            <span class="pill"><span class="dot warn"></span>Advisory only</span>
+          </div>
+          <div class="table" aria-label="Adapter status">
+            <div class="row"><span>NOO</span><span class="muted">interest reasoning</span><span>bounded</span></div>
+            <div class="row"><span>quantum_roots</span><span class="muted">source health</span><span>bounded</span></div>
+            <div class="row"><span>swarm_brain</span><span class="muted">planner/verifier</span><span>bounded</span></div>
+            <div class="row"><span>SLIME GOD</span><span class="muted">memory bridge</span><span>bounded</span></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="grid cols-2" id="deploy">
+        <article class="card">
+          <div class="section-title">
+            <h2>Preview Deployment</h2>
+            <span class="pill"><span class="dot ready"></span>Static Vercel path</span>
+          </div>
+          <p>This folder ships only the operator portal shell. Runtime bot, worker, database, OAuth, and Lavalink checks remain Railway/live-Discord gates.</p>
+        </article>
+        <article class="card">
+          <div class="section-title">
+            <h2>Production Topology</h2>
+            <span class="pill"><span class="dot warn"></span>Railway web + worker</span>
+          </div>
+          <p>Production keeps the Flask dashboard and persistent Discord bot worker separated with hosted Postgres and explicit environment variables.</p>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

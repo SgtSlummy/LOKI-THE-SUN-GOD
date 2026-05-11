@@ -10,6 +10,11 @@ Highest-priority remaining items:
 2. Hosted Discord OAuth callback test.
 3. Live Discord `/dashboard` plus post-restart relay message test in the actual channels.
 
+The Vercel target is limited to the sanitized static operator preview in
+[VERCEL_PREVIEW.md](/C:/LOKI%20THE%20SUN%20GOD/docs/VERCEL_PREVIEW.md). Do not
+deploy the repo root to Vercel because local runtime data and logs can exist
+outside Git tracking.
+
 ## What Ships
 
 LOKI THE SUN GOD has three operator surfaces:
