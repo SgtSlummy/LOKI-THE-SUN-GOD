@@ -165,8 +165,9 @@ export class RoomManager {
   }
 
   private emitChange(room: RoomState, reason: string) {
-    this.rooms.set(room.roomId, { ...room, queue: [...room.queue], obs: { ...room.obs }, twitch: { ...room.twitch } });
-    this.events.emit("change", this.rooms.get(room.roomId), reason);
+    const snapshot = { ...room, queue: [...room.queue], obs: { ...room.obs }, twitch: { ...room.twitch } };
+    this.rooms.set(room.roomId, snapshot);
+    this.events.emit("change", { ...snapshot, queue: [...snapshot.queue], obs: { ...snapshot.obs }, twitch: { ...snapshot.twitch } }, reason);
   }
 }
 

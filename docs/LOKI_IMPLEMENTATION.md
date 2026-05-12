@@ -12,7 +12,7 @@ The Diva work is clean-room public parity. The implementation uses public pages 
 - `loki_music`: music session, mixer state, and Lavalink-compatible equalizer preset payloads.
 - `loki_music.wavelink_backend`: Wavelink/Lavalink v4 runtime adapter for node connection, voice player creation, search resolution, queueing, playback controls, volume, EQ filters, and track-end advancement.
 - `loki_npc`: generated Discord NPC persona, redaction, and OpenAI Responses API payload construction with `store=false`.
-- `loki_memory`: bounded Codex AGI adapter registry for NOO/Noophyte, Quantum Roots, Swarm Brain, SLIME GOD, and Camelot.
+- `loki_memory`: bounded Codex AGI adapter registry for NOO/Noophyte, Quantum Roots, Swarm Brain, CosmicOS, OpenMythos, SLIME GOD, Camelot, and discovered Codex AGI projects.
 - `loki_research`: public Diva catalog and recommendation scaffolding.
 - `loki_research.experiments`: dry-run-only self-research and mutation safety contracts for future iteration labs.
 - `loki_mcp`: local/ChatGPT-readable MCP tools and resources.

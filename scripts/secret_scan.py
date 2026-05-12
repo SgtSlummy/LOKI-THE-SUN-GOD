@@ -4,7 +4,17 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_DIRS = {".git", ".venv", ".mythos", "__pycache__", ".pytest_cache", ".ruff_cache", "dist", "build"}
+EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    ".mythos",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    "node_modules",
+    "dist",
+    "build",
+}
 SECRET_PATTERNS = [
     re.compile(r"(?i)\bdiscord[_-]?token\s*=\s*[^\s#]+"),
     re.compile(r"\b[MNO][A-Za-z\d_-]{20,}\.[A-Za-z\d_-]{6,}\.[A-Za-z\d_-]{20,}\b"),
@@ -16,9 +26,13 @@ SECRET_PATTERNS = [
 def iter_files() -> list[Path]:
     files: list[Path] = []
     for path in ROOT.rglob("*"):
-        if not path.is_file():
+        relative = path.relative_to(ROOT)
+        if any(part in EXCLUDED_DIRS for part in relative.parts):
             continue
-        if any(part in EXCLUDED_DIRS for part in path.relative_to(ROOT).parts):
+        try:
+            if not path.is_file():
+                continue
+        except OSError:
             continue
         if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".ico", ".exe", ".dll"}:
             continue
