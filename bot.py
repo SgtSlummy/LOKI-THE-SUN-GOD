@@ -32,6 +32,18 @@ RELAY_LOCAL_SQLITE_WARNING = (
 )
 
 
+def natural_language_mode_enabled() -> bool:
+    return os.getenv("LOKI_NATURAL_LANGUAGE_ONLY", "true").lower() in TRUTHY
+
+
+def should_sync_slash_commands() -> bool:
+    return os.getenv("LOKI_ENABLE_SLASH_SYNC", "false").lower() in TRUTHY and not natural_language_mode_enabled()
+
+
+def presence_activity_name() -> str:
+    return "Talk to LOKI naturally | LOKI THE SON GOD"
+
+
 def relay_enabled_from_env() -> bool:
     return os.getenv("RELAY_ENABLED", "false").lower() in TRUTHY
 
@@ -128,22 +140,25 @@ class LokiBot(commands.Bot):
             except Exception as e:
                 log.exception(f"Failed to load {cog_name}: {e}")
         apply_descriptions_to_bot(self)
-        try:
-            test_guild_id = os.getenv("TEST_GUILD_ID")
-            if test_guild_id and test_guild_id.isdigit():
-                guild = discord.Object(id=int(test_guild_id))
-                self.tree.copy_global_to(guild=guild)
-                synced = await self.tree.sync(guild=guild)
-                log.info(f"Synced {len(synced)} slash commands to guild {test_guild_id} (instant)")
-            else:
-                synced = await self.tree.sync()
-                log.info(f"Synced {len(synced)} slash commands globally (~1h propagation)")
-        except Exception as e:
-            log.warning(f"Slash sync failed: {e}")
+        if should_sync_slash_commands():
+            try:
+                test_guild_id = os.getenv("TEST_GUILD_ID")
+                if test_guild_id and test_guild_id.isdigit():
+                    guild = discord.Object(id=int(test_guild_id))
+                    self.tree.copy_global_to(guild=guild)
+                    synced = await self.tree.sync(guild=guild)
+                    log.info(f"Synced {len(synced)} slash commands to guild {test_guild_id} (instant)")
+                else:
+                    synced = await self.tree.sync()
+                    log.info(f"Synced {len(synced)} slash commands globally (~1h propagation)")
+            except Exception as e:
+                log.warning(f"Slash sync failed: {e}")
+        else:
+            log.info("Slash command sync disabled; LOKI is operating in natural-language Discord UX mode.")
 
     async def on_ready(self):
         log.info(f"Logged in as {self.user} ({self.user.id})")
-        await self.change_presence(activity=discord.Game(name=f"{DEFAULT_PREFIX}help | LOKI THE SUN GOD"))
+        await self.change_presence(activity=discord.Game(name=presence_activity_name()))
 
     def _iter_cog_names(self) -> list[str]:
         return discover_cog_names()

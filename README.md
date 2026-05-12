@@ -2,7 +2,7 @@
 
 LOKI THE SUN GOD is a Discord bot with:
 
-- a `discord.py` bot in [bot.py](/C:/LOKI%20THE%20SUN%20GOD/bot.py)
+- a `discord.py` bot in [bot.py](/C:/LOKI%20THE%20SUN%20GOD/bot.py) with natural-language Discord UX by default
 - a Flask admin dashboard in [dashboard_app.py](/C:/LOKI%20THE%20SUN%20GOD/dashboard_app.py)
 - a local desktop control center in [desktop_app.py](/C:/LOKI%20THE%20SUN%20GOD/desktop_app.py)
 - a local offline MCP server in [loki_mcp](/C:/LOKI%20THE%20SUN%20GOD/loki_mcp)
@@ -45,6 +45,17 @@ python .\scripts\release_check.py
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run_local.ps1
 ```
+
+## Discord UX Policy
+
+LOKI is Discord-first and natural-language-first. By default, runtime slash-command sync is disabled so members talk to LOKI in normal language instead of using `/` commands. Slash sync is only an explicit operator fallback:
+
+```powershell
+$env:LOKI_NATURAL_LANGUAGE_ONLY="false"
+$env:LOKI_ENABLE_SLASH_SYNC="true"
+```
+
+Anyone can ask questions. Admin-level changes remain protected by Discord/admin role checks and dashboard permission gates. Search may use local or online sources only according to the rights granted by admins; rights start with no extra privileges until an admin grants them.
 
 ## Required Environment
 
