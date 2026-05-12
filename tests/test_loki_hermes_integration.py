@@ -6,10 +6,12 @@ import sys
 from pathlib import Path
 
 from loki_research.hermes_integration import (
+    compile_loki_complete_package_manifest,
     compile_loki_final_product_blueprint,
     compile_v8_bot_assembly_plan,
     compile_v8_hermes_packet,
     render_hermes_integration_markdown,
+    render_loki_complete_package_markdown,
     render_loki_final_product_markdown,
     render_v8_bot_assembly_markdown,
     v8_hermes_integration_spec,
@@ -224,6 +226,67 @@ def test_final_product_markdown_and_artifact_paths_are_deterministic(tmp_path):
     assert "LOKI V8 Hermes Agent Integration" in artifacts.markdown_path.read_text(encoding="utf-8")
 
 
+def test_complete_package_manifest_defines_all_ship_targets_and_artifacts():
+    manifest = compile_loki_complete_package_manifest()
+
+    assert manifest["product_name"] == "LOKI: THE SON GOD"
+    assert manifest["completion_state"] == "package_manifest_ready_local_only"
+    assert manifest["external_jobs_launched"] is False
+    assert [package["id"] for package in manifest["packages"]] == [
+        "discord-runtime",
+        "discord-app",
+        "console-dashboard",
+        "desktop-controller",
+        "activity-bridge",
+        "hermes-camelot-memory",
+        "media-and-crawler-workers",
+        "local-gpu-workers",
+    ]
+    desktop_package = next(package for package in manifest["packages"] if package["id"] == "desktop-controller")
+    assert desktop_package["artifact"] == "dist/LOKI-THE-SUN-GOD-Dashboard.exe"
+    assert "powershell -ExecutionPolicy Bypass -File ./scripts/build_standalone.ps1" in desktop_package[
+        "build_commands"
+    ]
+    activity_package = next(package for package in manifest["packages"] if package["id"] == "activity-bridge")
+    assert activity_package["artifact"] == "services/activity-bridge/client/dist"
+    assert activity_package["build_commands"] == ["npm run typecheck", "npm run build"]
+
+
+def test_complete_package_manifest_keeps_live_launch_and_deploy_blocked():
+    manifest = compile_loki_complete_package_manifest()
+
+    assert manifest["promotion_policy"] == "operator_review_required_before_any_live_package_launch"
+    assert manifest["blocked_until_operator_approval"] == [
+        "python bot.py",
+        "railway up",
+        "hermes gateway install",
+        "hermes cron create",
+        "publishing Discord app commands to a live guild",
+        "autonomous crawler posting to Discord",
+        "shipping desktop .exe without secret scan and release check evidence",
+    ]
+    assert "python scripts/release_check.py --strict-env" in manifest["final_release_gates"]
+    assert "npm run test:rooms" in manifest["final_release_gates"]
+    assert "manual Windows PyInstaller smoke for desktop .exe" in manifest["manual_gates"]
+
+
+def test_complete_package_markdown_and_artifact_paths_are_deterministic(tmp_path):
+    markdown = render_loki_complete_package_markdown(compile_loki_complete_package_manifest())
+
+    assert "# LOKI: THE SON GOD Complete Package Manifest" in markdown
+    assert "discord-runtime" in markdown
+    assert "desktop-controller" in markdown
+    assert "dist/LOKI-THE-SUN-GOD-Dashboard.exe" in markdown
+    assert "operator_review_required_before_any_live_package_launch" in markdown
+
+    artifacts = write_hermes_integration_artifacts(tmp_path)
+    expected_packages_json = tmp_path / ".loki_lab" / "hermes" / "loki_complete_packages.json"
+    assert artifacts.complete_packages_json_path == expected_packages_json
+    assert artifacts.complete_packages_markdown_path == tmp_path / "docs" / "LOKI_COMPLETE_PACKAGES.md"
+    assert artifacts.complete_packages_json_path.exists()
+    assert artifacts.complete_packages_markdown_path.exists()
+
+
 def test_compile_v8_hermes_script_runs_directly_from_any_cwd(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
     script = repo_root / "scripts" / "compile_v8_hermes.py"
@@ -240,3 +303,5 @@ def test_compile_v8_hermes_script_runs_directly_from_any_cwd(tmp_path):
     assert (tmp_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json").exists()
     assert (tmp_path / ".loki_lab" / "hermes" / "v8_bot_assembly_plan.json").exists()
     assert (tmp_path / "docs" / "V8_BOT_ASSEMBLY.md").exists()
+    assert (tmp_path / ".loki_lab" / "hermes" / "loki_complete_packages.json").exists()
+    assert (tmp_path / "docs" / "LOKI_COMPLETE_PACKAGES.md").exists()

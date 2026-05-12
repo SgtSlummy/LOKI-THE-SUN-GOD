@@ -33,6 +33,8 @@ class HermesIntegrationArtifacts:
     assembly_markdown_path: Path
     final_blueprint_json_path: Path
     final_blueprint_markdown_path: Path
+    complete_packages_json_path: Path
+    complete_packages_markdown_path: Path
 
 
 def v8_hermes_integration_spec() -> HermesIntegrationSpec:
@@ -519,29 +521,174 @@ def render_loki_final_product_markdown(blueprint: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def compile_loki_complete_package_manifest() -> dict[str, Any]:
+    return {
+        "product_name": "LOKI: THE SON GOD",
+        "completion_state": "package_manifest_ready_local_only",
+        "external_jobs_launched": False,
+        "promotion_policy": "operator_review_required_before_any_live_package_launch",
+        "packages": [
+            {
+                "id": "discord-runtime",
+                "artifact": "bot.py + cogs + loki_* Python packages",
+                "purpose": "Discord bot worker for LOKI natural-language communication",
+                "build_commands": [
+                    (
+                        "python -m compileall bot.py cogs loki_engine loki_npc loki_music loki_activity_bridge "
+                        "loki_mcp loki_research"
+                    ),
+                    "python scripts/release_check.py",
+                ],
+            },
+            {
+                "id": "discord-app",
+                "artifact": "Discord Developer Portal application plus slash-command catalog",
+                "purpose": "Discord App identity, OAuth, intents, and slash command surface",
+                "build_commands": ["python scripts/release_check.py --strict-env"],
+            },
+            {
+                "id": "console-dashboard",
+                "artifact": "dashboard_app.py and dashboard_standalone.py",
+                "purpose": "operator console dashboard with LLM input and sub-agent controls",
+                "build_commands": [
+                    "python scripts/build_dashboard_raw.py",
+                    "powershell -ExecutionPolicy Bypass -File ./scripts/build_dashboard_standalone.ps1",
+                ],
+            },
+            {
+                "id": "desktop-controller",
+                "artifact": "dist/LOKI-THE-SUN-GOD-Dashboard.exe",
+                "purpose": "Windows .exe controller for local operator control and hosted health checks",
+                "build_commands": [
+                    "powershell -ExecutionPolicy Bypass -File ./scripts/build_standalone.ps1",
+                ],
+            },
+            {
+                "id": "activity-bridge",
+                "artifact": "services/activity-bridge/client/dist",
+                "purpose": "Discord Activity-style room state, shared queue, and media watch bridge",
+                "build_commands": ["npm run typecheck", "npm run build"],
+            },
+            {
+                "id": "hermes-camelot-memory",
+                "artifact": ".loki_lab/hermes/*.json + Camelot memory adapter contract",
+                "purpose": "Hermes orchestration, Camelot memory, member summaries, and upgrade evidence",
+                "build_commands": ["python scripts/compile_v8_hermes.py"],
+            },
+            {
+                "id": "media-and-crawler-workers",
+                "artifact": "media/search/crawler worker package contract",
+                "purpose": "music/video/image/text/web/game processing, generation, crawling, and posting queues",
+                "build_commands": ["python scripts/release_check.py"],
+            },
+            {
+                "id": "local-gpu-workers",
+                "artifact": "optional local GPU model worker contract",
+                "purpose": "optional local model execution routed through desktop/Hermes operator controls",
+                "build_commands": ["python scripts/release_check.py"],
+            },
+        ],
+        "final_release_gates": [
+            "python -m ruff check .",
+            "python scripts/secret_scan.py",
+            "python -m pytest -q",
+            "npm run test:rooms",
+            "npm run typecheck",
+            "npm run build",
+            "python scripts/release_check.py",
+            "python scripts/release_check.py --strict-env",
+        ],
+        "manual_gates": [
+            "manual Windows PyInstaller smoke for desktop .exe",
+            "manual Discord Developer Portal app/intents/OAuth verification",
+            "manual hosted Railway/web/worker health verification",
+            "manual Camelot backup/restore verification before live memory promotion",
+        ],
+        "blocked_until_operator_approval": [
+            "python bot.py",
+            "railway up",
+            "hermes gateway install",
+            "hermes cron create",
+            "publishing Discord app commands to a live guild",
+            "autonomous crawler posting to Discord",
+            "shipping desktop .exe without secret scan and release check evidence",
+        ],
+    }
+
+
+def render_loki_complete_package_markdown(manifest: dict[str, Any]) -> str:
+    lines = [
+        "# LOKI: THE SON GOD Complete Package Manifest",
+        "",
+        "This manifest defines every package target needed to ship the Discord-first LOKI product while keeping "
+        "live launch, deploy, and autonomous posting blocked until operator approval.",
+        "",
+        "## Package State",
+        "",
+        f"- Product name: `{manifest['product_name']}`.",
+        f"- Completion state: `{manifest['completion_state']}`.",
+        f"- External jobs launched: `{manifest['external_jobs_launched']}`.",
+        f"- Promotion policy: `{manifest['promotion_policy']}`.",
+        "",
+        "## Packages",
+        "",
+    ]
+    for package in manifest["packages"]:
+        lines.extend(
+            [
+                f"### {package['id']}",
+                "",
+                f"- Artifact: `{package['artifact']}`.",
+                f"- Purpose: {package['purpose']}.",
+                "- Build commands: " + ", ".join(f"`{command}`" for command in package["build_commands"]) + ".",
+                "",
+            ]
+        )
+    lines.extend(["## Final Release Gates", ""])
+    lines.extend(f"- `{gate}`." for gate in manifest["final_release_gates"])
+    lines.extend(["", "## Manual Gates", ""])
+    lines.extend(f"- {gate}." for gate in manifest["manual_gates"])
+    lines.extend(["", "## Blocked Until Operator Approval", ""])
+    lines.extend(f"- `{command}`." for command in manifest["blocked_until_operator_approval"])
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_hermes_integration_artifacts(root: Path | str = ".") -> HermesIntegrationArtifacts:
     root_path = Path(root)
     packet = compile_v8_hermes_packet()
     assembly_plan = compile_v8_bot_assembly_plan()
     final_blueprint = compile_loki_final_product_blueprint()
+    complete_packages = compile_loki_complete_package_manifest()
     json_path = root_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json"
     markdown_path = root_path / "docs" / "V8_HERMES_INTEGRATION.md"
     assembly_json_path = root_path / ".loki_lab" / "hermes" / "v8_bot_assembly_plan.json"
     assembly_markdown_path = root_path / "docs" / "V8_BOT_ASSEMBLY.md"
     final_blueprint_json_path = root_path / ".loki_lab" / "hermes" / "loki_final_product_blueprint.json"
     final_blueprint_markdown_path = root_path / "docs" / "LOKI_FINAL_PRODUCT_BLUEPRINT.md"
+    complete_packages_json_path = root_path / ".loki_lab" / "hermes" / "loki_complete_packages.json"
+    complete_packages_markdown_path = root_path / "docs" / "LOKI_COMPLETE_PACKAGES.md"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     assembly_json_path.parent.mkdir(parents=True, exist_ok=True)
     assembly_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     final_blueprint_json_path.parent.mkdir(parents=True, exist_ok=True)
     final_blueprint_markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    complete_packages_json_path.parent.mkdir(parents=True, exist_ok=True)
+    complete_packages_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     markdown_path.write_text(render_hermes_integration_markdown(packet), encoding="utf-8")
     assembly_json_path.write_text(json.dumps(assembly_plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     assembly_markdown_path.write_text(render_v8_bot_assembly_markdown(assembly_plan), encoding="utf-8")
     final_blueprint_json_path.write_text(json.dumps(final_blueprint, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     final_blueprint_markdown_path.write_text(render_loki_final_product_markdown(final_blueprint), encoding="utf-8")
+    complete_packages_json_path.write_text(
+        json.dumps(complete_packages, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    complete_packages_markdown_path.write_text(
+        render_loki_complete_package_markdown(complete_packages),
+        encoding="utf-8",
+    )
     return HermesIntegrationArtifacts(
         json_path=json_path,
         markdown_path=markdown_path,
@@ -549,4 +696,6 @@ def write_hermes_integration_artifacts(root: Path | str = ".") -> HermesIntegrat
         assembly_markdown_path=assembly_markdown_path,
         final_blueprint_json_path=final_blueprint_json_path,
         final_blueprint_markdown_path=final_blueprint_markdown_path,
+        complete_packages_json_path=complete_packages_json_path,
+        complete_packages_markdown_path=complete_packages_markdown_path,
     )
