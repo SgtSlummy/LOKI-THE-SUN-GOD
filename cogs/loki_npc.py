@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 
 import discord
@@ -46,7 +47,7 @@ class LokiNpc(commands.Cog):
                 user_id=message.author.id,
                 content=message.clean_content,
             )
-        if self.bot.user not in message.mentions:
+        if not self._is_addressed_to_loki(message):
             return
         key = (message.guild.id, message.author.id)
         now = time.time()
@@ -54,7 +55,7 @@ class LokiNpc(commands.Cog):
             return
         self.cooldowns[key] = now
         persona = self.persona_for_guild(message.guild.id)
-        prompt = message.clean_content.replace(f"@{self.bot.user.display_name}", "").strip()
+        prompt = self._prompt_without_address(message)
         route = self._route_natural_language_prompt(prompt, message)
         if not route.allowed:
             await message.reply(route.reason, mention_author=False)
@@ -78,6 +79,20 @@ class LokiNpc(commands.Cog):
             permissions=permissions,
         )
         return route_natural_language_request(prompt, context, rights=NaturalLanguageRights())
+
+    def _is_addressed_to_loki(self, message: discord.Message) -> bool:
+        if self.bot.user in getattr(message, "mentions", []):
+            return True
+        content = (getattr(message, "clean_content", "") or "").strip().lower()
+        return bool(re.match(r"^(hey|hi|yo|ok|okay)?\s*loki\b", content))
+
+    def _prompt_without_address(self, message: discord.Message) -> str:
+        content = (getattr(message, "clean_content", "") or "").strip()
+        bot_user = self.bot.user
+        for name in {getattr(bot_user, "display_name", ""), getattr(bot_user, "name", "")}:
+            if name:
+                content = content.replace(f"@{name}", "")
+        return re.sub(r"^(hey|hi|yo|ok|okay)?\s*loki\b[\s,;:!?.-]*", "", content, flags=re.IGNORECASE).strip()
 
     def _channel_allowed(self, channel: discord.abc.Messageable) -> bool:
         allowed = self._csv_set("LOKI_NPC_ALLOWED_CHANNEL_IDS")

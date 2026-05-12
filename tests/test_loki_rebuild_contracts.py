@@ -441,6 +441,28 @@ def test_loki_npc_routes_mentioned_admin_changes_through_natural_language_policy
     assert "administrator or manage-guild" in route.reason.lower()
 
 
+def test_loki_npc_accepts_natural_name_addressing_without_discord_mention():
+    pytest.importorskip("discord")
+    from cogs.loki_npc import LokiNpc
+
+    class BotUser:
+        id = 99
+        display_name = "LOKI THE SUN GOD"
+        name = "LOKI THE SUN GOD"
+
+    class Bot:
+        user = BotUser()
+
+    class Message:
+        mentions = []
+        clean_content = "hey loki are you online?"
+
+    npc = LokiNpc(Bot())
+
+    assert npc._is_addressed_to_loki(Message())
+    assert npc._prompt_without_address(Message()) == "are you online?"
+
+
 def test_npc_channel_allowlist_and_private_channel_detection(monkeypatch):
     pytest.importorskip("discord")
     from cogs.loki_npc import LokiNpc
