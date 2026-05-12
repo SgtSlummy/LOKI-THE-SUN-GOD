@@ -1,0 +1,107 @@
+{
+  "external_jobs_launched": false,
+  "matrix": [
+    {
+      "artifact": "bot.py + cogs + loki_* Python packages",
+      "evidence": [
+        "bot.py",
+        "cogs/",
+        "python scripts/release_check.py"
+      ],
+      "package_id": "discord-runtime",
+      "status": "automated_ready"
+    },
+    {
+      "artifact": "Discord Developer Portal application plus slash-command catalog",
+      "evidence": [
+        "utils/command_catalog.py",
+        "python scripts/release_check.py --strict-env"
+      ],
+      "package_id": "discord-app",
+      "status": "manual_gate_required"
+    },
+    {
+      "artifact": "dashboard_app.py and dashboard_standalone.py",
+      "evidence": [
+        "dashboard_app.py",
+        "dashboard_standalone.py",
+        "scripts/build_dashboard_raw.py"
+      ],
+      "package_id": "console-dashboard",
+      "status": "automated_ready"
+    },
+    {
+      "artifact": "dist/LOKI-THE-SUN-GOD-Dashboard.exe",
+      "evidence": [
+        "LokiDashboard.spec",
+        "scripts/build_standalone.ps1",
+        "manual Windows PyInstaller smoke for desktop .exe"
+      ],
+      "package_id": "desktop-controller",
+      "status": "manual_gate_required"
+    },
+    {
+      "artifact": "services/activity-bridge/client/dist",
+      "evidence": [
+        "services/activity-bridge/client/dist",
+        "npm run test:rooms",
+        "npm run typecheck",
+        "npm run build"
+      ],
+      "package_id": "activity-bridge",
+      "status": "automated_ready"
+    },
+    {
+      "artifact": ".loki_lab/hermes/*.json + Camelot memory adapter contract",
+      "evidence": [
+        ".loki_lab/hermes/v8_hermes_manifest.json",
+        ".loki_lab/hermes/loki_final_product_blueprint.json",
+        ".loki_lab/hermes/loki_complete_packages.json"
+      ],
+      "package_id": "hermes-camelot-memory",
+      "status": "automated_ready"
+    },
+    {
+      "artifact": "media/search/crawler worker package contract",
+      "evidence": [
+        "media/search/crawler worker package contract",
+        "manual crawler allowlist/policy verification"
+      ],
+      "package_id": "media-and-crawler-workers",
+      "status": "contract_ready"
+    },
+    {
+      "artifact": "optional local GPU model worker contract",
+      "evidence": [
+        "optional local GPU model worker contract",
+        "manual GPU host smoke required when enabled"
+      ],
+      "package_id": "local-gpu-workers",
+      "status": "contract_ready"
+    }
+  ],
+  "next_operator_actions": [
+    "provide production secrets outside git",
+    "run strict environment release check on the deployment host",
+    "smoke-test desktop .exe on Windows after PyInstaller build",
+    "verify Discord Developer Portal intents, OAuth redirect, and command publication target",
+    "approve or reject live bot launch, crawler posting, and hosted deploy separately"
+  ],
+  "product_name": "LOKI: THE SON GOD",
+  "readiness_state": "local_package_evidence_compiled",
+  "still_requires_operator_approval": [
+    "python bot.py",
+    "railway up",
+    "hermes gateway install",
+    "hermes cron create",
+    "publishing Discord app commands to a live guild",
+    "autonomous crawler posting to Discord",
+    "shipping desktop .exe without secret scan and release check evidence"
+  ],
+  "summary": {
+    "automated_ready": 5,
+    "contract_ready": 3,
+    "manual_gate_required": 4,
+    "total_packages": 8
+  }
+}

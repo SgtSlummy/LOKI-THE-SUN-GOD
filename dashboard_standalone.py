@@ -22,7 +22,6 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-
 PAYLOAD_B64 = """
 UEsDBBQAAAAIAMJUq1zmGzWu1j4AAGYpAQAQAAAAZGFzaGJvYXJkX2FwcC5wee1923bjyJHgu74CRh9vkW2KUpW7
 7B6O6W6VxOrStEqqkVhu95F1YIgEJVgkQQOgSrJGe+Zln3Yf53H35/wlG5e8I8GLxGq39yzdLpFAZmRmZGRkRGRE

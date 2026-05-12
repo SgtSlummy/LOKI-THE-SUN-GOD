@@ -18,6 +18,8 @@ def main() -> None:
     print(f"wrote {artifacts.final_blueprint_markdown_path}")
     print(f"wrote {artifacts.complete_packages_json_path}")
     print(f"wrote {artifacts.complete_packages_markdown_path}")
+    print(f"wrote {artifacts.package_readiness_json_path}")
+    print(f"wrote {artifacts.package_readiness_markdown_path}")
 
 
 if __name__ == "__main__":
