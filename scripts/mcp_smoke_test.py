@@ -21,6 +21,7 @@ FIXTURE_GUILD_ID = 123456789012345678
 async def run_smoke_test() -> None:
     manifest = seed_fixture(ROOT / "tests" / "fixtures" / "mcp" / "generated")
     env = os.environ.copy()
+    env.pop("DATABASE_URL", None)
     env.update(
         {
             "PYTHONIOENCODING": "utf-8",
@@ -29,6 +30,7 @@ async def run_smoke_test() -> None:
             "LOKI_CODEX_SETTINGS_PATH": manifest["codex_settings_path"],
             "LOKI_ENV_PATH": manifest["env_path"],
             "LOKI_RUNTIME_LOG_PATH": manifest["runtime_log_path"],
+            "LOKI_EXTERNAL_LIBRARY_ROOT": manifest["external_library_root"],
         }
     )
     server = StdioServerParameters(
@@ -49,6 +51,7 @@ async def run_smoke_test() -> None:
                 "loki_get_channel_clusters",
                 "loki_search_commands",
                 "loki_search_ai_docs",
+                "loki_search_external_legacy_libraries",
                 "loki_get_diagnostics",
                 "loki_get_ollama_status",
             }
@@ -66,6 +69,7 @@ async def run_smoke_test() -> None:
                 "loki://commands",
                 "loki://options",
                 "loki://ai-docs",
+                "loki://external-legacy-libraries",
                 "loki://ollama-status",
             }:
                 if uri not in resource_uris:
@@ -116,6 +120,17 @@ async def run_smoke_test() -> None:
             ai_doc_payload = ai_doc_search.structuredContent or {}
             if ai_doc_payload.get("total", 0) < 1:
                 raise AssertionError("AI doc search returned no matches for 'Ollama'.")
+
+            legacy_search = await session.call_tool(
+                "loki_search_external_legacy_libraries",
+                {"args": {"query": "ticket", "include_content": False}},
+            )
+            legacy_payload = legacy_search.structuredContent or {}
+            if legacy_payload.get("total") != 1:
+                raise AssertionError(f"Unexpected external legacy library total: {legacy_payload.get('total')}")
+            legacy_libraries = legacy_payload.get("libraries") or []
+            if legacy_libraries[0].get("library") != "ralph-wiggum-legacy":
+                raise AssertionError(f"Unexpected external legacy library: {legacy_libraries[0]}")
 
             prompt = await session.get_prompt(
                 "loki_operator_brief",

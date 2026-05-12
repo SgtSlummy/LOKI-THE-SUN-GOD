@@ -24,6 +24,11 @@ CODEX_SETTINGS_PATH = Path.home() / ".Codex" / "settings.json"
 ENV_PATH = runtime_paths.app_path(".env")
 RUNTIME_LOG_PATH = runtime_paths.app_path("desktop_runtime.log")
 WINDOWS_HOME_PATH = Path(os.getenv("USERPROFILE", "")).expanduser() if os.getenv("USERPROFILE") else None
+DEFAULT_EXTERNAL_LIBRARY_ROOT = (
+    WINDOWS_HOME_PATH / "OneDrive" / "Desktop" / "Codex" / "loki-libraries"
+    if WINDOWS_HOME_PATH
+    else Path.home() / "OneDrive" / "Desktop" / "Codex" / "loki-libraries"
+)
 ROUTER_REPO_PATH = (
     WINDOWS_HOME_PATH / "OneDrive" / "Desktop" / "Codex" / "9router"
     if WINDOWS_HOME_PATH
@@ -61,6 +66,33 @@ def ai_docs_path() -> Path:
     if override:
         return Path(override)
     return docs_path() / "ai_library"
+
+
+def external_library_root() -> Path:
+    return _path_from_env("LOKI_EXTERNAL_LIBRARY_ROOT", DEFAULT_EXTERNAL_LIBRARY_ROOT)
+
+
+def external_library_paths() -> list[Path]:
+    configured = os.getenv("LOKI_EXTERNAL_LIBRARY_PATHS") or read_env_file_at(ENV_PATH).get(
+        "LOKI_EXTERNAL_LIBRARY_PATHS"
+    )
+    if configured:
+        return [Path(item.strip()) for item in configured.split(os.pathsep) if item.strip()]
+    root = external_library_root()
+    if not root.exists():
+        return []
+    return sorted(path for path in root.iterdir() if path.is_dir())
+
+
+def external_library_doc_paths() -> list[Path]:
+    paths: list[Path] = []
+    for library_path in external_library_paths():
+        if not library_path.exists():
+            continue
+        for candidate in (library_path, library_path / "docs"):
+            if candidate.exists():
+                paths.extend(sorted(candidate.glob("*.md")))
+    return paths
 
 
 def codex_settings_path() -> Path:
@@ -868,6 +900,7 @@ def ai_doc_library(include_content: bool = False) -> list[dict[str, Any]]:
         paths.extend(sorted(current_docs_path.glob("*.md")))
     if current_ai_docs_path.exists():
         paths.extend(sorted(current_ai_docs_path.glob("*.md")))
+    paths.extend(external_library_doc_paths())
     for path in paths:
         resolved = path.resolve()
         if resolved in seen:
@@ -877,7 +910,11 @@ def ai_doc_library(include_content: bool = False) -> list[dict[str, Any]]:
         try:
             relative_file = str(path.relative_to(command_root()))
         except ValueError:
-            relative_file = str(path)
+            try:
+                relative_file = str(path.relative_to(external_library_root()))
+            except ValueError:
+                relative_file = str(path)
+        relative_file = relative_file.replace("\\", "/")
         item = {
             "name": path.stem.replace("_", " "),
             "file": relative_file,
@@ -910,6 +947,50 @@ def search_ai_docs(query: str, include_content: bool = False) -> list[dict[str, 
         ).lower()
         if normalized_query in haystack:
             matched.append(doc)
+    return matched
+
+
+def external_legacy_libraries(include_content: bool = False) -> list[dict[str, Any]]:
+    libraries: list[dict[str, Any]] = []
+    for library_path in external_library_paths():
+        index_path = library_path / "ralph_wiggum_legacy_library.json"
+        if not index_path.exists():
+            continue
+        try:
+            payload = json.loads(index_path.read_text(encoding="utf-8", errors="replace"))
+        except json.JSONDecodeError as exc:
+            libraries.append({"path": str(index_path), "error": str(exc)})
+            continue
+        overview = payload.get("overview") or {}
+        item = {
+            "library": payload.get("library") or library_path.name,
+            "path": str(library_path),
+            "source_root": payload.get("source_root") or "",
+            "purpose": payload.get("purpose") or "",
+            "generated_at": payload.get("generated_at") or "",
+            "command_count": overview.get("command_count", len(payload.get("commands") or [])),
+            "file_count": overview.get("file_count", len(payload.get("files") or [])),
+            "components": overview.get("components") or [],
+            "command_categories": overview.get("command_categories") or {},
+        }
+        if include_content:
+            item["content"] = payload
+        libraries.append(item)
+    return libraries
+
+
+def search_external_legacy_libraries(query: str, include_content: bool = False) -> list[dict[str, Any]]:
+    normalized_query = query.strip().lower()
+    libraries = external_legacy_libraries(include_content=True)
+    if not normalized_query:
+        return libraries if include_content else external_legacy_libraries(include_content=False)
+    matched: list[dict[str, Any]] = []
+    for library in libraries:
+        haystack = json.dumps(library, sort_keys=True, default=str).lower()
+        if normalized_query in haystack:
+            if not include_content:
+                library = {key: value for key, value in library.items() if key != "content"}
+            matched.append(library)
     return matched
 
 
@@ -1284,6 +1365,7 @@ def diagnostics_snapshot(
         "slash_command_count": len([item for item in commands if item.get("slash_enabled")]),
         "guild_count": len(list_guilds()),
         "doc_count": len(ai_doc_library(include_content=False)),
+        "external_legacy_libraries": external_legacy_libraries(include_content=False),
     }
 
 
@@ -1299,6 +1381,7 @@ def overview_snapshot(service_statuses: Optional[list[dict[str, Any]]] = None) -
         "slash_command_count": len([item for item in commands if item.get("slash_enabled")]),
         "option_sections": list(option_library().keys()),
         "doc_count": len(ai_doc_library(include_content=False)),
+        "external_legacy_library_count": len(external_legacy_libraries(include_content=False)),
         "ollama": ollama_router_status(),
         "services": service_statuses or [],
     }

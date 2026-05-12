@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -15,15 +16,22 @@ def seed_fixture(output_dir: Path) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     database_path = output_dir / "loki_fixture.db"
     runtime_log_path = output_dir / "desktop_runtime.log"
+    external_library_root = output_dir / "loki-libraries"
+    external_library_path = external_library_root / "ralph-wiggum-legacy"
+    external_docs_path = external_library_path / "docs"
+    external_docs_path.mkdir(parents=True, exist_ok=True)
     if database_path.exists():
         database_path.unlink()
 
     original_db_path = shared_db.DB_PATH
+    original_database_url = os.environ.pop("DATABASE_URL", None)
     shared_db.DB_PATH = database_path
     try:
         shared_db.init_sync()
     finally:
         shared_db.DB_PATH = original_db_path
+        if original_database_url is not None:
+            os.environ["DATABASE_URL"] = original_database_url
 
     conn = sqlite3.connect(database_path)
     try:
@@ -104,12 +112,36 @@ def seed_fixture(output_dir: Path) -> dict[str, str]:
         "2026-04-30 09:00:00 boot ok\n2026-04-30 09:05:00 local diagnostics ready\n",
         encoding="utf-8",
     )
+    external_docs_path.joinpath("legacy_capabilities.md").write_text(
+        "# Ralph Wiggum legacy library\nTickets and automod behavior are available as read-only references.\n",
+        encoding="utf-8",
+    )
+    external_library_path.joinpath("ralph_wiggum_legacy_library.json").write_text(
+        json.dumps(
+            {
+                "library": "ralph-wiggum-legacy",
+                "source_root": "C:/Ralph Wiggum",
+                "purpose": "External legacy reference for LOKI.",
+                "generated_at": "2026-05-12T00:00:00+00:00",
+                "overview": {
+                    "command_count": 263,
+                    "file_count": 909,
+                    "components": ["discord.py bot", "Flask dashboard"],
+                    "command_categories": {"Automod": 12, "Tickets": 8},
+                },
+                "commands": [{"command": "ticket", "description": "Create tickets"}],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     manifest = {
         "db_path": str(database_path),
         "docs_path": str(FIXTURE_ROOT / "docs"),
         "codex_settings_path": str(FIXTURE_ROOT / "codex_settings.json"),
         "env_path": str(FIXTURE_ROOT / ".env"),
         "runtime_log_path": str(runtime_log_path),
+        "external_library_root": str(external_library_root),
     }
     (output_dir / "fixture_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest

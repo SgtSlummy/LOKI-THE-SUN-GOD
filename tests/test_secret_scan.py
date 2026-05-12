@@ -35,6 +35,7 @@ class _ExcludedPath:
         Path(".venv") / "bin" / "python",
         Path("node_modules") / "discord.js" / "src" / "index.js",
         Path("services") / "activity-bridge" / "node_modules" / "discord.js" / "src" / "index.js",
+        Path(".env"),
     ],
 )
 def test_iter_files_skips_excluded_directories_before_stat(monkeypatch, relative_path):

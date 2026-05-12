@@ -15,6 +15,9 @@ EXCLUDED_DIRS = {
     "dist",
     "build",
 }
+EXCLUDED_FILES = {
+    ".env",
+}
 SECRET_PATTERNS = [
     re.compile(r"(?i)\bdiscord[_-]?token\s*=\s*[^\s#]+"),
     re.compile(r"\b[MNO][A-Za-z\d_-]{20,}\.[A-Za-z\d_-]{6,}\.[A-Za-z\d_-]{20,}\b"),
@@ -28,6 +31,8 @@ def iter_files() -> list[Path]:
     for path in ROOT.rglob("*"):
         relative = path.relative_to(ROOT)
         if any(part in EXCLUDED_DIRS for part in relative.parts):
+            continue
+        if relative.name in EXCLUDED_FILES:
             continue
         try:
             if not path.is_file():

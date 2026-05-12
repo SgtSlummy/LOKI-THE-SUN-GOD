@@ -20,6 +20,8 @@ from loki_mcp.models import (
     GuildConfigWriteInput,
     GuildListResult,
     GuildQuery,
+    LegacyLibrarySearchQuery,
+    LegacyLibrarySearchResult,
     MusicStateResult,
     MutationResult,
     MythosSummaryResult,
@@ -88,6 +90,15 @@ def create_server() -> FastMCP:
     )
     def ai_docs_resource() -> str:
         return _json_text({"docs": operator_surface.ai_doc_library(include_content=False)})
+
+    @mcp.resource(
+        "loki://external-legacy-libraries",
+        name="LOKI THE SUN GOD External Legacy Libraries",
+        description="Read-only extracted legacy libraries available to LOKI without being part of core LOKI code.",
+        mime_type="application/json",
+    )
+    def external_legacy_libraries_resource() -> str:
+        return _json_text({"libraries": operator_surface.external_legacy_libraries(include_content=False)})
 
     @mcp.resource(
         "loki://ollama-status",
@@ -192,6 +203,18 @@ def create_server() -> FastMCP:
     def loki_search_ai_docs(args: DocSearchQuery) -> DocSearchResult:
         docs = operator_surface.search_ai_docs(args.query, include_content=args.include_content)
         return DocSearchResult(docs=docs, total=len(docs))
+
+    @mcp.tool(
+        name="loki_search_external_legacy_libraries",
+        description="Search extracted external legacy libraries, including Ralph Wiggum/CarlClone behavior metadata.",
+        structured_output=True,
+    )
+    def loki_search_external_legacy_libraries(args: LegacyLibrarySearchQuery) -> LegacyLibrarySearchResult:
+        libraries = operator_surface.search_external_legacy_libraries(
+            args.query,
+            include_content=args.include_content,
+        )
+        return LegacyLibrarySearchResult(libraries=libraries, total=len(libraries))
 
     @mcp.tool(
         name="loki_get_diagnostics",

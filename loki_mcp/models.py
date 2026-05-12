@@ -24,6 +24,11 @@ class DocSearchQuery(BaseModel):
     include_content: bool = Field(default=False, description="Include full document content in results.")
 
 
+class LegacyLibrarySearchQuery(BaseModel):
+    query: str = Field(default="", description="Free-text query for external legacy libraries, such as Ralph Wiggum.")
+    include_content: bool = Field(default=False, description="Include the full extracted legacy index in results.")
+
+
 class StickyDeleteInput(BaseModel):
     guild_id: int = Field(..., ge=1, description="Guild that owns the sticky entry.")
     channel_id: int = Field(..., ge=1, description="Channel ID for the sticky entry to remove.")
@@ -76,6 +81,11 @@ class CommandSearchResult(BaseModel):
 
 class DocSearchResult(BaseModel):
     docs: list[dict[str, Any]]
+    total: int
+
+
+class LegacyLibrarySearchResult(BaseModel):
+    libraries: list[dict[str, Any]]
     total: int
 
 
