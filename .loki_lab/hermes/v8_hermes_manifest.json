@@ -1,0 +1,120 @@
+{
+  "compiled_from": [
+    "docs/V4_V7_EXECUTION_MAP.md",
+    "docs/AI_AGENT_WORKFLOW.md",
+    "loki_memory/adapters.py",
+    "hermes-agent skill"
+  ],
+  "external_jobs_launched": false,
+  "global_guards": {
+    "cron_execution": "blocked_until_operator_approval",
+    "gateway_execution": "blocked_until_operator_approval",
+    "pending_tasks_required": "all_v4_v7_tasks_complete_first",
+    "production_mutation": "blocked",
+    "promotion_requires": [
+      "V4-V7 artifacts complete",
+      "reviewed patch or PR",
+      "passing local gates",
+      "passing Mythos gate",
+      "explicit operator approval"
+    ],
+    "raw_code_scope": "docs_tests_loki_research_loki_lab_only"
+  },
+  "hermes": {
+    "forbidden_commands": [
+      "hermes --yolo",
+      "hermes gateway install",
+      "hermes gateway run",
+      "hermes cron create",
+      "hermes chat -q with production mutation"
+    ],
+    "profile_name": "loki-v8-local",
+    "recommended_toolsets": [
+      "terminal",
+      "file",
+      "skills",
+      "session_search",
+      "todo",
+      "delegation"
+    ],
+    "safe_commands": {
+      "doctor": "hermes doctor",
+      "local_query": "hermes -s hermes-agent,test-driven-development chat -q 'Assemble LOKI V8 from the checked-in manifest; do not launch gateway, cron, or production mutation.'",
+      "status": "hermes status --all"
+    },
+    "skill_preload": [
+      "hermes-agent",
+      "test-driven-development",
+      "systematic-debugging",
+      "github-pr-workflow"
+    ]
+  },
+  "sequence": "V8",
+  "versions": [
+    {
+      "acceptance_checklist": [
+        "confirm V4-V7 artifacts and tests are complete before V8 assembly",
+        "load Hermes with project-local skills before issuing any bot assembly prompt",
+        "use Obliteratus and Mythos as advisory evidence sources, not autonomous mutators",
+        "compile a hard-coded assembly manifest before touching runtime bot paths",
+        "require operator approval before gateway, cron, or background agent execution"
+      ],
+      "assembly_inputs": [
+        "Obliteratus skill context",
+        "Mythos verifier packet",
+        "Hermes Agent operator profile",
+        "LOKI command catalog",
+        "Activity Bridge room-state tests"
+      ],
+      "blocked_actions": [
+        "hermes gateway install",
+        "hermes cron create",
+        "--yolo autonomous mutation",
+        "production Discord bot mutation",
+        "Railway deployment",
+        "Obliteratus autonomous destructive rewrite",
+        "Mythos ungated promotion"
+      ],
+      "deliverables": [
+        "Hermes project profile manifest",
+        "hard-coded bot assembly contract",
+        "Obliteratus advisory bridge",
+        "Mythos evidence packet handoff",
+        "Hermes skill-preload operator workflow"
+      ],
+      "evidence_artifacts": [
+        ".loki_lab/hermes/v8_hermes_manifest.json",
+        "docs/V8_HERMES_INTEGRATION.md",
+        "tests/test_loki_hermes_integration.py",
+        "docs/V4_V7_EXECUTION_MAP.md"
+      ],
+      "lane": "hermes_agent_operator_integration",
+      "launch_policy": "manifest_only_until_operator_approval",
+      "local_only": true,
+      "promotion_state": "draft_local_only",
+      "raw_code_targets": [
+        "loki_research/hermes_integration.py",
+        "scripts/compile_v8_hermes.py",
+        "docs/V8_HERMES_INTEGRATION.md",
+        ".loki_lab/hermes/v8_hermes_manifest.json"
+      ],
+      "required_gates": [
+        "all V4-V7 pending tasks complete",
+        "python -m pytest tests/test_loki_hermes_integration.py",
+        "python -m pytest tests/test_loki_version_pipeline.py",
+        "python -m ruff check .",
+        "python scripts/secret_scan.py",
+        "mythos-skill gate"
+      ],
+      "required_skills": [
+        "hermes-agent",
+        "test-driven-development",
+        "systematic-debugging",
+        "github-pr-workflow"
+      ],
+      "summary": "Integrate Hermes as a local operator and assembly orchestrator for LOKI after pending V4-V7 tasks are complete, using Obliteratus, Mythos, and Hermes as advisory inputs only.",
+      "title": "Hermes Agent Operator Integration",
+      "version": "V8"
+    }
+  ]
+}

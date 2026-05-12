@@ -7,6 +7,14 @@ from loki_research.experiments import (
     assert_safe_experiment_config,
     score_mutation_candidate,
 )
+from loki_research.hermes_integration import (
+    HermesIntegrationArtifacts,
+    HermesIntegrationSpec,
+    compile_v8_hermes_packet,
+    render_hermes_integration_markdown,
+    v8_hermes_integration_spec,
+    write_hermes_integration_artifacts,
+)
 from loki_research.version_pipeline import (
     VersionArtifacts,
     VersionSpec,
@@ -19,6 +27,8 @@ from loki_research.version_pipeline import (
 __all__ = [
     "DiscoveryCandidate",
     "ExperimentConfig",
+    "HermesIntegrationArtifacts",
+    "HermesIntegrationSpec",
     "MutationCandidate",
     "PublicDivaCommand",
     "VersionArtifacts",
@@ -27,11 +37,15 @@ __all__ = [
     "assert_safe_experiment_config",
     "build_candidate",
     "compile_next_version_packet",
+    "compile_v8_hermes_packet",
     "core_public_commands",
     "next_four_versions",
+    "render_hermes_integration_markdown",
     "render_versions_markdown",
     "safety_status",
     "score_mutation_candidate",
     "score_candidate",
+    "v8_hermes_integration_spec",
+    "write_hermes_integration_artifacts",
     "write_version_artifacts",
 ]
