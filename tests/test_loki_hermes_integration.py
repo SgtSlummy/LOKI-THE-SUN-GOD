@@ -6,8 +6,10 @@ import sys
 from pathlib import Path
 
 from loki_research.hermes_integration import (
+    compile_v8_bot_assembly_plan,
     compile_v8_hermes_packet,
     render_hermes_integration_markdown,
+    render_v8_bot_assembly_markdown,
     v8_hermes_integration_spec,
     write_hermes_integration_artifacts,
 )
@@ -59,7 +61,69 @@ def test_v8_packet_defines_safe_hermes_commands_and_toolsets():
     ]
 
 
-def test_v8_markdown_documents_operator_workflow_and_blocked_modes():
+def test_v8_bot_assembly_plan_hard_codes_runtime_modules_and_gates():
+    plan = compile_v8_bot_assembly_plan()
+
+    assert plan["sequence"] == "V8-bot-assembly"
+    assert plan["assembly_mode"] == "hard_coded_local_compile"
+    assert plan["runtime_entrypoint"] == "bot.py"
+    assert plan["external_jobs_launched"] is False
+    assert plan["pending_tasks_required"] == "complete"
+    assert plan["operator_approval_required"] is True
+    assert plan["required_inputs"] == [
+        ".loki_lab/hermes/v8_hermes_manifest.json",
+        "docs/V8_HERMES_INTEGRATION.md",
+        "docs/V4_V7_EXECUTION_MAP.md",
+        "Mythos verifier packet",
+        "Obliteratus advisory context",
+    ]
+    assert plan["core_modules"] == [
+        "bot.py",
+        "loki_engine/core.py",
+        "loki_npc/persona.py",
+        "loki_music/service.py",
+        "loki_activity_bridge/client.py",
+        "loki_mcp/server.py",
+    ]
+    compile_command = (
+        "python -m compileall bot.py cogs loki_engine loki_npc loki_music loki_activity_bridge "
+        "loki_mcp loki_research"
+    )
+    assert compile_command in plan["compile_commands"]
+    assert "python scripts/release_check.py" in plan["verification_commands"]
+    assert "DISCORD_TOKEN" in plan["required_runtime_secrets"]
+
+
+def test_v8_bot_assembly_plan_blocks_autonomous_mutation_and_deploys():
+    plan = compile_v8_bot_assembly_plan()
+
+    assert plan["blocked_commands"] == [
+        "hermes --yolo",
+        "hermes gateway install",
+        "hermes cron create",
+        "railway up",
+        "python bot.py",
+        "destructive Obliteratus rewrite",
+        "ungated Mythos promotion",
+    ]
+    assert plan["assembly_steps"] == [
+        "confirm V4-V7 and V8 manifests are checked in",
+        "compile Python bot modules without starting the Discord client",
+        "run secret scan and local release gates",
+        "stage operator-reviewed patch only after Mythos gate passes",
+        "wait for explicit operator approval before runtime launch or deploy",
+    ]
+
+
+def test_rendered_v8_bot_assembly_markdown_lists_compile_and_blocked_commands():
+    markdown = render_v8_bot_assembly_markdown(compile_v8_bot_assembly_plan())
+
+    assert "# LOKI V8 Hard-Coded Bot Assembly" in markdown
+    assert "bot.py" in markdown
+    assert "python -m compileall" in markdown
+    assert "python bot.py" in markdown
+    assert "railway up" in markdown
+    assert "No runtime launch, gateway install, cron job, or Railway deploy is performed" in markdown
     markdown = render_hermes_integration_markdown(compile_v8_hermes_packet())
 
     assert "# LOKI V8 Hermes Agent Integration" in markdown
@@ -75,8 +139,12 @@ def test_write_hermes_integration_artifacts_outputs_json_and_markdown(tmp_path):
 
     assert artifacts.json_path == tmp_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json"
     assert artifacts.markdown_path == tmp_path / "docs" / "V8_HERMES_INTEGRATION.md"
+    assert artifacts.assembly_json_path == tmp_path / ".loki_lab" / "hermes" / "v8_bot_assembly_plan.json"
+    assert artifacts.assembly_markdown_path == tmp_path / "docs" / "V8_BOT_ASSEMBLY.md"
     assert artifacts.json_path.exists()
     assert artifacts.markdown_path.exists()
+    assert artifacts.assembly_json_path.exists()
+    assert artifacts.assembly_markdown_path.exists()
 
     packet = json.loads(artifacts.json_path.read_text(encoding="utf-8"))
     assert packet["versions"][0]["version"] == "V8"
@@ -97,3 +165,5 @@ def test_compile_v8_hermes_script_runs_directly_from_any_cwd(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert (tmp_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json").exists()
+    assert (tmp_path / ".loki_lab" / "hermes" / "v8_bot_assembly_plan.json").exists()
+    assert (tmp_path / "docs" / "V8_BOT_ASSEMBLY.md").exists()

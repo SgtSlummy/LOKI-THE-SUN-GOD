@@ -12,6 +12,8 @@ def main() -> None:
     artifacts = write_hermes_integration_artifacts()
     print(f"wrote {artifacts.json_path}")
     print(f"wrote {artifacts.markdown_path}")
+    print(f"wrote {artifacts.assembly_json_path}")
+    print(f"wrote {artifacts.assembly_markdown_path}")
 
 
 if __name__ == "__main__":

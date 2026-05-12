@@ -29,6 +29,8 @@ class HermesIntegrationSpec:
 class HermesIntegrationArtifacts:
     json_path: Path
     markdown_path: Path
+    assembly_json_path: Path
+    assembly_markdown_path: Path
 
 
 def v8_hermes_integration_spec() -> HermesIntegrationSpec:
@@ -224,13 +226,136 @@ def render_hermes_integration_markdown(packet: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def compile_v8_bot_assembly_plan() -> dict[str, Any]:
+    return {
+        "sequence": "V8-bot-assembly",
+        "assembly_mode": "hard_coded_local_compile",
+        "runtime_entrypoint": "bot.py",
+        "external_jobs_launched": False,
+        "pending_tasks_required": "complete",
+        "operator_approval_required": True,
+        "required_inputs": [
+            ".loki_lab/hermes/v8_hermes_manifest.json",
+            "docs/V8_HERMES_INTEGRATION.md",
+            "docs/V4_V7_EXECUTION_MAP.md",
+            "Mythos verifier packet",
+            "Obliteratus advisory context",
+        ],
+        "core_modules": [
+            "bot.py",
+            "loki_engine/core.py",
+            "loki_npc/persona.py",
+            "loki_music/service.py",
+            "loki_activity_bridge/client.py",
+            "loki_mcp/server.py",
+        ],
+        "compile_commands": [
+            (
+                "python -m compileall bot.py cogs loki_engine loki_npc loki_music loki_activity_bridge "
+                "loki_mcp loki_research"
+            ),
+        ],
+        "verification_commands": [
+            "python -m ruff check .",
+            "python scripts/secret_scan.py",
+            "python -m pytest -q",
+            "npm run test:rooms",
+            "npm run typecheck",
+            "npm run build",
+            "python scripts/release_check.py",
+        ],
+        "required_runtime_secrets": [
+            "DISCORD_TOKEN",
+            "DISCORD_CLIENT_ID",
+            "DISCORD_CLIENT_SECRET",
+            "DASHBOARD_SECRET_KEY",
+        ],
+        "blocked_commands": [
+            "hermes --yolo",
+            "hermes gateway install",
+            "hermes cron create",
+            "railway up",
+            "python bot.py",
+            "destructive Obliteratus rewrite",
+            "ungated Mythos promotion",
+        ],
+        "assembly_steps": [
+            "confirm V4-V7 and V8 manifests are checked in",
+            "compile Python bot modules without starting the Discord client",
+            "run secret scan and local release gates",
+            "stage operator-reviewed patch only after Mythos gate passes",
+            "wait for explicit operator approval before runtime launch or deploy",
+        ],
+    }
+
+
+def render_v8_bot_assembly_markdown(plan: dict[str, Any]) -> str:
+    lines = [
+        "# LOKI V8 Hard-Coded Bot Assembly",
+        "",
+        "This is the compiled V8 bot assembly contract for the checked-in LOKI runtime modules.",
+        "No runtime launch, gateway install, cron job, or Railway deploy is performed by this artifact.",
+        "Obliteratus, Mythos, and Hermes remain advisory until explicit operator approval is recorded.",
+        "",
+        "## Assembly State",
+        "",
+        f"- Sequence: `{plan['sequence']}`.",
+        f"- Assembly mode: `{plan['assembly_mode']}`.",
+        f"- Runtime entrypoint: `{plan['runtime_entrypoint']}`.",
+        f"- External jobs launched: `{plan['external_jobs_launched']}`.",
+        f"- Pending tasks required: `{plan['pending_tasks_required']}`.",
+        f"- Operator approval required: `{plan['operator_approval_required']}`.",
+        "",
+        "## Required Inputs",
+        "",
+        *(f"- `{item}`." for item in plan["required_inputs"]),
+        "",
+        "## Core Runtime Modules",
+        "",
+        *(f"- `{item}`." for item in plan["core_modules"]),
+        "",
+        "## Compile Commands",
+        "",
+        *(f"- `{item}`." for item in plan["compile_commands"]),
+        "",
+        "## Verification Commands",
+        "",
+        *(f"- `{item}`." for item in plan["verification_commands"]),
+        "",
+        "## Required Runtime Secrets",
+        "",
+        *(f"- `{item}`." for item in plan["required_runtime_secrets"]),
+        "",
+        "## Blocked Commands",
+        "",
+        *(f"- `{item}`." for item in plan["blocked_commands"]),
+        "",
+        "## Assembly Steps",
+        "",
+        *(f"- {item}." for item in plan["assembly_steps"]),
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_hermes_integration_artifacts(root: Path | str = ".") -> HermesIntegrationArtifacts:
     root_path = Path(root)
     packet = compile_v8_hermes_packet()
+    assembly_plan = compile_v8_bot_assembly_plan()
     json_path = root_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json"
     markdown_path = root_path / "docs" / "V8_HERMES_INTEGRATION.md"
+    assembly_json_path = root_path / ".loki_lab" / "hermes" / "v8_bot_assembly_plan.json"
+    assembly_markdown_path = root_path / "docs" / "V8_BOT_ASSEMBLY.md"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    assembly_json_path.parent.mkdir(parents=True, exist_ok=True)
+    assembly_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     markdown_path.write_text(render_hermes_integration_markdown(packet), encoding="utf-8")
-    return HermesIntegrationArtifacts(json_path=json_path, markdown_path=markdown_path)
+    assembly_json_path.write_text(json.dumps(assembly_plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assembly_markdown_path.write_text(render_v8_bot_assembly_markdown(assembly_plan), encoding="utf-8")
+    return HermesIntegrationArtifacts(
+        json_path=json_path,
+        markdown_path=markdown_path,
+        assembly_json_path=assembly_json_path,
+        assembly_markdown_path=assembly_markdown_path,
+    )

@@ -10,8 +10,10 @@ from loki_research.experiments import (
 from loki_research.hermes_integration import (
     HermesIntegrationArtifacts,
     HermesIntegrationSpec,
+    compile_v8_bot_assembly_plan,
     compile_v8_hermes_packet,
     render_hermes_integration_markdown,
+    render_v8_bot_assembly_markdown,
     v8_hermes_integration_spec,
     write_hermes_integration_artifacts,
 )
@@ -37,10 +39,12 @@ __all__ = [
     "assert_safe_experiment_config",
     "build_candidate",
     "compile_next_version_packet",
+    "compile_v8_bot_assembly_plan",
     "compile_v8_hermes_packet",
     "core_public_commands",
     "next_four_versions",
     "render_hermes_integration_markdown",
+    "render_v8_bot_assembly_markdown",
     "render_versions_markdown",
     "safety_status",
     "score_mutation_candidate",

@@ -1,0 +1,57 @@
+{
+  "assembly_mode": "hard_coded_local_compile",
+  "assembly_steps": [
+    "confirm V4-V7 and V8 manifests are checked in",
+    "compile Python bot modules without starting the Discord client",
+    "run secret scan and local release gates",
+    "stage operator-reviewed patch only after Mythos gate passes",
+    "wait for explicit operator approval before runtime launch or deploy"
+  ],
+  "blocked_commands": [
+    "hermes --yolo",
+    "hermes gateway install",
+    "hermes cron create",
+    "railway up",
+    "python bot.py",
+    "destructive Obliteratus rewrite",
+    "ungated Mythos promotion"
+  ],
+  "compile_commands": [
+    "python -m compileall bot.py cogs loki_engine loki_npc loki_music loki_activity_bridge loki_mcp loki_research"
+  ],
+  "core_modules": [
+    "bot.py",
+    "loki_engine/core.py",
+    "loki_npc/persona.py",
+    "loki_music/service.py",
+    "loki_activity_bridge/client.py",
+    "loki_mcp/server.py"
+  ],
+  "external_jobs_launched": false,
+  "operator_approval_required": true,
+  "pending_tasks_required": "complete",
+  "required_inputs": [
+    ".loki_lab/hermes/v8_hermes_manifest.json",
+    "docs/V8_HERMES_INTEGRATION.md",
+    "docs/V4_V7_EXECUTION_MAP.md",
+    "Mythos verifier packet",
+    "Obliteratus advisory context"
+  ],
+  "required_runtime_secrets": [
+    "DISCORD_TOKEN",
+    "DISCORD_CLIENT_ID",
+    "DISCORD_CLIENT_SECRET",
+    "DASHBOARD_SECRET_KEY"
+  ],
+  "runtime_entrypoint": "bot.py",
+  "sequence": "V8-bot-assembly",
+  "verification_commands": [
+    "python -m ruff check .",
+    "python scripts/secret_scan.py",
+    "python -m pytest -q",
+    "npm run test:rooms",
+    "npm run typecheck",
+    "npm run build",
+    "python scripts/release_check.py"
+  ]
+}
