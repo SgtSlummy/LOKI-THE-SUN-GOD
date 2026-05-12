@@ -412,6 +412,35 @@ def test_relay_sensitive_sources_cover_configured_and_ticket_channels(monkeypatc
     assert relay._is_sensitive_source(TicketChannel(), Guild())
 
 
+
+
+def test_loki_npc_routes_mentioned_admin_changes_through_natural_language_policy():
+    pytest.importorskip("discord")
+    from cogs.loki_npc import LokiNpc
+
+    class Permissions:
+        value = 0
+
+    class Author:
+        id = 30
+        guild_permissions = Permissions()
+
+    class Guild:
+        id = 10
+
+    class Message:
+        author = Author()
+        guild = Guild()
+
+    npc = LokiNpc.__new__(LokiNpc)
+
+    route = npc._route_natural_language_prompt("change the welcome channel", Message())
+
+    assert not route.allowed
+    assert route.intent == "admin_change"
+    assert "administrator or manage-guild" in route.reason.lower()
+
+
 def test_npc_channel_allowlist_and_private_channel_detection(monkeypatch):
     pytest.importorskip("discord")
     from cogs.loki_npc import LokiNpc

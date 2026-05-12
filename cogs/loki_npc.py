@@ -7,6 +7,7 @@ import time
 import discord
 from discord.ext import commands
 
+from loki_engine.natural_language import NaturalLanguageRights, route_natural_language_request
 from loki_engine.permissions import PermissionContext, assert_admin_action
 from loki_npc.memory import public_memory_allowed, recent_public_memory, remember_public_message
 from loki_npc.openai_responses import ask_npc
@@ -54,6 +55,10 @@ class LokiNpc(commands.Cog):
         self.cooldowns[key] = now
         persona = self.persona_for_guild(message.guild.id)
         prompt = message.clean_content.replace(f"@{self.bot.user.display_name}", "").strip()
+        route = self._route_natural_language_prompt(prompt, message)
+        if not route.allowed:
+            await message.reply(route.reason, mention_author=False)
+            return
         try:
             answer = await ask_npc(
                 prompt=prompt,
@@ -64,6 +69,15 @@ class LokiNpc(commands.Cog):
             log.exception("LOKI NPC provider failed")
             answer = "NPC brain is not available yet. An operator can check the bot logs."
         await message.reply(answer[:1900], mention_author=False)
+
+    def _route_natural_language_prompt(self, prompt: str, message: discord.Message):
+        permissions = getattr(getattr(message.author, "guild_permissions", None), "value", 0)
+        context = PermissionContext(
+            user_id=message.author.id,
+            guild_id=message.guild.id if message.guild else None,
+            permissions=permissions,
+        )
+        return route_natural_language_request(prompt, context, rights=NaturalLanguageRights())
 
     def _channel_allowed(self, channel: discord.abc.Messageable) -> bool:
         allowed = self._csv_set("LOKI_NPC_ALLOWED_CHANNEL_IDS")

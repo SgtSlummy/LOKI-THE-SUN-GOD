@@ -8,7 +8,7 @@ The Diva work is clean-room public parity. The implementation uses public pages 
 
 ## Core Modules
 
-- `loki_engine`: shared permission decisions and audit records for bot, dashboard, MCP, ChatGPT app, and background agents.
+- `loki_engine`: shared permission decisions, natural-language request routing, and audit records for bot, dashboard, MCP, ChatGPT app, and background agents.
 - `loki_music`: music session, mixer state, and Lavalink-compatible equalizer preset payloads.
 - `loki_music.wavelink_backend`: Wavelink/Lavalink v4 runtime adapter for node connection, voice player creation, search resolution, queueing, playback controls, volume, EQ filters, and track-end advancement.
 - `loki_npc`: generated Discord NPC persona, redaction, and OpenAI Responses API payload construction with `store=false`.
@@ -26,5 +26,6 @@ The Diva work is clean-room public parity. The implementation uses public pages 
 - NPC replies can be public, but Discord settings changes require server-side admin/manage-guild checks.
 - Natural-language Discord UX is the default: `bot.py` skips slash command sync unless `LOKI_NATURAL_LANGUAGE_ONLY=false` and `LOKI_ENABLE_SLASH_SYNC=true` are both set.
 - User rights start with no extra search/change privileges until an admin grants them; admin-level changes remain role locked.
+- Mentioned NPC prompts pass through the natural-language router before provider calls, so blocked admin/search requests receive a deterministic policy reason instead of reaching the LLM.
 - Activity changes require Discord event permissions or admin privileges.
 - Codex AGI adapters are advisory and must produce auditable receipts before external actions.
