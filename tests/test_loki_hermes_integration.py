@@ -6,9 +6,11 @@ import sys
 from pathlib import Path
 
 from loki_research.hermes_integration import (
+    compile_loki_final_product_blueprint,
     compile_v8_bot_assembly_plan,
     compile_v8_hermes_packet,
     render_hermes_integration_markdown,
+    render_loki_final_product_markdown,
     render_v8_bot_assembly_markdown,
     v8_hermes_integration_spec,
     write_hermes_integration_artifacts,
@@ -134,7 +136,78 @@ def test_rendered_v8_bot_assembly_markdown_lists_compile_and_blocked_commands():
     assert "No Hermes gateway, cron job, or autonomous background agent is launched" in markdown
 
 
-def test_write_hermes_integration_artifacts_outputs_json_and_markdown(tmp_path):
+def test_final_product_blueprint_captures_loki_identity_and_surfaces():
+    blueprint = compile_loki_final_product_blueprint()
+
+    assert blueprint["product_name"] == "LOKI: THE SON GOD"
+    assert blueprint["primary_interface"] == "Discord"
+    assert blueprint["product_type"] == "AGI-style Discord bot and app"
+    assert blueprint["deployment_target"] == "fully_hosted_online_with_optional_local_gpu_workers"
+    assert blueprint["surfaces"] == [
+        "Discord bot",
+        "Discord app",
+        "console dashboard",
+        "desktop .exe controller",
+        "Hermes operator profile",
+    ]
+    assert "interactable LLM input" in blueprint["console_dashboard"]["capabilities"]
+    assert "sub-agent control" in blueprint["console_dashboard"]["capabilities"]
+    assert "natural language Discord control" in blueprint["discord_experience"]["capabilities"]
+
+
+def test_final_product_blueprint_covers_media_memory_research_and_camelot():
+    blueprint = compile_loki_final_product_blueprint()
+
+    assert blueprint["memory"]["system_of_record"] == "Camelot"
+    assert blueprint["memory"]["member_memory"] == [
+        "posted content history per Discord member",
+        "admin-provided member notes",
+        "summaries and askable profiles per member",
+        "sub-agent maintained evidence trails",
+    ]
+    assert blueprint["media"]["modalities"] == ["music", "video", "image", "text", "websites", "games"]
+    assert "generation" in blueprint["media"]["operations"]
+    assert "local GPU model worker optional" in blueprint["models"]["deployment_modes"]
+    assert blueprint["autonomy"]["web_crawling"] == "manual_and_autonomous_full_web_crawl_with_operator_policy"
+    assert "post related ideas/pictures/websites/games to Discord" in blueprint["autonomy"]["community_actions"]
+    assert "continue autonomous research/upgrade/evolution loop" in blueprint["autonomy"]["upgrade_loop"]
+
+
+def test_final_product_blueprint_has_phased_delivery_and_safety_gates():
+    blueprint = compile_loki_final_product_blueprint()
+
+    assert [phase["id"] for phase in blueprint["delivery_phases"]] == [
+        "P0",
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+    ]
+    assert blueprint["delivery_phases"][0]["title"] == "Foundation and hosted Discord core"
+    assert blueprint["delivery_phases"][-1]["title"] == "Autonomous evolution with operator governance"
+    assert "admin approval for posting/deploying/evolving" in blueprint["safety_gates"]
+    assert "secret scan before every release" in blueprint["safety_gates"]
+    assert "Camelot memory export/import test" in blueprint["acceptance_tests"]
+    assert "Discord natural language member summary test" in blueprint["acceptance_tests"]
+
+
+def test_final_product_markdown_and_artifact_paths_are_deterministic(tmp_path):
+    markdown = render_loki_final_product_markdown(compile_loki_final_product_blueprint())
+
+    assert "# LOKI: THE SON GOD Final Product Blueprint" in markdown
+    assert "Discord bot" in markdown
+    assert "Camelot" in markdown
+    assert "local GPU" in markdown
+    assert "Autonomous evolution with operator governance" in markdown
+
+    artifacts = write_hermes_integration_artifacts(tmp_path)
+    expected_blueprint_json = tmp_path / ".loki_lab" / "hermes" / "loki_final_product_blueprint.json"
+    assert artifacts.final_blueprint_json_path == expected_blueprint_json
+    assert artifacts.final_blueprint_markdown_path == tmp_path / "docs" / "LOKI_FINAL_PRODUCT_BLUEPRINT.md"
+    assert artifacts.final_blueprint_json_path.exists()
+    assert artifacts.final_blueprint_markdown_path.exists()
     artifacts = write_hermes_integration_artifacts(tmp_path)
 
     assert artifacts.json_path == tmp_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json"

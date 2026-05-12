@@ -14,6 +14,8 @@ def main() -> None:
     print(f"wrote {artifacts.markdown_path}")
     print(f"wrote {artifacts.assembly_json_path}")
     print(f"wrote {artifacts.assembly_markdown_path}")
+    print(f"wrote {artifacts.final_blueprint_json_path}")
+    print(f"wrote {artifacts.final_blueprint_markdown_path}")
 
 
 if __name__ == "__main__":

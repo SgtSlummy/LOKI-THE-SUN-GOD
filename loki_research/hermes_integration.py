@@ -31,6 +31,8 @@ class HermesIntegrationArtifacts:
     markdown_path: Path
     assembly_json_path: Path
     assembly_markdown_path: Path
+    final_blueprint_json_path: Path
+    final_blueprint_markdown_path: Path
 
 
 def v8_hermes_integration_spec() -> HermesIntegrationSpec:
@@ -337,25 +339,214 @@ def render_v8_bot_assembly_markdown(plan: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def compile_loki_final_product_blueprint() -> dict[str, Any]:
+    return {
+        "product_name": "LOKI: THE SON GOD",
+        "primary_interface": "Discord",
+        "product_type": "AGI-style Discord bot and app",
+        "deployment_target": "fully_hosted_online_with_optional_local_gpu_workers",
+        "surfaces": [
+            "Discord bot",
+            "Discord app",
+            "console dashboard",
+            "desktop .exe controller",
+            "Hermes operator profile",
+        ],
+        "discord_experience": {
+            "capabilities": [
+                "natural language Discord control",
+                "admin-guided behavior tuning",
+                "community-aware recommendations",
+                "member summary requests",
+                "safe autonomous content posting",
+            ],
+            "communication_mode": "Discord-first natural language",
+        },
+        "console_dashboard": {
+            "capabilities": [
+                "interactable LLM input",
+                "sub-agent control",
+                "component and subcomponent status panels",
+                "Discord app telemetry",
+                "manual crawl/search controls",
+                "media generation queue controls",
+            ],
+        },
+        "desktop_controller": {
+            "package": "Windows .exe",
+            "capabilities": [
+                "local operator controls",
+                "optional local GPU worker routing",
+                "hosted bot health checks",
+                "manual approval queue",
+            ],
+        },
+        "models": {
+            "training_sources": [
+                "Discord content history",
+                "admin-provided instructions",
+                "Camelot memory summaries",
+                "approved web research corpus",
+            ],
+            "deployment_modes": [
+                "hosted API model",
+                "local GPU model worker optional",
+                "Hermes delegated sub-agent model",
+            ],
+        },
+        "media": {
+            "modalities": ["music", "video", "image", "text", "websites", "games"],
+            "operations": ["input", "processing", "generation", "search", "recommendation", "posting"],
+        },
+        "memory": {
+            "system_of_record": "Camelot",
+            "member_memory": [
+                "posted content history per Discord member",
+                "admin-provided member notes",
+                "summaries and askable profiles per member",
+                "sub-agent maintained evidence trails",
+            ],
+        },
+        "autonomy": {
+            "web_crawling": "manual_and_autonomous_full_web_crawl_with_operator_policy",
+            "community_actions": [
+                "search and find content autonomously",
+                "search and find content manually",
+                "post related ideas/pictures/websites/games to Discord",
+                "learn what each Discord member likes from posted content",
+            ],
+            "upgrade_loop": [
+                "continue autonomous research/upgrade/evolution loop",
+                "generate operator-reviewed improvement proposals",
+                "run local gates before every self-upgrade",
+            ],
+        },
+        "components": [
+            "Hermes orchestration",
+            "Obliteratus advisory rewrite context",
+            "Mythos verifier gate",
+            "Camelot memory",
+            "Activity Bridge",
+            "Discord MCP surface",
+            "media processing/generation workers",
+            "web crawler/search workers",
+        ],
+        "delivery_phases": [
+            {"id": "P0", "title": "Foundation and hosted Discord core"},
+            {"id": "P1", "title": "Console dashboard and admin LLM controls"},
+            {"id": "P2", "title": "Camelot memory and member intelligence"},
+            {"id": "P3", "title": "Media processing and generation"},
+            {"id": "P4", "title": "Autonomous search, crawl, and recommendation"},
+            {"id": "P5", "title": "Desktop .exe and local GPU workers"},
+            {"id": "P6", "title": "Autonomous evolution with operator governance"},
+        ],
+        "safety_gates": [
+            "admin approval for posting/deploying/evolving",
+            "secret scan before every release",
+            "no raw secret or token memory retention",
+            "operator review for autonomous crawler policy changes",
+            "Mythos gate before upgrade promotion",
+        ],
+        "acceptance_tests": [
+            "Discord natural language member summary test",
+            "Camelot memory export/import test",
+            "console dashboard sub-agent control smoke test",
+            "desktop .exe health-control smoke test",
+            "media generation queue safety test",
+            "autonomous crawler allowlist/policy test",
+            "hosted Discord app end-to-end smoke test",
+        ],
+    }
+
+
+def render_loki_final_product_markdown(blueprint: dict[str, Any]) -> str:
+    lines = [
+        "# LOKI: THE SON GOD Final Product Blueprint",
+        "",
+        "Communication is Discord-first. LOKI is the AGI-style Discord bot, Discord app, dashboard, "
+        "desktop controller, and Hermes/Camelot-backed autonomous operator system for the community.",
+        "",
+        "## Identity",
+        "",
+        f"- Product name: `{blueprint['product_name']}`.",
+        f"- Primary interface: `{blueprint['primary_interface']}`.",
+        f"- Product type: `{blueprint['product_type']}`.",
+        f"- Deployment target: `{blueprint['deployment_target']}`.",
+        "",
+        "## Surfaces",
+        "",
+        *(f"- {surface}." for surface in blueprint["surfaces"]),
+        "",
+        "## Discord Experience",
+        "",
+        *(f"- {item}." for item in blueprint["discord_experience"]["capabilities"]),
+        "",
+        "## Console Dashboard",
+        "",
+        *(f"- {item}." for item in blueprint["console_dashboard"]["capabilities"]),
+        "",
+        "## Memory",
+        "",
+        f"- System of record: `{blueprint['memory']['system_of_record']}`.",
+        *(f"- {item}." for item in blueprint["memory"]["member_memory"]),
+        "",
+        "## Media and Models",
+        "",
+        "- Modalities: " + ", ".join(f"`{item}`" for item in blueprint["media"]["modalities"]) + ".",
+        "- Operations: " + ", ".join(f"`{item}`" for item in blueprint["media"]["operations"]) + ".",
+        "- Model deployment modes: "
+        + ", ".join(f"`{item}`" for item in blueprint["models"]["deployment_modes"])
+        + ".",
+        "",
+        "## Autonomy",
+        "",
+        f"- Web crawling: `{blueprint['autonomy']['web_crawling']}`.",
+        *(f"- {item}." for item in blueprint["autonomy"]["community_actions"]),
+        *(f"- {item}." for item in blueprint["autonomy"]["upgrade_loop"]),
+        "",
+        "## Delivery Phases",
+        "",
+        *(f"- `{phase['id']}`: {phase['title']}." for phase in blueprint["delivery_phases"]),
+        "",
+        "## Safety Gates",
+        "",
+        *(f"- {gate}." for gate in blueprint["safety_gates"]),
+        "",
+        "## Acceptance Tests",
+        "",
+        *(f"- {test}." for test in blueprint["acceptance_tests"]),
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def write_hermes_integration_artifacts(root: Path | str = ".") -> HermesIntegrationArtifacts:
     root_path = Path(root)
     packet = compile_v8_hermes_packet()
     assembly_plan = compile_v8_bot_assembly_plan()
+    final_blueprint = compile_loki_final_product_blueprint()
     json_path = root_path / ".loki_lab" / "hermes" / "v8_hermes_manifest.json"
     markdown_path = root_path / "docs" / "V8_HERMES_INTEGRATION.md"
     assembly_json_path = root_path / ".loki_lab" / "hermes" / "v8_bot_assembly_plan.json"
     assembly_markdown_path = root_path / "docs" / "V8_BOT_ASSEMBLY.md"
+    final_blueprint_json_path = root_path / ".loki_lab" / "hermes" / "loki_final_product_blueprint.json"
+    final_blueprint_markdown_path = root_path / "docs" / "LOKI_FINAL_PRODUCT_BLUEPRINT.md"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
     assembly_json_path.parent.mkdir(parents=True, exist_ok=True)
     assembly_markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    final_blueprint_json_path.parent.mkdir(parents=True, exist_ok=True)
+    final_blueprint_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     markdown_path.write_text(render_hermes_integration_markdown(packet), encoding="utf-8")
     assembly_json_path.write_text(json.dumps(assembly_plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     assembly_markdown_path.write_text(render_v8_bot_assembly_markdown(assembly_plan), encoding="utf-8")
+    final_blueprint_json_path.write_text(json.dumps(final_blueprint, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    final_blueprint_markdown_path.write_text(render_loki_final_product_markdown(final_blueprint), encoding="utf-8")
     return HermesIntegrationArtifacts(
         json_path=json_path,
         markdown_path=markdown_path,
         assembly_json_path=assembly_json_path,
         assembly_markdown_path=assembly_markdown_path,
+        final_blueprint_json_path=final_blueprint_json_path,
+        final_blueprint_markdown_path=final_blueprint_markdown_path,
     )

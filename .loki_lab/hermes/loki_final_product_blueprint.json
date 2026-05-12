@@ -1,0 +1,152 @@
+{
+  "acceptance_tests": [
+    "Discord natural language member summary test",
+    "Camelot memory export/import test",
+    "console dashboard sub-agent control smoke test",
+    "desktop .exe health-control smoke test",
+    "media generation queue safety test",
+    "autonomous crawler allowlist/policy test",
+    "hosted Discord app end-to-end smoke test"
+  ],
+  "autonomy": {
+    "community_actions": [
+      "search and find content autonomously",
+      "search and find content manually",
+      "post related ideas/pictures/websites/games to Discord",
+      "learn what each Discord member likes from posted content"
+    ],
+    "upgrade_loop": [
+      "continue autonomous research/upgrade/evolution loop",
+      "generate operator-reviewed improvement proposals",
+      "run local gates before every self-upgrade"
+    ],
+    "web_crawling": "manual_and_autonomous_full_web_crawl_with_operator_policy"
+  },
+  "components": [
+    "Hermes orchestration",
+    "Obliteratus advisory rewrite context",
+    "Mythos verifier gate",
+    "Camelot memory",
+    "Activity Bridge",
+    "Discord MCP surface",
+    "media processing/generation workers",
+    "web crawler/search workers"
+  ],
+  "console_dashboard": {
+    "capabilities": [
+      "interactable LLM input",
+      "sub-agent control",
+      "component and subcomponent status panels",
+      "Discord app telemetry",
+      "manual crawl/search controls",
+      "media generation queue controls"
+    ]
+  },
+  "delivery_phases": [
+    {
+      "id": "P0",
+      "title": "Foundation and hosted Discord core"
+    },
+    {
+      "id": "P1",
+      "title": "Console dashboard and admin LLM controls"
+    },
+    {
+      "id": "P2",
+      "title": "Camelot memory and member intelligence"
+    },
+    {
+      "id": "P3",
+      "title": "Media processing and generation"
+    },
+    {
+      "id": "P4",
+      "title": "Autonomous search, crawl, and recommendation"
+    },
+    {
+      "id": "P5",
+      "title": "Desktop .exe and local GPU workers"
+    },
+    {
+      "id": "P6",
+      "title": "Autonomous evolution with operator governance"
+    }
+  ],
+  "deployment_target": "fully_hosted_online_with_optional_local_gpu_workers",
+  "desktop_controller": {
+    "capabilities": [
+      "local operator controls",
+      "optional local GPU worker routing",
+      "hosted bot health checks",
+      "manual approval queue"
+    ],
+    "package": "Windows .exe"
+  },
+  "discord_experience": {
+    "capabilities": [
+      "natural language Discord control",
+      "admin-guided behavior tuning",
+      "community-aware recommendations",
+      "member summary requests",
+      "safe autonomous content posting"
+    ],
+    "communication_mode": "Discord-first natural language"
+  },
+  "media": {
+    "modalities": [
+      "music",
+      "video",
+      "image",
+      "text",
+      "websites",
+      "games"
+    ],
+    "operations": [
+      "input",
+      "processing",
+      "generation",
+      "search",
+      "recommendation",
+      "posting"
+    ]
+  },
+  "memory": {
+    "member_memory": [
+      "posted content history per Discord member",
+      "admin-provided member notes",
+      "summaries and askable profiles per member",
+      "sub-agent maintained evidence trails"
+    ],
+    "system_of_record": "Camelot"
+  },
+  "models": {
+    "deployment_modes": [
+      "hosted API model",
+      "local GPU model worker optional",
+      "Hermes delegated sub-agent model"
+    ],
+    "training_sources": [
+      "Discord content history",
+      "admin-provided instructions",
+      "Camelot memory summaries",
+      "approved web research corpus"
+    ]
+  },
+  "primary_interface": "Discord",
+  "product_name": "LOKI: THE SON GOD",
+  "product_type": "AGI-style Discord bot and app",
+  "safety_gates": [
+    "admin approval for posting/deploying/evolving",
+    "secret scan before every release",
+    "no raw secret or token memory retention",
+    "operator review for autonomous crawler policy changes",
+    "Mythos gate before upgrade promotion"
+  ],
+  "surfaces": [
+    "Discord bot",
+    "Discord app",
+    "console dashboard",
+    "desktop .exe controller",
+    "Hermes operator profile"
+  ]
+}
