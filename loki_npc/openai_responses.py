@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from typing import Any
 
 from loki_npc.memory import redact_discord_content
@@ -56,11 +57,39 @@ def extract_output_text(payload: dict[str, Any]) -> str:
     return "\n".join(parts).strip()
 
 
+def hermes_fallback_enabled() -> bool:
+    return os.getenv("LOKI_NPC_HERMES_FALLBACK", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def ask_hermes_cli(*, prompt: str, persona: str, memory_context: list[str] | None = None) -> str:
+    context = "\n".join(f"- {redact_discord_content(item)}" for item in (memory_context or []) if item.strip())
+    query = (
+        "You are LOKI THE SUN GOD speaking through Hermes for a Discord community. "
+        "Respond naturally, do not reveal secrets, and do not claim admin actions happened "
+        "unless tools verified them.\n\n"
+        f"Persona: {persona}\n"
+    )
+    if context:
+        query += f"Relevant public community memory:\n{context}\n"
+    query += f"Hermes operator prompt: {redact_discord_content(prompt)}"
+    result = subprocess.run(
+        ["hermes", "chat", "-Q", "-q", query],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        check=True,
+    )
+    answer = (result.stdout or "").strip()
+    return answer or "Hermes returned no text."
+
+
 async def ask_npc(*, prompt: str, persona: str, memory_context: list[str] | None = None) -> str:
     import aiohttp
 
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not api_key:
+        if hermes_fallback_enabled():
+            return ask_hermes_cli(prompt=prompt, persona=persona, memory_context=memory_context)
         raise RuntimeError("OPENAI_API_KEY is not configured.")
     timeout = aiohttp.ClientTimeout(total=30)
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}

@@ -20,7 +20,7 @@ from loki_npc.memory import (
     purge_user_memory,
     redact_discord_content,
 )
-from loki_npc.openai_responses import build_responses_payload
+from loki_npc.openai_responses import ask_npc, build_responses_payload
 from loki_npc.persona import default_persona, persona_from_settings
 from loki_research.discovery import build_candidate
 from loki_research.diva_catalog import core_public_commands
@@ -102,6 +102,20 @@ def test_npc_payload_uses_responses_api_storage_opt_out(monkeypatch):
     assert payload["reasoning"]["effort"] == "low"
     assert "dry solar trickster" in payload["input"][0]["content"]
     assert "synthwave" in payload["input"][0]["content"]
+
+
+def test_npc_uses_hermes_cli_fallback_when_openai_key_missing(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("LOKI_NPC_HERMES_FALLBACK", "true")
+
+    def fake_run(command, *, capture_output, text, timeout, check):
+        assert command[:4] == ["hermes", "chat", "-Q", "-q"]
+        assert "LOKI THE SUN GOD" in command[4]
+        return type("Result", (), {"stdout": "LOKI via Hermes online.\n"})()
+
+    monkeypatch.setattr("loki_npc.openai_responses.subprocess.run", fake_run)
+
+    assert asyncio.run(ask_npc(prompt="status", persona="warm", memory_context=[])) == "LOKI via Hermes online."
 
 
 def test_default_persona_uses_safe_public_domain_loki_theme():

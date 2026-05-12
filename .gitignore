@@ -19,6 +19,7 @@ winui/**/obj/
 data/*.db
 data/*.db-*
 data/*.log
+data/*.md
 desktop_runtime.log
 desktop_config.json
 tests/fixtures/mcp/generated/
