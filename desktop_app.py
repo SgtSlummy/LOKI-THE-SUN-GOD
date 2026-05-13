@@ -388,7 +388,8 @@ class Service:
         threading.Thread(target=self._reader, daemon=True).start()
 
     def _reader(self):
-        assert self.proc and self.proc.stdout
+        if not self.proc or self.proc.stdout is None:
+            return
         for line in iter(self.proc.stdout.readline, ""):
             entry = f"{time.strftime('%H:%M:%S')} {line.rstrip()}"
             self.log.append(entry)
