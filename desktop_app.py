@@ -2280,6 +2280,10 @@ def setup_tray(window, mgr: ServiceManager):
             window.destroy()
         except Exception:
             pass
+        try:
+            sys.exit(0)
+        except SystemExit:
+            pass
         os._exit(0)
 
     menu = pystray.Menu(
