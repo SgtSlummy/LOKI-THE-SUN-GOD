@@ -52,6 +52,22 @@ test("RoomManager preserves established room identity fields on later getOrCreat
   assert.equal(second.instanceId, "instance-1");
 });
 
+test("RoomManager public room snapshots cannot mutate canonical room state", () => {
+  const manager = new RoomManager();
+
+  const queued = manager.queue("room-a", "https://example.com/clip.mp4");
+  assert.equal(queued.ok, true);
+  assert.equal(queued.room?.queue.length, 1);
+
+  queued.room?.queue.push({ id: "result-mutation", url: "https://example.com/result.mp4", addedAt: Date.now() });
+  manager.get("room-a")?.queue.push({ id: "get-mutation", url: "https://example.com/get.mp4", addedAt: Date.now() });
+  manager.list()[0]?.queue.push({ id: "list-mutation", url: "https://example.com/list.mp4", addedAt: Date.now() });
+
+  const fresh = manager.get("room-a");
+  assert.equal(fresh?.queue.length, 1);
+  assert.equal(fresh?.queue[0]?.url, "https://example.com/clip.mp4");
+});
+
 test("RoomManager emits change and end events with immutable queue copies", () => {
   const manager = new RoomManager();
   const changes: string[] = [];
