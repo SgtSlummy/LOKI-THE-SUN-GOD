@@ -4,12 +4,15 @@ import logging
 import os
 import re
 import time
+from types import SimpleNamespace
 
 import discord
 from discord.ext import commands
 
 from loki_engine.natural_language import NaturalLanguageRights, route_natural_language_request
 from loki_engine.permissions import PermissionContext, assert_admin_action
+from loki_music.service import Track
+from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired
 from loki_npc.memory import public_memory_allowed, recent_public_memory, remember_public_message
 from loki_npc.openai_responses import ask_npc
 from loki_npc.persona import persona_from_settings
@@ -56,6 +59,10 @@ class LokiNpc(commands.Cog):
         self.cooldowns[key] = now
         persona = self.persona_for_guild(message.guild.id)
         prompt = self._prompt_without_address(message)
+        music_query = self._music_query_from_prompt(prompt)
+        if music_query:
+            await self._handle_music_prompt(message, music_query)
+            return
         route = self._route_natural_language_prompt(prompt, message)
         if not route.allowed:
             await message.reply(route.reason, mention_author=False)
@@ -93,6 +100,63 @@ class LokiNpc(commands.Cog):
             if name:
                 content = content.replace(f"@{name}", "")
         return re.sub(r"^(hey|hi|yo|ok|okay)?\s*loki\b[\s,;:!?.-]*", "", content, flags=re.IGNORECASE).strip()
+
+    @staticmethod
+    def _music_query_from_prompt(prompt: str) -> str | None:
+        normalized = (prompt or "").strip()
+        match = re.match(
+            r"^(?:please\s+)?(?:play|queue|put\s+on|start)(?:\s+some|\s+the)?\s+(?:music\s+)?(.+)$",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return None
+        query = match.group(1).strip(" \t\r\n'\".,!?")
+        if not query or query.lower() in {"music", "song", "track", "something"}:
+            return None
+        return query
+
+    async def _handle_music_prompt(self, message: discord.Message, query: str) -> None:
+        music = self.bot.get_cog("LokiMusic")
+        if music is None:
+            await message.reply("LOKI music is not loaded yet.", mention_author=False)
+            return
+        session = music.session_for(message.guild.id)
+        ctx = SimpleNamespace(
+            bot=self.bot,
+            guild=message.guild,
+            author=message.author,
+            voice_client=getattr(message.guild, "voice_client", None),
+        )
+        try:
+            result = await music.backend.play(ctx, session, query, requester_id=message.author.id)
+        except VoiceChannelRequired as exc:
+            await message.reply(str(exc), mention_author=False)
+            return
+        except MusicBackendUnavailable:
+            session.enqueue(Track(title=query, uri=query, requester_id=message.author.id))
+            await music._update_jukebox(
+                message.guild,
+                fallback_channel=message.channel,
+                reason="natural music fallback",
+            )
+            title = discord.utils.escape_markdown(query)
+            await message.reply(
+                f"Queued for LOKI THE SUN GOD: **{title}** (Lavalink node pending)",
+                mention_author=False,
+            )
+            return
+
+        await music._update_jukebox(
+            message.guild,
+            fallback_channel=message.channel,
+            reason="natural music request",
+        )
+        action = "Now playing" if result.started else "Queued"
+        await message.reply(
+            f"{action} for LOKI THE SUN GOD: **{discord.utils.escape_markdown(result.track.title)}**",
+            mention_author=False,
+        )
 
     def _channel_allowed(self, channel: discord.abc.Messageable) -> bool:
         allowed = self._csv_set("LOKI_NPC_ALLOWED_CHANNEL_IDS")

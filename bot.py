@@ -33,15 +33,15 @@ RELAY_LOCAL_SQLITE_WARNING = (
 
 
 def natural_language_mode_enabled() -> bool:
-    return os.getenv("LOKI_NATURAL_LANGUAGE_ONLY", "true").lower() in TRUTHY
+    return os.getenv("LOKI_NATURAL_LANGUAGE_ONLY", "false").lower() in TRUTHY
 
 
 def should_sync_slash_commands() -> bool:
-    return os.getenv("LOKI_ENABLE_SLASH_SYNC", "false").lower() in TRUTHY and not natural_language_mode_enabled()
+    return os.getenv("LOKI_ENABLE_SLASH_SYNC", "true").lower() in TRUTHY
 
 
 def presence_activity_name() -> str:
-    return "Talk to LOKI naturally | LOKI THE SON GOD"
+    return "Talk to LOKI or use / commands | LOKI THE SUN GOD"
 
 
 def relay_enabled_from_env() -> bool:

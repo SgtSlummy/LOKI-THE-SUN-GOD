@@ -1,10 +1,10 @@
-# LOKI: THE SON GOD Complete Package Manifest
+# LOKI: THE SUN GOD Complete Package Manifest
 
 This manifest defines every package target needed to ship the Discord-first LOKI product while keeping live launch, deploy, and autonomous posting blocked until operator approval.
 
 ## Package State
 
-- Product name: `LOKI: THE SON GOD`.
+- Product name: `LOKI: THE SUN GOD`.
 - Completion state: `package_manifest_ready_local_only`.
 - External jobs launched: `False`.
 - Promotion policy: `operator_review_required_before_any_live_package_launch`.

@@ -2,9 +2,27 @@
 
 ## Railway Compatibility Status
 
-The repo includes Railway-compatible process, runtime, and environment configuration. No live Railway deployment was created or verified from this workspace during the rebuild.
+The repo includes Railway-compatible process, runtime, and environment
+configuration. Production deployment was verified from this workspace on
+2026-05-13.
 
-Manual acceptance gates after deploying are:
+Current production services:
+
+| Service | Purpose | Status | Deployment |
+| --- | --- | --- | --- |
+| `dashboard` | Flask web dashboard | Online | `e15386b4-c08c-4abd-a6d9-7f8bac36a745` |
+| `worker` | Discord bot worker | Online | `669aeb2f-2403-49b1-be88-295185ffb52b` |
+| `Postgres` | Shared hosted database | Online | `64dbbb9a-8914-456c-8ee9-8e770c964748` |
+| `lavalink` | Music playback backend | Online | `020cd7cf-1ea0-4c8c-aa15-0fbdcce5c0b5` |
+
+Current hosted URLs:
+
+```text
+Dashboard: https://dashboard-production-9290.up.railway.app
+Lavalink:  https://lavalink-production-17ea.up.railway.app
+```
+
+Manual acceptance gates still remaining after deploy are:
 
 1. Complete browser Discord OAuth consent through the hosted dashboard.
 2. Verify Discord `/dashboard` returns the hosted dashboard URL in the live server.
@@ -52,6 +70,16 @@ The repo includes a `Procfile` with both process names for hosts that read Procf
 
 Do not paste `.env.example` directly into Railway. It is intentionally local-first: localhost URLs, `RELAY_ENABLED=false`, blank `DATABASE_URL`, and placeholder secrets. Use the shared/web/worker variable lists in this document instead.
 
+Always pass the target service explicitly when deploying from the CLI:
+
+```powershell
+railway up --service dashboard --environment production --message <message>
+railway up --service worker --environment production --message <message>
+```
+
+The local Railway link can point at another service such as `lavalink`, so do
+not run bare `railway up` from the repo root.
+
 ## Shared Environment
 
 Set these on both Railway services:
@@ -68,6 +96,23 @@ RELAY_FRIENDS_ROLE_NAME=Friends
 RELAY_TARGET_CHANNEL_IDS
 RELAY_IGNORED_SOURCE_CHANNEL_IDS
 RELAY_SENSITIVE_CHANNEL_IDS
+```
+
+Current production `worker` relay values:
+
+```text
+RELAY_ENABLED=true
+RELAY_GUILD_ID=1463393482306486387
+RELAY_FRIENDS_ROLE_NAME=Friends
+RELAY_TARGET_CHANNEL_IDS=1471988991879549110,1495605587822514287
+RELAY_IGNORED_SOURCE_CHANNEL_IDS=1486738933961199737,1463393484537856138,1463393484537856139,1494401872151183551,1502371233696841880,1499435617971343491
+RELAY_SENSITIVE_CHANNEL_IDS=1486738933961199737,1463393484537856138,1463393484537856139,1494401872151183551,1502371233696841880,1499435617971343491
+```
+
+The May 13 Ralph/Bartman takeover redeploy verified the worker startup log:
+
+```text
+Relay ready guild=1463393482306486387 role=1463393482306486394 targets=The Vibez 101 FM (1471988991879549110) | pirate-radio-tower (1495605587822514287)
 ```
 
 Set these on the web service:
@@ -167,6 +212,62 @@ py -3 scripts/db_smoke_test.py --postgres-required
 py -3 scripts/mcp_smoke_test.py
 ```
 
+The 2026-05-13 deployment pass also ran:
+
+```powershell
+ruff check .
+pytest
+cd services\activity-bridge
+npm install
+npm run typecheck
+npm run test:rooms
+npm run build
+```
+
+## Deployment Process
+
+1. Confirm local gates pass.
+2. Confirm Railway authentication with `railway whoami`.
+3. Check production service state with
+   `railway service list --environment production`.
+4. Confirm required variables exist on the target service with
+   `railway variable list --service <service> --environment production`.
+5. Deploy dashboard first:
+
+```powershell
+railway up --service dashboard --environment production --message codex-dashboard
+```
+
+6. Poll status and logs:
+
+```powershell
+railway service status --service dashboard --environment production --json
+railway logs --service dashboard --environment production --latest --deployment --lines 200
+```
+
+7. Verify hosted health:
+
+```powershell
+curl https://dashboard-production-9290.up.railway.app/healthz
+```
+
+8. Deploy worker after dashboard is healthy:
+
+```powershell
+railway up --service worker --environment production --message codex-worker
+railway service status --service worker --environment production --json
+railway logs --service worker --environment production --latest --lines 120
+```
+
+9. Confirm worker logs show Discord login and cog load.
+
+If the dashboard crashes at import with `DASHBOARD_SECRET_KEY is required for
+hosted LOKI dashboard deployments`, set the dashboard service's server-side
+secrets and redeploy. On 2026-05-13 the dashboard service had `DATABASE_URL`
+but was missing `DISCORD_TOKEN`, Discord OAuth values, `DASHBOARD_SECRET_KEY`,
+`DASHBOARD_PUBLIC_URL`, `DASHBOARD_HOST`, and `DASHBOARD_DEBUG`; those were
+set without printing secret values, then redeployed successfully.
+
 After deployment, verify:
 
 - `GET /healthz` returns `ok: true`.
@@ -175,4 +276,7 @@ After deployment, verify:
 - A Friends-role message in either target channel relays to the other target channel.
 - No PM2/Millhouse relay process is active.
 
-Live hosted evidence is intentionally not recorded here until this repo is deployed with real Railway services and Discord credentials. Browser OAuth consent, live `/dashboard`, and live Friends-role relay checks remain manual because they require Discord user interaction in the production server.
+Hosted `/healthz`, Railway dashboard status, and Railway worker status were
+verified on 2026-05-13. Browser OAuth consent, live `/dashboard`, and live
+Friends-role relay checks remain manual because they require Discord user
+interaction in the production server.

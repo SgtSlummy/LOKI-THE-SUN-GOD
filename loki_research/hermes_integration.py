@@ -345,7 +345,7 @@ def render_v8_bot_assembly_markdown(plan: dict[str, Any]) -> str:
 
 def compile_loki_final_product_blueprint() -> dict[str, Any]:
     return {
-        "product_name": "LOKI: THE SON GOD",
+        "product_name": "LOKI: THE SUN GOD",
         "primary_interface": "Discord",
         "product_type": "AGI-style Discord bot and app",
         "deployment_target": "fully_hosted_online_with_optional_local_gpu_workers",
@@ -465,7 +465,7 @@ def compile_loki_final_product_blueprint() -> dict[str, Any]:
 
 def render_loki_final_product_markdown(blueprint: dict[str, Any]) -> str:
     lines = [
-        "# LOKI: THE SON GOD Final Product Blueprint",
+        "# LOKI: THE SUN GOD Final Product Blueprint",
         "",
         "Communication is Discord-first. LOKI is the AGI-style Discord bot, Discord app, dashboard, "
         "desktop controller, and Hermes/Camelot-backed autonomous operator system for the community.",
@@ -525,7 +525,7 @@ def render_loki_final_product_markdown(blueprint: dict[str, Any]) -> str:
 
 def compile_loki_complete_package_manifest() -> dict[str, Any]:
     return {
-        "product_name": "LOKI: THE SON GOD",
+        "product_name": "LOKI: THE SUN GOD",
         "completion_state": "package_manifest_ready_local_only",
         "external_jobs_launched": False,
         "promotion_policy": "operator_review_required_before_any_live_package_launch",
@@ -620,7 +620,7 @@ def compile_loki_complete_package_manifest() -> dict[str, Any]:
 
 def render_loki_complete_package_markdown(manifest: dict[str, Any]) -> str:
     lines = [
-        "# LOKI: THE SON GOD Complete Package Manifest",
+        "# LOKI: THE SUN GOD Complete Package Manifest",
         "",
         "This manifest defines every package target needed to ship the Discord-first LOKI product while keeping "
         "live launch, deploy, and autonomous posting blocked until operator approval.",
@@ -709,23 +709,9 @@ def compile_loki_package_readiness_report() -> dict[str, Any]:
         }
         for package in manifest["packages"]
     ]
-    automated_ready_package_ids = {
-        "discord-runtime",
-        "discord-app",
-        "console-dashboard",
-        "activity-bridge",
-        "hermes-camelot-memory",
-    }
-    contract_ready_package_ids = {
-        "hermes-camelot-memory",
-        "media-and-crawler-workers",
-        "local-gpu-workers",
-    }
-    manual_gate_package_ids = {
-        "discord-app",
-        "desktop-controller",
-        "media-and-crawler-workers",
-        "local-gpu-workers",
+    status_counts = {
+        status: sum(1 for row in readiness_rows if row["status"] == status)
+        for status in ("automated_ready", "contract_ready", "manual_gate_required")
     }
     return {
         "product_name": manifest["product_name"],
@@ -733,9 +719,9 @@ def compile_loki_package_readiness_report() -> dict[str, Any]:
         "external_jobs_launched": False,
         "summary": {
             "total_packages": len(readiness_rows),
-            "automated_ready": len(automated_ready_package_ids),
-            "contract_ready": len(contract_ready_package_ids),
-            "manual_gate_required": len(manual_gate_package_ids),
+            "automated_ready": status_counts["automated_ready"],
+            "contract_ready": status_counts["contract_ready"],
+            "manual_gate_required": status_counts["manual_gate_required"],
         },
         "matrix": readiness_rows,
         "still_requires_operator_approval": manifest["blocked_until_operator_approval"],
@@ -751,7 +737,7 @@ def compile_loki_package_readiness_report() -> dict[str, Any]:
 
 def render_loki_package_readiness_markdown(report: dict[str, Any]) -> str:
     lines = [
-        "# LOKI: THE SON GOD Package Readiness Report",
+        "# LOKI: THE SUN GOD Package Readiness Report",
         "",
         "This report converts the complete package manifest into a local evidence matrix. It does not launch the "
         "bot, deploy hosting, install Hermes gateway/cron, or publish autonomous crawler output.",

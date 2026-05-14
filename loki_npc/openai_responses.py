@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from loki_npc.memory import redact_discord_content
 
 DEFAULT_MODEL = "gpt-5.5"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
+MAX_HERMES_QUERY_CHARS = 8_000
 
 
 def configured_model() -> str:
@@ -61,6 +64,53 @@ def hermes_fallback_enabled() -> bool:
     return os.getenv("LOKI_NPC_HERMES_FALLBACK", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def hosted_brain_missing_message() -> str:
+    return (
+        "My hosted NPC brain is not configured in this runtime yet. "
+        "An operator needs to set OPENAI_API_KEY, OPENAI_BASE_URL, and LOKI_LLM_MODEL "
+        "for the Railway worker, or install/configure the Hermes CLI inside the worker image."
+    )
+
+
+def _resolve_hermes_executable() -> str | None:
+    found = shutil.which("hermes")
+    if not found:
+        return None
+    return str(Path(found).expanduser().resolve())
+
+
+def _sanitize_hermes_query(query: str) -> str:
+    cleaned = "".join(ch for ch in query if ch in "\n\r\t" or ord(ch) >= 32)
+    return cleaned.strip()[:MAX_HERMES_QUERY_CHARS]
+
+
+def _hermes_subprocess_env(hermes_path: str) -> dict[str, str]:
+    allowed_names = (
+        "APPDATA",
+        "COMSPEC",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LOCALAPPDATA",
+        "PATHEXT",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+    )
+    env = {name: value for name in allowed_names if (value := os.getenv(name))}
+    path_entries = [str(Path(hermes_path).parent)]
+    if os.name == "nt":
+        system_root = os.getenv("SystemRoot")
+        if system_root:
+            path_entries.extend([str(Path(system_root) / "System32"), system_root])
+    else:
+        path_entries.extend(["/usr/local/bin", "/usr/bin", "/bin"])
+    env["PATH"] = os.pathsep.join(dict.fromkeys(path_entries))
+    env["NO_COLOR"] = "1"
+    return env
+
+
 def ask_hermes_cli(*, prompt: str, persona: str, memory_context: list[str] | None = None) -> str:
     context = "\n".join(f"- {redact_discord_content(item)}" for item in (memory_context or []) if item.strip())
     query = (
@@ -72,13 +122,23 @@ def ask_hermes_cli(*, prompt: str, persona: str, memory_context: list[str] | Non
     if context:
         query += f"Relevant public community memory:\n{context}\n"
     query += f"Hermes operator prompt: {redact_discord_content(prompt)}"
-    result = subprocess.run(
-        ["hermes", "chat", "-Q", "-q", query],
-        capture_output=True,
-        text=True,
-        timeout=90,
-        check=True,
-    )
+    hermes_path = _resolve_hermes_executable()
+    if hermes_path is None:
+        return hosted_brain_missing_message()
+    query = _sanitize_hermes_query(query)
+    if not query:
+        return hosted_brain_missing_message()
+    try:
+        result = subprocess.run(
+            [hermes_path, "chat", "-Q", "-q", query],
+            capture_output=True,
+            env=_hermes_subprocess_env(hermes_path),
+            text=True,
+            timeout=90,
+            check=True,
+        )
+    except FileNotFoundError:
+        return hosted_brain_missing_message()
     answer = (result.stdout or "").strip()
     return answer or "Hermes returned no text."
 

@@ -12,6 +12,8 @@ pywebview>=5,<6
 python-dotenv>=1.0,<2
 requests>=2.32,<3
 wavelink>=3.4,<4
+PyNaCl>=1.5,<2
+davey>=0.1.5,<0.2
 
 # Optional integrations
 # TikTokLive

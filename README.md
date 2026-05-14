@@ -48,11 +48,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run_local.ps1
 
 ## Discord UX Policy
 
-LOKI is Discord-first and natural-language-first. By default, runtime slash-command sync is disabled so members talk to LOKI in normal language instead of using `/` commands. Slash sync is only an explicit operator fallback:
+LOKI is Discord-first and natural-language-first. By default, runtime slash-command sync stays enabled so members can talk to LOKI in normal language or use `/` commands. Operators can disable slash sync when they want a natural-language-only surface:
 
 ```powershell
-$env:LOKI_NATURAL_LANGUAGE_ONLY="false"
-$env:LOKI_ENABLE_SLASH_SYNC="true"
+$env:LOKI_NATURAL_LANGUAGE_ONLY="true"
+$env:LOKI_ENABLE_SLASH_SYNC="false"
 ```
 
 Anyone can ask questions. Admin-level changes remain protected by Discord/admin role checks and dashboard permission gates. Search may use local or online sources only according to the rights granted by admins; rights start with no extra privileges until an admin grants them.

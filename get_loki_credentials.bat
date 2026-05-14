@@ -119,10 +119,16 @@ if not defined CLIENT_ID (
   echo DISCORD_CLIENT_ID is not filled in yet.
   echo After you paste it into .env, rerun this batch file.
 ) else (
-  echo Invite URL:
-  echo https://discord.com/oauth2/authorize?client_id=%CLIENT_ID%^&permissions=274877991936^&scope=bot%%20applications.commands
-  echo.
-  start "" "https://discord.com/oauth2/authorize?client_id=%CLIENT_ID%&permissions=274877991936&scope=bot%%20applications.commands"
+  powershell -NoProfile -Command "param([string]$ClientId) if ($ClientId -match '^[0-9]+$') { exit 0 } else { exit 1 }" "%CLIENT_ID%"
+  if errorlevel 1 (
+    echo DISCORD_CLIENT_ID must contain only digits. Check .env before opening the invite URL.
+    exit /b 1
+  ) else (
+    echo Invite URL:
+    echo https://discord.com/oauth2/authorize?client_id=%CLIENT_ID%^&permissions=274877991936^&scope=bot%%20applications.commands
+    echo.
+    start "" "https://discord.com/oauth2/authorize?client_id=%CLIENT_ID%&permissions=274877991936&scope=bot%%20applications.commands"
+  )
 )
 pause
 
