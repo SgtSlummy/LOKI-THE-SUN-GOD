@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_FILES = [
     "docs/upgrades/10-sector-upgrade-plan.md",
+    "docs/discord/command-event-ownership.md",
     "docs/architecture/mythos-swarm-architecture.md",
     "docs/memory-palace/camelot-wing-index.md",
     "docs/qc/upgrade-grading-system.md",
@@ -20,12 +21,19 @@ REQUIRED_FILES = [
     "docs/plugins-skills/skill-plugin-expansion-plan.md",
     "docs/media/media-expansion-plan.md",
     "docs/rollback/reset-and-restore-plan.md",
+    "docs/schemas/database-schema-snapshot.json",
     "docs/schemas/mythos-task-envelope.schema.json",
     "docs/schemas/camelot-wing.schema.json",
     "docs/schemas/upgrade-grading.schema.json",
 ]
 REQUIRED_TERMS = {
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],
+    "docs/discord/command-event-ownership.md": [
+        "Production Discord command owner",
+        "COG_MODULES",
+        "privileged intents",
+    ],
+    "docs/schemas/database-schema-snapshot.json": ["postgres_converted_sha256", "worker_leases", "send_dedupe"],
     "docs/architecture/mythos-swarm-architecture.md": ["Task envelope", "Write-conflict", "Promotion gates"],
     "docs/memory-palace/camelot-wing-index.md": ["Privacy rules", "Never store raw tokens"],
     "docs/qc/upgrade-grading-system.md": ["functionality", "rollback readiness", "deployment"],
@@ -51,6 +59,10 @@ def test_json_schemas_parse() -> None:
     for rel_path in REQUIRED_FILES:
         if rel_path.endswith(".json"):
             data = json.loads((ROOT / rel_path).read_text(encoding="utf-8"))
+            if rel_path == "docs/schemas/database-schema-snapshot.json":
+                assert data.get("source") == "utils/db.py:CORE_SCHEMA", f"{rel_path} should snapshot CORE_SCHEMA"
+                assert data.get("tables"), f"{rel_path} should list database tables"
+                continue
             assert data.get("$schema"), f"{rel_path} missing $schema"
             assert data.get("type") == "object", f"{rel_path} should define an object schema"
 

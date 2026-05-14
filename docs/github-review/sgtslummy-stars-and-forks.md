@@ -34,3 +34,23 @@ Public GitHub API sample reviewed during the first scheduled doctrine run:
 | `Manavarya09/design-extract` | Design-system extraction and MCP patterns | Candidate dashboard/design-token research source |
 
 Do not vendor or install dependencies from starred repos without license/security review.
+
+## 2026-05-14 Hermes mining refresh
+
+Public GitHub/API sampling during the 16:04 PDT Hermes run observed 34 public `SgtSlummy` repositories and 44 public starred repositories.
+
+Useful clusters:
+
+| Area | Sources | Safe integration posture |
+|---|---|---|
+| Discord bot and media | `SgtSlummy/LOKI-THE-SUN-GOD`, `eritislami/evobot`, `SudhanPlayz/Discord-MusicBot` | Use original tests/docs for queue, Docker, localization, and dashboard ideas; do not copy code without license review. |
+| Agents and orchestration | `SgtSlummy/deepagents`, `langchain-ai/deepagents`, `kyegomez/swarms`, `microsoft/autogen` | Study planning/orchestration patterns; keep live mutation gated by Mythos verifier records. |
+| Memory systems | `SgtSlummy/mempalace`, `MemPalace/mempalace`, `siyuan-note/siyuan` | MIT memory repos are lower-risk inspiration; AGPL repos are architecture-only unless license obligations are explicitly accepted. |
+| Docs/RAG/web retrieval | `SgtSlummy/context7`, `upstash/context7`, `firecrawl/firecrawl` | Use Context7-style docs freshness patterns; treat AGPL Firecrawl as docs-only inspiration. |
+| Deployment/runtime | this repo's `railway.toml`, `nixpacks.toml`, `Procfile`, `.github/workflows/ci.yml` | Prefer repo-local deploy surfaces; add tests before changing production deployment. |
+
+License notes:
+
+- GitHub metadata for `SgtSlummy/LOKI-THE-SUN-GOD` did not expose a clear SPDX license during this sample. Add an explicit license before encouraging broad external reuse.
+- AGPL-3.0 inspiration sources observed include `siyuan-note/siyuan`, `chatthy`, and `firecrawl`; avoid copying implementation code from them into LOKI unless the project intentionally accepts the license obligations.
+- Safe near-term improvements remain docs-only or test-only: `SECURITY.md`, `CONTRIBUTING.md`, license policy, placeholder-only `.env.example` tests, deployment config tests, music queue smoke tests, and memory/MCP redaction contracts.
