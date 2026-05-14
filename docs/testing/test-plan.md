@@ -1,0 +1,33 @@
+# LOKI Test Plan
+
+Updated: 2026-05-14 13:07 UTC
+
+## Baseline Gates
+
+Run before commit/push:
+
+```bash
+python -m compileall -q bot.py utils loki_engine loki_music loki_memory loki_mcp loki_activity_bridge scripts tests
+python scripts/secret_scan.py
+python -m pytest tests -q
+```
+
+Current observed baseline for this run: `134 passed, 1 warning`; compile and secret scan passed.
+
+## Test Categories
+
+| Category | Coverage target |
+|---|---|
+| Natural-language UX | LOKI responds to conversational prompts and does not require slash commands by default |
+| Admin gates | Mutating actions require Discord/admin/dashboard permissions |
+| Link/media safety | URL parsing, SSRF guards, preview sanitization, music metadata extraction |
+| Music/Lavalink | Queue state, permission controls, reconnect/degraded behavior where offline-testable |
+| MCP | Local tools/resources/prompts stay offline-safe and gated |
+| Activity Bridge | Local bridge status, posting gates, retry/degraded behavior |
+| Dashboard/Desktop | Health endpoints, operator controls, local bridge surfaces |
+| Persistence | Schema bootstrap and future drift checks |
+| Deployment | Preflight, env-name manifest, rollback evidence |
+
+## New Regression Added This Run
+
+`tests/test_link_previews.py` now explicitly blocks IPv6 loopback, link-local, unspecified, and `0.0.0.0` preview URLs. This is a test-only SSRF regression guard for Discord relay/media preview inputs.

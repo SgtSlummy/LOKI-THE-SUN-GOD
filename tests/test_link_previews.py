@@ -121,6 +121,10 @@ class LinkPreviewSafetyTests(unittest.TestCase):
             "http://172.16.0.1/secret",
             "http://192.168.1.1/router",
             "http://169.254.169.254/latest/meta-data",
+            "http://0.0.0.0/admin",
+            "http://[::]/admin",
+            "http://[::1]/admin",
+            "http://[fe80::1]/metadata",
             "file:///etc/passwd",
         ]
 

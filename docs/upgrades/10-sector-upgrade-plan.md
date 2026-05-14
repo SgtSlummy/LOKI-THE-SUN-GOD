@@ -1,0 +1,30 @@
+# LOKI 10-Sector Upgrade Plan
+
+Updated: 2026-05-14 13:07 UTC
+
+## Non-Negotiable Invariants
+
+- Preserve natural-language Discord UX by default; slash sync is an explicit operator fallback.
+- Admin-gate mutating Discord, dashboard, MCP, deployment, credential, and database actions.
+- Keep Hermes autonomous runs local/advisory unless a branch commit is fully tested; live posting/deploying requires operator approval.
+- Keep Lavalink/Wavelink as the production music playback path.
+- Never write secrets or private member content into docs, run reports, or Camelot memory.
+
+## Sector Roadmap
+
+| # | Sector | Current state | Next safe upgrade | Acceptance gate | Rollback |
+|---:|---|---|---|---|---|
+| 1 | Discord Core Bot Architecture | `bot.py` + many cogs, natural-language-first policy | Add more regression tests for UX/admin invariants | Pytest + targeted NL/admin tests | Revert test/code commit |
+| 2 | AGI / Agent Reasoning Layer | `loki_engine`, AI/MCP docs, Hermes bridge utilities | Document allowed/blocked Hermes control actions | Docs + foundation contract checks | Revert docs/checks |
+| 3 | Music and Media Systems | `loki_music`, `cogs/loki_music.py`, Lavalink/Wavelink direction | Add health/reconnect/queue test plan | Music docs + tests where offline-safe | Revert docs/tests |
+| 4 | Knowledge Management and Retrieval | Memory adapters and AI library docs exist | Define retrieval scopes and privacy budget | Memory docs + no secrets | Revert docs |
+| 5 | Camelot Memory Palace | Local memory docs/snapshots | Normalize wing schema and index | Schema docs checked in | Revert docs |
+| 6 | Mythos Router and Swarm Orchestration | Router concepts and run reports emerging | Use task envelope schema consistently | Docs + generated run artifact | Revert artifact/docs |
+| 7 | Plugin / Skill Expansion | Hermes skill/plugin ideas documented | Add intake rubric for skills/plugins | License/security/dependency fields present | Revert docs |
+| 8 | Database / Railway / Persistence | SQLite, Railway docs, shared schema bootstrap | Add drift-check/snapshot plan before migrations | Release check remains green | Revert docs/tests |
+| 9 | Containers / Docker / Kubernetes / Deployment | Procfile, Nixpacks, Railway docs | Split bot/dashboard/Lavalink health/rollback plan | No live deploy without approval | Revert docs/config branch |
+| 10 | Testing / QC / Grading / Mutation / GitHub Automation | CI compile, secret scan, pytest | Expand regression tests and grading blockers | Compile + secret scan + pytest | Revert commit |
+
+## First Safe Implementation Stage
+
+This run chose a test-only security regression guard for link preview SSRF safety. It adds explicit blocked IPv6/unspecified host examples while leaving runtime behavior unchanged.
