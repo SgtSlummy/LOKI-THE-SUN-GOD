@@ -22,3 +22,24 @@ jobs:
         run: python scripts/secret_scan.py
       - name: Run tests
         run: python -m pytest tests -q
+
+  activity-bridge:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/activity-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: services/activity-bridge/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run room reducer tests
+        run: npm run test:rooms
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
