@@ -32,10 +32,10 @@ from loki_music.equalizer import preset_names
 from loki_npc.persona import persona_from_settings
 from loki_research.experiments import ExperimentConfig, assert_safe_experiment_config
 from utils import db as shared_db
-from utils.form_ids import normalize_form_name
 from utils import operator_surface
 from utils.command_catalog import parse_command_catalog
 from utils.dashboard_theme import DASHBOARD_BRAND, css_variables
+from utils.form_ids import normalize_form_name
 
 shared_db.init_sync()
 

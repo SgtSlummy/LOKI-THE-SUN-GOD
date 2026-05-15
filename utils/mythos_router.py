@@ -355,7 +355,8 @@ def _node_bin_dirs(env: dict[str, str] | None = None) -> list[Path]:
 
     discovered: list[Path] = []
     for candidate in candidates:
-        node_binary = candidate / ("node.exe" if candidate.drive or candidate.suffix == ".exe" or os.name == "nt" else "node")
+        node_executable = "node.exe" if candidate.drive or candidate.suffix == ".exe" or os.name == "nt" else "node"
+        node_binary = candidate / node_executable
         if node_binary.exists():
             discovered.append(candidate)
     return discovered

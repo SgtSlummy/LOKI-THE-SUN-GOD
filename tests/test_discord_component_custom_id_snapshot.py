@@ -10,7 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from utils.form_ids import DISCORD_CUSTOM_ID_MAX_LENGTH, MAX_DISCORD_SNOWFLAKE_DIGITS, MAX_FORM_NAME_LENGTH
+from utils.form_ids import (  # noqa: E402
+    DISCORD_CUSTOM_ID_MAX_LENGTH,
+    MAX_DISCORD_SNOWFLAKE_DIGITS,
+    MAX_FORM_NAME_LENGTH,
+)
 
 SNAPSHOT_PATH = ROOT / "docs" / "schemas" / "discord-component-custom-id-snapshot.json"
 

@@ -165,7 +165,11 @@ def test_mythos_env_keeps_existing_node_path_order(monkeypatch, tmp_path):
         "environ",
         {"PATH": "/usr/bin", "ProgramFiles": str(tmp_path)},
     )
-    monkeypatch.setattr(mythos_router.shutil, "which", lambda command, path=None: "/usr/bin/node" if command == "node" else None)
+    monkeypatch.setattr(
+        mythos_router.shutil,
+        "which",
+        lambda command, path=None: "/usr/bin/node" if command == "node" else None,
+    )
 
     env = mythos_router.mythos_env()
     entries = env["PATH"].split(mythos_router.os.pathsep)

@@ -8,7 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from utils.form_ids import (
+from utils.form_ids import (  # noqa: E402
     DISCORD_CUSTOM_ID_MAX_LENGTH,
     MAX_FORM_NAME_LENGTH,
     form_custom_id,
