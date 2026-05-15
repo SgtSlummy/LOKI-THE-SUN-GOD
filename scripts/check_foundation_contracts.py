@@ -22,11 +22,13 @@ REQUIRED_FILES = [
     "docs/media/media-expansion-plan.md",
     "docs/rollback/reset-and-restore-plan.md",
     "docs/schemas/database-schema-snapshot.json",
+    "docs/schemas/activity-bridge-payload-snapshot.json",
     "docs/schemas/mythos-task-envelope.schema.json",
     "docs/schemas/camelot-wing.schema.json",
     "docs/schemas/upgrade-grading.schema.json",
     "tests/test_env_examples.py",
     "tests/test_deployment_config.py",
+    "tests/test_activity_bridge_payload_snapshot.py",
 ]
 REQUIRED_TERMS = {
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],
@@ -36,6 +38,11 @@ REQUIRED_TERMS = {
         "privileged intents",
     ],
     "docs/schemas/database-schema-snapshot.json": ["postgres_converted_sha256", "worker_leases", "send_dedupe"],
+    "docs/schemas/activity-bridge-payload-snapshot.json": [
+        "server_to_client_message_types",
+        "client_to_server_message_types",
+        "http_control_actions",
+    ],
     "docs/architecture/mythos-swarm-architecture.md": ["Task envelope", "Write-conflict", "Promotion gates"],
     "docs/memory-palace/camelot-wing-index.md": ["Privacy rules", "Never store raw tokens"],
     "docs/qc/upgrade-grading-system.md": ["functionality", "rollback readiness", "deployment"],
@@ -64,6 +71,11 @@ def test_json_schemas_parse() -> None:
             if rel_path == "docs/schemas/database-schema-snapshot.json":
                 assert data.get("source") == "utils/db.py:CORE_SCHEMA", f"{rel_path} should snapshot CORE_SCHEMA"
                 assert data.get("tables"), f"{rel_path} should list database tables"
+                continue
+            if rel_path == "docs/schemas/activity-bridge-payload-snapshot.json":
+                assert data.get("source_files"), f"{rel_path} should list source files"
+                assert data.get("server_to_client_message_types"), f"{rel_path} should list outbound message types"
+                assert data.get("client_to_server_message_types"), f"{rel_path} should list inbound message types"
                 continue
             assert data.get("$schema"), f"{rel_path} missing $schema"
             assert data.get("type") == "object", f"{rel_path} should define an object schema"

@@ -23,5 +23,6 @@ Users, Bots, Concepts, Ideas, Repositories, Skills, Plugins, Media, Upgrades, Te
 - `camelot.quantum_roots_confidence`: conceptual scoring for corroboration, contradiction checks, confidence decay, and source health.
 - `camelot.env_template_safety`: test-backed contract that `.env.example` files contain placeholders only for sensitive keys; tags: `security`, `secrets`, `deployment`, `rollback`, `tests`.
 - `camelot.deployment_config_contracts`: test-backed contract for Railway/Nixpacks/Procfile deployment invariants; tags: `deployment`, `railway`, `nixpacks`, `procfile`, `activity-bridge`, `tests`, `rollback`.
+- `camelot.activity_bridge_payload_contracts`: test-backed contract for Activity Bridge room state fields, WebSocket payload types, and HTTP room-control actions; tags: `activity-bridge`, `discord-activity`, `websocket`, `payloads`, `tests`, `rollback`.
 
 Canonical record schema: `docs/schemas/camelot-wing.schema.json`.

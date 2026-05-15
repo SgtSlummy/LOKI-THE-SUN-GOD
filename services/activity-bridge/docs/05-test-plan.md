@@ -25,6 +25,7 @@ npm run build
 
 ## Activity tests
 
+- [x] Python snapshot guard checks room state fields, WebSocket message types, and HTTP control actions.
 - [ ] Activity launches inside Discord.
 - [ ] `discordSdk.ready()` completes.
 - [ ] Activity receives `guildId`, `channelId`, or `instanceId`.
@@ -34,6 +35,7 @@ npm run build
 - [ ] Activity video updates when `/watch set` runs.
 - [ ] Two Activity clients stay roughly synced.
 - [ ] Late joiner receives current state and approximate timestamp.
+- [ ] Native Node integration test starts `/ws`, sends `JOIN_ROOM`, and verifies `ROOM_STATE`, `SET_VIDEO`, and `ROOM_ENDED`.
 
 ## OBS tests
 
