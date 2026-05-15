@@ -1,0 +1,24 @@
+# Pre-upgrade Status
+
+Run: `hermes-agent-foundation-contracts-20260515`
+Captured: `2026-05-15T02:04:06-07:00`
+
+Starting branch state:
+
+```text
+HEAD detached at 4bf7946 before switching to codex/hermes-agent-standards-20260515-010340.
+Working tree clean.
+Checkpoint branch created: checkpoint/hermes-before-agent-foundation-20260515-020406.
+Base checkpoint branch created: checkpoint/hermes-before-agent-foundation-base-20260515-020406 at 15bf9a1.
+Work branch created: codex/hermes-agent-foundation-contracts-20260515.
+```
+
+Rollback options:
+
+```text
+git switch checkpoint/hermes-before-agent-foundation-20260515-020406
+```
+
+or reset/revert to base checkpoint
+`checkpoint/hermes-before-agent-foundation-base-20260515-020406` to remove only
+the foundation-contract follow-up after it is created.

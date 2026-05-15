@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_FILES = [
+    "AGENTS.md",
     "docs/upgrades/10-sector-upgrade-plan.md",
     "docs/architecture/mythos-swarm-architecture.md",
     "docs/memory-palace/camelot-wing-index.md",
@@ -25,8 +26,23 @@ REQUIRED_FILES = [
     "docs/schemas/upgrade-grading.schema.json",
 ]
 REQUIRED_TERMS = {
-    "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],
-    "docs/architecture/mythos-swarm-architecture.md": ["Task envelope", "Write-conflict", "Promotion gates"],
+    "AGENTS.md": [
+        "Use Context7 first when available",
+        "Conventional Commits",
+        "PEP 8",
+        "Never commit secrets",
+    ],
+    "docs/upgrades/10-sector-upgrade-plan.md": [
+        "Discord Core",
+        "Camelot",
+        "Mythos",
+        "rollback",
+    ],
+    "docs/architecture/mythos-swarm-architecture.md": [
+        "Task envelope",
+        "Write-conflict",
+        "Promotion gates",
+    ],
     "docs/memory-palace/camelot-wing-index.md": ["Privacy rules", "Never store raw tokens"],
     "docs/qc/upgrade-grading-system.md": ["functionality", "rollback readiness", "deployment"],
 }

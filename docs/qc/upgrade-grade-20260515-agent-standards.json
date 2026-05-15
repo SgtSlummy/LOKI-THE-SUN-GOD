@@ -10,7 +10,7 @@
     "security": 8,
     "maintainability": 9,
     "documentation": 9,
-    "test_coverage": 8,
+    "test_coverage": 9,
     "deployment_safety": 8,
     "rollback_readiness": 9,
     "memory_integration": 8,
@@ -21,13 +21,12 @@
     "database_compatibility": 10,
     "media_compatibility": 10
   },
-  "overall_grade": 8.6,
+  "overall_grade": 8.7,
   "risk_level": "low",
   "merge_readiness": "ready",
   "deployment_readiness": "staging_ready",
   "required_fixes": [],
   "optional_improvements": [
-    "Add AGENTS.md to broader foundation contracts after review.",
     "Open a PR for the instruction contract branch."
   ],
   "rollback_plan": [
@@ -37,7 +36,9 @@
   "review_notes": [
     "The patch is documentation and static contract coverage only.",
     "Primary source anchors were checked online during the run.",
-    "Targeted verification passed."
+    "Targeted verification passed.",
+    "Follow-up complete: AGENTS.md is now required by the broad foundation contract."
   ],
-  "created_at": "2026-05-15T01:03:40-07:00"
+  "created_at": "2026-05-15T01:03:40-07:00",
+  "updated_at": "2026-05-15T02:09:34-07:00"
 }
