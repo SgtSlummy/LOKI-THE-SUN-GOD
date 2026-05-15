@@ -89,6 +89,7 @@ If OAuth is not configured, the dashboard still supports the local LOKI THE SUN 
 - [scripts/build_dashboard_raw.py](/C:/LOKI%20THE%20SUN%20GOD/scripts/build_dashboard_raw.py): generate a single-file raw Python dashboard runner at [dashboard_standalone.py](/C:/LOKI%20THE%20SUN%20GOD/dashboard_standalone.py)
 - [scripts/run_loki_mcp.ps1](/C:/LOKI%20THE%20SUN%20GOD/scripts/run_loki_mcp.ps1): launch the offline `stdio` MCP server
 - [scripts/mcp_smoke_test.py](/C:/LOKI%20THE%20SUN%20GOD/scripts/mcp_smoke_test.py): seed fixture data and verify MCP tools/resources/prompts
+- [scripts/discord_acceptance_probe.py](/C:/LOKI%20THE%20SUN%20GOD/scripts/discord_acceptance_probe.py): safe bot-token Discord acceptance probes for identity, guild/channel permissions, slash registration, and hosted health URLs
 - [scripts/setup_env.bat](/C:/LOKI%20THE%20SUN%20GOD/scripts/setup_env.bat): prompt for required secrets and write `.env`
 
 ## Health Surface

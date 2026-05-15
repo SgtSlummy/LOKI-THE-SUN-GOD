@@ -15,7 +15,7 @@ Manual release items should be handled in this order:
 4. Resolve Discord `403 Missing Access` warnings for slash sync and the
    configured Wreckingball cleanup channel if those features are required.
 
-Local automated checks cover compile, command catalog generation, dashboard routes, MCP tools, secret scanning, and unit tests. Live Discord behavior remains the post-deploy acceptance gate.
+Local automated checks cover compile, command catalog generation, dashboard routes, MCP tools, secret scanning, unit tests, and bot-token Discord REST acceptance probes. True live Discord user-interaction behavior remains the post-deploy acceptance gate unless a separate staging Discord test client/listener is provided.
 
 ## Foundation Contract Gates
 
