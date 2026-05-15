@@ -251,6 +251,32 @@ def command_names(commands: list[dict[str, Any]]) -> set[str]:
     return {str(command.get("name", "")) for command in commands if command.get("name")}
 
 
+def required_command_names(cli_values: list[str] | None, env_value: str | None = None) -> set[str]:
+    """Return slash command names that must be registered for acceptance.
+
+    Values may come from repeated ``--required-command`` flags or from a
+    comma/space separated environment variable.  The default covers the public
+    command surface used by the release gate.
+    """
+
+    raw_values = list(cli_values or [])
+    if env_value:
+        raw_values.append(env_value)
+    default_values = ["ask,npc,play,queue,stop,dashboard"]
+    if not raw_values:
+        raw_values = default_values
+
+    names: set[str] = set()
+    for raw in raw_values:
+        for item in raw.replace(",", " ").split():
+            name = item.strip().lstrip("/")
+            if name:
+                names.add(name)
+    if not names:
+        return required_command_names(default_values)
+    return names
+
+
 def http_probe(url: str) -> dict[str, Any]:
     started = time.monotonic()
     request = urllib.request.Request(url, method="GET", headers={"User-Agent": "LOKI acceptance probe"})
@@ -425,13 +451,17 @@ def run_probe(args: argparse.Namespace) -> tuple[bool, dict[str, Any]]:
         guild_commands = client.request("GET", f"/applications/{app_id}/guilds/{guild_id}/commands")
         global_commands = client.request("GET", f"/applications/{app_id}/commands")
         names = command_names(guild_commands) | command_names(global_commands)
-        required = {"ask", "npc", "play", "queue", "stop", "dashboard"}
+        required = required_command_names(args.required_command, os.getenv("LOKI_ACCEPTANCE_REQUIRED_COMMANDS"))
         missing = sorted(required - names)
         add(
             "commands.registered",
             not missing,
-            f"Found {len(names)} command names; required missing: {', '.join(missing) if missing else 'none'}.",
+            (
+                f"Found {len(names)} command names; required "
+                f"{', '.join(sorted(required))}; missing: {', '.join(missing) if missing else 'none'}."
+            ),
             missing=missing,
+            required=sorted(required),
             names=sorted(names),
         )
     except Exception as exc:
@@ -487,6 +517,16 @@ def main() -> int:
         help="Send and immediately delete a bot-authored text-channel probe message.",
     )
     parser.add_argument("--json", action="store_true", help="Emit full JSON report.")
+    parser.add_argument(
+        "--required-command",
+        action="append",
+        default=[],
+        help=(
+            "Slash command name that must be registered. May be repeated or "
+            "comma/space separated. Defaults to ask,npc,play,queue,stop,dashboard; "
+            "LOKI_ACCEPTANCE_REQUIRED_COMMANDS provides the same override."
+        ),
+    )
     args = parser.parse_args()
 
     ok, report = run_probe(args)

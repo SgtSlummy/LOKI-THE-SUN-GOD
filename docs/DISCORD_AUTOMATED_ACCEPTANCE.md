@@ -22,6 +22,7 @@ Environment defaults:
 - `LOKI_ACCEPTANCE_VOICE_CHANNEL_ID`: voice/stage channel for Connect/Speak permission checks.
 - `DASHBOARD_PUBLIC_URL`: optional dashboard base URL; `/healthz` is probed.
 - `ACTIVITY_BRIDGE_PUBLIC_URL`: optional Activity Bridge base URL; `/healthz` is probed.
+- `LOKI_ACCEPTANCE_REQUIRED_COMMANDS`: optional comma or space separated slash commands that must be registered.
 
 Optional:
 
@@ -31,6 +32,15 @@ python .\scripts\discord_acceptance_probe.py --post-probe-message
 
 `--post-probe-message` sends a bot-authored probe message to the configured text channel and immediately deletes it. Use it only in an operator-approved test channel.
 
+For staging or focused releases, override the required slash-command set without editing the script. Values from repeated `--required-command` flags and `LOKI_ACCEPTANCE_REQUIRED_COMMANDS` are unioned into one required set:
+
+```powershell
+python .\scripts\discord_acceptance_probe.py `
+  --required-command ask `
+  --required-command dashboard,play `
+  --json
+```
+
 ## What is fully automated
 
 - Bot token validity and bot identity.
@@ -38,7 +48,7 @@ python .\scripts\discord_acceptance_probe.py --post-probe-message
 - Bot membership and base permission bits.
 - Text channel visibility, send, read-history, embed, and application-command permissions.
 - Voice/stage channel visibility, Connect, and Speak permissions.
-- Slash command registration for `/ask`, `/npc`, `/play`, `/queue`, `/stop`, and `/dashboard`.
+- Slash command registration for `/ask`, `/npc`, `/play`, `/queue`, `/stop`, and `/dashboard` by default, or the commands provided through `--required-command` / `LOKI_ACCEPTANCE_REQUIRED_COMMANDS`.
 - Dashboard and Activity Bridge HTTP health.
 - Local command/cog behavior through pytest and `scripts/release_check.py`.
 

@@ -5,6 +5,7 @@ from scripts.discord_acceptance_probe import (
     acceptance_capabilities,
     mask_token,
     permission_names,
+    required_command_names,
 )
 
 
@@ -51,4 +52,23 @@ def test_capability_schema_is_stable_for_json_report() -> None:
         "mode": "automated",
         "reason": "reason",
         "automation_path": "path",
+    }
+
+
+def test_required_command_names_defaults_to_release_gate_surface() -> None:
+    expected = {"ask", "dashboard", "npc", "play", "queue", "stop"}
+
+    assert required_command_names([], None) == expected
+    assert required_command_names([], "   ") == expected
+    assert required_command_names([""], None) == expected
+
+
+def test_required_command_names_accepts_repeated_and_delimited_overrides() -> None:
+    assert required_command_names(["/ask,npc", "play queue"], "dashboard, stop") == {
+        "ask",
+        "dashboard",
+        "npc",
+        "play",
+        "queue",
+        "stop",
     }
