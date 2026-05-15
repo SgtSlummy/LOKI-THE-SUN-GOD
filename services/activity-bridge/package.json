@@ -14,7 +14,7 @@
     "dev:server": "npm --workspace server run dev",
     "build": "node node_modules/typescript/bin/tsc -p shared/tsconfig.json && node node_modules/typescript/bin/tsc -p client/tsconfig.json && cd client && node ../node_modules/vite/bin/vite.js build && cd .. && node node_modules/typescript/bin/tsc -p server/tsconfig.json",
     "typecheck": "node node_modules/typescript/bin/tsc -p shared/tsconfig.json && node node_modules/typescript/bin/tsc -p client/tsconfig.json --noEmit && node node_modules/typescript/bin/tsc -p server/tsconfig.json --noEmit",
-    "test:rooms": "npm --workspace server run test:rooms",
+    "test:rooms": "npm --workspace shared run build && npm --workspace server run test:rooms",
     "register:commands": "npm --workspace server run register:commands",
     "start": "node server/dist/index.js"
   },
