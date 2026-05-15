@@ -24,7 +24,7 @@ The Diva work is clean-room public parity. The implementation uses public pages 
 - Public-channel memory is redacted, expires after the default retention window, and supports per-user purge.
 - NPC listening can be narrowed with `LOKI_NPC_ALLOWED_CHANNEL_IDS`; user memory opt-out uses `LOKI_NPC_MEMORY_OPT_OUT_USER_IDS`.
 - NPC replies can be public, but Discord settings changes require server-side admin/manage-guild checks.
-- Natural-language Discord UX is the default: `bot.py` skips slash command sync unless `LOKI_NATURAL_LANGUAGE_ONLY=false` and `LOKI_ENABLE_SLASH_SYNC=true` are both set.
+- Natural-language Discord UX is always available, and slash-command sync is enabled by default for the dual natural-language plus `/` command surface. Set `LOKI_ENABLE_SLASH_SYNC=false` when an operator wants to suppress runtime slash sync.
 - User rights start with no extra search/change privileges until an admin grants them; admin-level changes remain role locked.
 - Mentioned NPC prompts pass through the natural-language router before provider calls, so blocked admin/search requests receive a deterministic policy reason instead of reaching the LLM.
 - Activity changes require Discord event permissions or admin privileges.

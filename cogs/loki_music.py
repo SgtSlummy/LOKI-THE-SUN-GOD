@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from types import SimpleNamespace
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -10,6 +13,37 @@ from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelReq
 from utils import db
 
 
+class JukeboxControls(discord.ui.View):
+    """Persistent-ish controls for the public LOKI jukebox panel."""
+
+    def __init__(self, cog: "LokiMusic"):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="Play", style=discord.ButtonStyle.success, custom_id="loki:juke:play")
+    async def play_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.guild is None:
+            return await interaction.response.send_message("Use LOKI music controls inside a server.", ephemeral=True)
+        ctx = self.cog._context_from_interaction(interaction)
+        if await self.cog.backend.pause(ctx, False):
+            await self.cog._update_jukebox(interaction.guild, reason="play button")
+            return await interaction.response.send_message("LOKI playback resumed.", ephemeral=True)
+        return await interaction.response.send_message(
+            "Nothing is paused yet. Use `/play` or ask LOKI to play a song.",
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, custom_id="loki:juke:stop")
+    async def stop_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.guild is None:
+            return await interaction.response.send_message("Use LOKI music controls inside a server.", ephemeral=True)
+        session = self.cog.session_for(interaction.guild.id)
+        session.clear()
+        await self.cog.backend.stop(self.cog._context_from_interaction(interaction))
+        await self.cog._update_jukebox(interaction.guild, reason="stop button")
+        await interaction.response.send_message("LOKI music stopped and queue cleared.", ephemeral=True)
+
+
 class LokiMusic(commands.Cog):
     """Clean-room Diva-style music command surface plus LOKI mixer/EQ controls."""
 
@@ -17,6 +51,90 @@ class LokiMusic(commands.Cog):
         self.bot = bot
         self.sessions: dict[int, MusicSession] = {}
         self.backend = WavelinkBackend()
+        self.jukebox_messages: dict[int, discord.Message] = {}
+        self.bot.add_view(JukeboxControls(self))
+
+    def _configured_jukebox_channel_id(self) -> int | None:
+        raw = (os.getenv("LOKI_JUKEBOX_CHANNEL_ID") or os.getenv("JUKEBOX_CHANNEL_ID") or "").strip()
+        return int(raw) if raw.isdigit() else None
+
+    def _configured_jukebox_message_id(self) -> int | None:
+        raw = (os.getenv("LOKI_JUKEBOX_MESSAGE_ID") or "").strip()
+        return int(raw) if raw.isdigit() else None
+
+    def _context_from_interaction(self, interaction: discord.Interaction) -> SimpleNamespace:
+        return SimpleNamespace(
+            bot=self.bot,
+            guild=interaction.guild,
+            author=interaction.user,
+            voice_client=getattr(interaction.guild, "voice_client", None) if interaction.guild else None,
+        )
+
+    def jukebox_embed_for(self, session: MusicSession) -> discord.Embed:
+        embed = discord.Embed(
+            title="LOKI Jukebox",
+            description="Use `/play`, talk to LOKI, or press the controls below.",
+            color=discord.Color.gold(),
+        )
+        current = session.current.title if session.current else "Nothing playing"
+        embed.add_field(name="Now playing", value=current[:1024], inline=False)
+        upcoming = (
+            "\n".join(f"{i + 1}. {track.title}" for i, track in enumerate(session.queue[:10]))
+            or "Queue is empty."
+        )
+        embed.add_field(name="Song list", value=upcoming[:1024], inline=False)
+        embed.set_footer(
+            text=f"Volume {session.mixer.volume}% • EQ {session.mixer.eq_preset} • Loop {session.loop_mode}"
+        )
+        return embed
+
+    async def _jukebox_channel_for(self, guild: discord.Guild, fallback: discord.abc.Messageable | None = None):
+        channel_id = self._configured_jukebox_channel_id()
+        if channel_id:
+            channel = guild.get_channel(channel_id) or self.bot.get_channel(channel_id)
+            if channel is None:
+                try:
+                    channel = await self.bot.fetch_channel(channel_id)
+                except (discord.HTTPException, discord.Forbidden, discord.NotFound):
+                    channel = None
+            if channel is not None and hasattr(channel, "send"):
+                return channel
+        return fallback if fallback is not None else getattr(guild, "system_channel", None)
+
+    async def _update_jukebox(
+        self,
+        guild: discord.Guild,
+        *,
+        fallback_channel: discord.abc.Messageable | None = None,
+        reason: str = "music update",
+    ) -> discord.Message | None:
+        channel = await self._jukebox_channel_for(guild, fallback_channel)
+        if channel is None:
+            return None
+        session = self.session_for(guild.id)
+        embed = self.jukebox_embed_for(session)
+        view = JukeboxControls(self)
+        existing = self.jukebox_messages.get(guild.id)
+        if existing is None and self._configured_jukebox_message_id() is not None:
+            try:
+                fetched = await channel.fetch_message(self._configured_jukebox_message_id())
+            except (discord.HTTPException, discord.NotFound, discord.Forbidden, AttributeError):
+                fetched = None
+            if fetched is not None:
+                existing = fetched
+                self.jukebox_messages[guild.id] = fetched
+        if existing is not None:
+            try:
+                await existing.edit(embed=embed, view=view)
+                return existing
+            except (discord.HTTPException, discord.NotFound, discord.Forbidden):
+                self.jukebox_messages.pop(guild.id, None)
+        try:
+            message = await channel.send(embed=embed, view=view)
+        except (discord.HTTPException, discord.Forbidden):
+            return None
+        self.jukebox_messages[guild.id] = message
+        return message
 
     def session_for(self, guild_id: int) -> MusicSession:
         session = self.sessions.setdefault(guild_id, MusicSession(guild_id=guild_id))
@@ -65,12 +183,17 @@ class LokiMusic(commands.Cog):
             return await ctx.send(str(exc))
         except MusicBackendUnavailable:
             session.enqueue(Track(title=query, uri=query, requester_id=ctx.author.id))
+            await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="backend unavailable")
             title = discord.utils.escape_markdown(query)
-            return await ctx.send(f"Queued for LOKI THE SUN GOD: **{title}** (Lavalink node pending)")
+            return await ctx.send(
+                f"Queued for LOKI THE SUN GOD: **{title}** (Lavalink node pending)",
+                view=JukeboxControls(self),
+            )
 
         title = discord.utils.escape_markdown(result.track.title)
         action = "Now playing" if result.started else "Queued"
-        await ctx.send(f"{action} for LOKI THE SUN GOD: **{title}**")
+        await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="play command")
+        await ctx.send(f"{action} for LOKI THE SUN GOD: **{title}**", view=JukeboxControls(self))
 
     @commands.hybrid_command(name="stop", description="Stop playback and clear the LOKI queue")
     @commands.has_permissions(manage_guild=True)
@@ -78,7 +201,9 @@ class LokiMusic(commands.Cog):
         if ctx.guild:
             self.session_for(ctx.guild.id).clear()
         await self.backend.stop(ctx)
-        await ctx.send("LOKI music session stopped and queue cleared.")
+        if ctx.guild:
+            await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="stop command")
+        await ctx.send("LOKI music session stopped and queue cleared.", view=JukeboxControls(self))
 
     @commands.hybrid_command(name="queue", description="Show the current LOKI music queue")
     async def queue(self, ctx: commands.Context):
@@ -90,7 +215,8 @@ class LokiMusic(commands.Cog):
             "\n".join(f"{i + 1}. {track.title}" for i, track in enumerate(session.queue[:10]))
             or "Queue is empty."
         )
-        await ctx.send(f"Now: **{current}**\n{upcoming}")
+        await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="queue command")
+        await ctx.send(f"Now: **{current}**\n{upcoming}", view=JukeboxControls(self))
 
     @commands.hybrid_command(name="skip", description="Skip to the next queued LOKI track")
     async def skip(self, ctx: commands.Context):
@@ -196,6 +322,13 @@ class LokiMusic(commands.Cog):
 
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload):
+        await self._play_next_after_current(payload)
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_exception(self, payload):
+        await self._play_next_after_current(payload)
+
+    async def _play_next_after_current(self, payload):
         player = getattr(payload, "player", None)
         guild = getattr(player, "guild", None)
         if player is None or guild is None:
@@ -212,6 +345,7 @@ class LokiMusic(commands.Cog):
             session.enqueue(session.current)
         if getattr(player, "queue", None) is None or player.queue.is_empty:
             session.current = None
+            await self._update_jukebox(guild, reason="track end")
             return
         playable = player.queue.get()
         next_track = session.dequeue_next()
@@ -226,6 +360,7 @@ class LokiMusic(commands.Cog):
             volume=session.mixer.volume,
             filters=self.backend.filters_for_bands(session.mixer.current_eq_payload()),
         )
+        await self._update_jukebox(guild, reason="track advance")
 
 
 async def setup(bot):

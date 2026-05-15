@@ -1,0 +1,413 @@
+diff --git a/cogs/relay.py b/cogs/relay.py
+index e82ba85..d6e7ab2 100644
+--- a/cogs/relay.py
++++ b/cogs/relay.py
+@@ -10,7 +10,14 @@ from discord.ext import commands
+
+ from utils import runtime_paths
+ from utils.helpers import safe_send
+-from utils.link_previews import LinkPreview, extract_music_artists, extract_urls, resolve_link_previews, strip_urls
++from utils.link_previews import (
++    LinkPreview,
++    extract_music_artists,
++    extract_urls,
++    is_safe_preview_url,
++    resolve_link_previews,
++    strip_urls,
++)
+
+ log = logging.getLogger("loki.relay")
+ relay_log = logging.getLogger("loki.relay.trace")
+@@ -408,7 +415,9 @@ class Relay(commands.Cog):
+         urls = extract_urls(body)
+         cleaned_body = self._clean_relay_body(body, message)
+         emoji_image_url = self._custom_emoji_image_url(cleaned_body)
+-        preview_embeds = self._preview_embeds(await resolve_link_previews(urls))
++        link_previews = await resolve_link_previews(urls)
++        source_embed_previews = self._source_embed_previews(message)
++        preview_embeds = self._preview_embeds(self._merge_previews(link_previews, source_embed_previews))
+         source_marker = self._source_marker(message)
+         source_markers = (
+             source_marker,
+@@ -719,6 +728,74 @@ class Relay(commands.Cog):
+             embeds.append(embed)
+         return embeds
+
++    @staticmethod
++    def _source_embed_previews(message: discord.Message) -> list[LinkPreview]:
++        previews: list[LinkPreview] = []
++        for embed in getattr(message, "embeds", None) or []:
++            preview = Relay._source_embed_preview(embed)
++            if preview is not None:
++                previews.append(preview)
++        return previews
++
++    @staticmethod
++    def _source_embed_preview(embed: discord.Embed) -> LinkPreview | None:
++        media_url = Relay._embed_media_url(embed)
++        preview_url = Relay._safe_url(getattr(embed, "url", None)) or media_url
++        title = str(getattr(embed, "title", "") or "")
++        description = str(getattr(embed, "description", "") or "")
++        site_name = str(getattr(getattr(embed, "provider", None), "name", "") or "")
++
++        if not preview_url or (not title and not description and not media_url):
++            return None
++
++        return LinkPreview(
++            url=preview_url,
++            title=title or site_name or Relay._preview_visible_text(preview_url, fallback="", limit=256),
++            description=description,
++            image_url=media_url,
++            site_name=site_name or None,
++        )
++
++    @staticmethod
++    def _embed_media_url(embed: discord.Embed) -> str | None:
++        for attr in ("image", "thumbnail"):
++            media_url = Relay._safe_url(getattr(getattr(embed, attr, None), "url", None))
++            if media_url:
++                return media_url
++        return None
++
++    @staticmethod
++    def _safe_url(value: str | None) -> str | None:
++        url = str(value or "").strip()
++        if not url:
++            return None
++        return url if is_safe_preview_url(url) else None
++
++    @staticmethod
++    def _merge_previews(*preview_groups: list[LinkPreview]) -> list[LinkPreview]:
++        merged: list[LinkPreview] = []
++        indexes: dict[str, int] = {}
++        for preview_group in preview_groups:
++            for preview in preview_group:
++                key = Relay._preview_key(preview)
++                if not key:
++                    merged.append(preview)
++                    continue
++                existing_index = indexes.get(key)
++                if existing_index is None:
++                    indexes[key] = len(merged)
++                    merged.append(preview)
++                    continue
++                existing = merged[existing_index]
++                if not existing.image_url and preview.image_url:
++                    merged[existing_index] = preview
++        return merged
++
++    @staticmethod
++    def _preview_key(preview: LinkPreview) -> str:
++        key = preview.url or preview.image_url or preview.title
++        return key.casefold()
++
+     @staticmethod
+     def _preview_visible_text(value: str, *, fallback: str, limit: int) -> str:
+         text = strip_urls(value)
+diff --git a/services/activity-bridge/server/src/rooms.ts b/services/activity-bridge/server/src/rooms.ts
+index d5592eb..0bab6b3 100644
+--- a/services/activity-bridge/server/src/rooms.ts
++++ b/services/activity-bridge/server/src/rooms.ts
+@@ -25,29 +25,16 @@ export class RoomManager {
+   }
+
+   getOrCreate(roomId: string, partial: Partial<RoomState> = {}): RoomState {
+-    const existing = this.rooms.get(roomId);
+-    if (existing) {
+-      const merged = {
+-        ...existing,
+-        guildId: existing.guildId ?? partial.guildId ?? null,
+-        channelId: existing.channelId ?? partial.channelId ?? null,
+-        instanceId: existing.instanceId ?? partial.instanceId ?? null
+-      };
+-      this.rooms.set(roomId, merged);
+-      return merged;
+-    }
+-
+-    const room = createInitialRoom(roomId, partial);
+-    this.rooms.set(roomId, room);
+-    return room;
++    return this.snapshot(this.getOrCreateMutable(roomId, partial));
+   }
+
+   get(roomId: string): RoomState | undefined {
+-    return this.rooms.get(roomId);
++    const room = this.rooms.get(roomId);
++    return room ? this.snapshot(room) : undefined;
+   }
+
+   list(): RoomState[] {
+-    return [...this.rooms.values()];
++    return [...this.rooms.values()].map((room) => this.snapshot(room));
+   }
+
+   setVideo(roomId: string, url: string, title?: string | null): CommandResult {
+@@ -55,7 +42,7 @@ export class RoomManager {
+       return { ok: false, message: "Only http(s) video/source URLs are accepted in this starter." };
+     }
+
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.currentUrl = url;
+     room.currentTitle = title ?? null;
+     room.currentQueueItemId = null;
+@@ -63,7 +50,7 @@ export class RoomManager {
+     room.positionSeconds = 0;
+     room.updatedAt = Date.now();
+     this.emitChange(room, "set-video");
+-    return { ok: true, message: "Video/source URL set.", room };
++    return { ok: true, message: "Video/source URL set.", room: this.snapshot(room) };
+   }
+
+   queue(roomId: string, url: string, userId?: string | null, title?: string | null): CommandResult {
+@@ -71,31 +58,33 @@ export class RoomManager {
+       return { ok: false, message: "Only http(s) queue URLs are accepted in this starter." };
+     }
+
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     const item = makeQueueItem(url, userId, title);
+     room.queue.push(item);
+     room.updatedAt = Date.now();
+     this.emitChange(room, "queue-update");
+-    return { ok: true, message: `Queued item ${item.id}.`, room };
++    return { ok: true, message: `Queued item ${item.id}.`, room: this.snapshot(room) };
+   }
+
+   play(roomId: string): CommandResult {
+-    const room = this.getOrCreate(roomId);
+-    if (!room.currentUrl) return { ok: false, message: "No current video/source URL. Use /watch set first.", room };
++    const room = this.getOrCreateMutable(roomId);
++    if (!room.currentUrl) {
++      return { ok: false, message: "No current video/source URL. Use /watch set first.", room: this.snapshot(room) };
++    }
+     room.positionSeconds = getSyncedPositionSeconds(room);
+     room.status = "playing";
+     room.updatedAt = Date.now();
+     this.emitChange(room, "play");
+-    return { ok: true, message: "Playback started.", room };
++    return { ok: true, message: "Playback started.", room: this.snapshot(room) };
+   }
+
+   pause(roomId: string): CommandResult {
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.positionSeconds = getSyncedPositionSeconds(room);
+     room.status = "paused";
+     room.updatedAt = Date.now();
+     this.emitChange(room, "pause");
+-    return { ok: true, message: "Playback paused.", room };
++    return { ok: true, message: "Playback paused.", room: this.snapshot(room) };
+   }
+
+   seek(roomId: string, seconds: number): CommandResult {
+@@ -103,17 +92,17 @@ export class RoomManager {
+       return { ok: false, message: "Seek value must be a non-negative number." };
+     }
+
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.positionSeconds = seconds;
+     room.updatedAt = Date.now();
+     this.emitChange(room, "seek");
+-    return { ok: true, message: `Seeked to ${seconds.toFixed(1)} seconds.`, room };
++    return { ok: true, message: `Seeked to ${seconds.toFixed(1)} seconds.`, room: this.snapshot(room) };
+   }
+
+   next(roomId: string): CommandResult {
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     const nextItem = room.queue.shift();
+-    if (!nextItem) return { ok: false, message: "Queue is empty.", room };
++    if (!nextItem) return { ok: false, message: "Queue is empty.", room: this.snapshot(room) };
+
+     room.currentUrl = nextItem.url;
+     room.currentTitle = nextItem.title ?? null;
+@@ -122,39 +111,39 @@ export class RoomManager {
+     room.status = "paused";
+     room.updatedAt = Date.now();
+     this.emitChange(room, "next");
+-    return { ok: true, message: "Loaded next queue item.", room };
++    return { ok: true, message: "Loaded next queue item.", room: this.snapshot(room) };
+   }
+
+   lock(roomId: string, locked: boolean): CommandResult {
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.locked = locked;
+     room.updatedAt = Date.now();
+     this.emitChange(room, "lock");
+-    return { ok: true, message: locked ? "Room locked." : "Room unlocked.", room };
++    return { ok: true, message: locked ? "Room locked." : "Room unlocked.", room: this.snapshot(room) };
+   }
+
+   setHost(roomId: string, hostUserId: string): CommandResult {
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.hostUserId = hostUserId;
+     room.updatedAt = Date.now();
+     this.emitChange(room, "host");
+-    return { ok: true, message: `Host set to ${hostUserId}.`, room };
++    return { ok: true, message: `Host set to ${hostUserId}.`, room: this.snapshot(room) };
+   }
+
+   setObsStatus(roomId: string, obs: Partial<RoomState["obs"]>, reason = "obs-update"): RoomState {
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.obs = { ...room.obs, ...obs };
+     room.updatedAt = Date.now();
+     this.emitChange(room, reason);
+-    return room;
++    return this.snapshot(room);
+   }
+
+   setTwitchStatus(roomId: string, twitch: Partial<RoomState["twitch"]>, reason = "twitch-update"): RoomState {
+-    const room = this.getOrCreate(roomId);
++    const room = this.getOrCreateMutable(roomId);
+     room.twitch = { ...room.twitch, ...twitch };
+     room.updatedAt = Date.now();
+     this.emitChange(room, reason);
+-    return room;
++    return this.snapshot(room);
+   }
+
+   end(roomId: string): CommandResult {
+@@ -164,10 +153,37 @@ export class RoomManager {
+     return { ok: true, message: room ? "Room ended." : "Room did not exist." };
+   }
+
++  private getOrCreateMutable(roomId: string, partial: Partial<RoomState> = {}): RoomState {
++    const existing = this.rooms.get(roomId);
++    if (existing) {
++      const merged = {
++        ...existing,
++        guildId: existing.guildId ?? partial.guildId ?? null,
++        channelId: existing.channelId ?? partial.channelId ?? null,
++        instanceId: existing.instanceId ?? partial.instanceId ?? null
++      };
++      this.rooms.set(roomId, merged);
++      return merged;
++    }
++
++    const room = createInitialRoom(roomId, partial);
++    this.rooms.set(roomId, room);
++    return room;
++  }
++
+   private emitChange(room: RoomState, reason: string) {
+-    const snapshot = { ...room, queue: [...room.queue], obs: { ...room.obs }, twitch: { ...room.twitch } };
++    const snapshot = this.snapshot(room);
+     this.rooms.set(room.roomId, snapshot);
+-    this.events.emit("change", { ...snapshot, queue: [...snapshot.queue], obs: { ...snapshot.obs }, twitch: { ...snapshot.twitch } }, reason);
++    this.events.emit("change", this.snapshot(snapshot), reason);
++  }
++
++  private snapshot(room: RoomState): RoomState {
++    return {
++      ...room,
++      queue: room.queue.map((item) => ({ ...item })),
++      obs: { ...room.obs },
++      twitch: { ...room.twitch }
++    };
+   }
+ }
+
+diff --git a/services/activity-bridge/server/tests/rooms.test.ts b/services/activity-bridge/server/tests/rooms.test.ts
+index 680240d..9979c4e 100644
+--- a/services/activity-bridge/server/tests/rooms.test.ts
++++ b/services/activity-bridge/server/tests/rooms.test.ts
+@@ -52,6 +52,22 @@ test("RoomManager preserves established room identity fields on later getOrCreat
+   assert.equal(second.instanceId, "instance-1");
+ });
+
++test("RoomManager public room snapshots cannot mutate canonical room state", () => {
++  const manager = new RoomManager();
++
++  const queued = manager.queue("room-a", "https://example.com/clip.mp4");
++  assert.equal(queued.ok, true);
++  assert.equal(queued.room?.queue.length, 1);
++
++  queued.room?.queue.push({ id: "result-mutation", url: "https://example.com/result.mp4", addedAt: Date.now() });
++  manager.get("room-a")?.queue.push({ id: "get-mutation", url: "https://example.com/get.mp4", addedAt: Date.now() });
++  manager.list()[0]?.queue.push({ id: "list-mutation", url: "https://example.com/list.mp4", addedAt: Date.now() });
++
++  const fresh = manager.get("room-a");
++  assert.equal(fresh?.queue.length, 1);
++  assert.equal(fresh?.queue[0]?.url, "https://example.com/clip.mp4");
++});
++
+ test("RoomManager emits change and end events with immutable queue copies", () => {
+   const manager = new RoomManager();
+   const changes: string[] = [];
+diff --git a/tests/test_relay_previews.py b/tests/test_relay_previews.py
+index 00c7a0e..cce0c39 100644
+--- a/tests/test_relay_previews.py
++++ b/tests/test_relay_previews.py
+@@ -68,6 +68,7 @@ class FakeAttachment:
+ def make_message(
+     body: str,
+     *,
++    embeds=None,
+     mentions=None,
+     role_mentions=None,
+     channel_mentions=None,
+@@ -77,6 +78,7 @@ def make_message(
+         guild=SimpleNamespace(id=999),
+         jump_url="https://discord.com/channels/999/111/123",
+         content=body,
++        embeds=embeds or [],
+         mentions=mentions or [],
+         role_mentions=role_mentions or [],
+         channel_mentions=channel_mentions or [],
+@@ -306,6 +308,51 @@ class RelayPreviewSendTests(unittest.IsolatedAsyncioTestCase):
+         self.assertEqual(sent_kwargs[0]["embeds"][0].description, None)
+         self.assertEqual(sent_kwargs[0]["embeds"][1].image.url, "https://example.com/photo.jpg")
+
++    async def test_tenor_source_embed_without_raw_url_rebuilds_gif_preview(self):
++        sent_kwargs = []
++
++        async def fake_safe_send(_target, **kwargs):
++            sent_kwargs.append(kwargs)
++            return object()
++
++        async def fake_resolve(_urls):
++            return []
++
++        tenor_embed = discord.Embed.from_dict(
++            {
++                "type": "gifv",
++                "url": "https://tenor.com/view/happy-cat-gif-10804346947536782797",
++                "title": "Happy Cat GIF",
++                "description": "Click to view the GIF",
++                "provider": {"name": "Tenor"},
++                "image": {"url": "https://media1.tenor.com/m/lfDATg4Bhc0AAAAC/happy-cat.gif"},
++                "thumbnail": {"url": "https://media.tenor.com/lfDATg4Bhc0AAAAe/happy-cat.png"},
++            }
++        )
++        relay = Relay(SimpleNamespace())
++
++        with (
++            patch.object(relay_module, "safe_send", fake_safe_send),
++            patch.object(relay_module, "resolve_link_previews", fake_resolve, create=True),
++        ):
++            await relay._send_message_to_targets(
++                destinations=[FakeChannel()],
++                message=make_message("", embeds=[tenor_embed]),
++                author_name="Cannibal in #general-chat",
++                avatar_url="https://cdn.discordapp.com/avatar.png",
++                body="",
++                attachment=None,
++                attachment_type="",
++            )
++
++        self.assertEqual(sent_kwargs[0].get("content"), None)
++        self.assertEqual(len(sent_kwargs[0]["embeds"]), 2)
++        self.assertEqual(sent_kwargs[0]["embeds"][0].description, None)
++        self.assertEqual(
++            sent_kwargs[0]["embeds"][1].image.url,
++            "https://media1.tenor.com/m/lfDATg4Bhc0AAAAC/happy-cat.gif",
++        )
++
+     async def test_preview_metadata_urls_are_not_visible_text(self):
+         sent_kwargs = []
+

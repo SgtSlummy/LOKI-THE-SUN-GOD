@@ -31,3 +31,36 @@ Current observed baseline for this run: `134 passed, 1 warning`; compile and sec
 ## New Regression Added This Run
 
 `tests/test_link_previews.py` now explicitly blocks IPv6 loopback, link-local, unspecified, and `0.0.0.0` preview URLs. This is a test-only SSRF regression guard for Discord relay/media preview inputs.
+
+---
+
+Generated: 2026-05-13T22:26:30
+
+## Baseline commands
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python scripts/secret_scan.py
+python -m ruff check .
+PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -p no:cacheprovider tests
+```
+
+If local dependencies are missing, run targeted tests that match the changed scope and document the missing packages.
+
+## Activity Bridge
+
+```bash
+cd services/activity-bridge
+npm run test:rooms
+npm run typecheck
+npm run build
+```
+
+`npm run build` writes `dist/`; run it only when generated artifacts are acceptable or ignored.
+
+## Current targeted matrix
+
+- Relay preview feature: `tests/test_relay_previews.py`
+- Activity room snapshot behavior: Activity Bridge `test:rooms` and `typecheck`
+- Foundation docs/schemas: `tests/test_foundation_contracts.py`
+- Secret safety: `scripts/secret_scan.py`
+- JSON schema parse: `scripts/check_foundation_contracts.py`

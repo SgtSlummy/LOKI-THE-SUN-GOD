@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,8 @@ from loki_engine.permissions import (
 )
 from loki_memory.adapters import available_adapters
 from loki_music.equalizer import EQ_PRESETS, bands_for_preset, validate_custom_bands
-from loki_music.wavelink_backend import filters_for_bands
+from loki_music.service import MusicSession, Track
+from loki_music.wavelink_backend import WavelinkBackend, filters_for_bands, music_runtime_status
 from loki_npc.memory import (
     DEFAULT_MEMORY_TTL_SECONDS,
     purge_expired_public_memory,
@@ -66,6 +68,91 @@ def test_wavelink_filters_accept_lavalink_equalizer_payloads():
     assert filters.equalizer.payload[0]["gain"] < 0
 
 
+def test_music_runtime_status_reports_voice_and_lavalink_readiness(monkeypatch):
+    monkeypatch.setenv("LAVALINK_URI", "https://lavalink.example.invalid")
+    monkeypatch.setenv("LAVALINK_PASSWORD", "not-a-secret-in-test")
+
+    status = music_runtime_status()
+
+    assert status["wavelink_installed"] is True
+    assert status["pynacl_installed"] is True
+    assert status["davey_installed"] is True
+    assert status["discord_voice_installed"] is True
+    assert status["lavalink_configured"] is True
+    assert status["ready"] is True
+    assert status["missing"] == []
+
+
+def test_loki_voice_connection_joins_deafened():
+    source = inspect.getsource(WavelinkBackend.ensure_player)
+
+    assert "self_deaf=True" in source
+    assert "self_deaf=False" not in source
+
+
+def test_loki_jukebox_embed_lists_current_track_and_queue():
+    pytest.importorskip("discord")
+    from cogs.loki_music import LokiMusic
+
+    session = MusicSession(guild_id=123)
+    session.current = Track(title="Sun God Intro")
+    session.enqueue(Track(title="Golden Hour"))
+    session.enqueue(Track(title="Temple Bass"))
+
+    cog = LokiMusic.__new__(LokiMusic)
+    embed = cog.jukebox_embed_for(session)
+
+    assert embed.title == "LOKI Jukebox"
+    fields = {field.name: field.value for field in embed.fields}
+    assert fields["Now playing"] == "Sun God Intro"
+    assert "1. Golden Hour" in fields["Song list"]
+    assert "2. Temple Bass" in fields["Song list"]
+
+
+def test_wavelink_play_queues_requested_track_before_fallbacks_when_already_playing():
+    class FakePlayable:
+        def __init__(self, title):
+            self.title = title
+            self.uri = f"https://example.invalid/{title}"
+
+    class FakeQueue:
+        def __init__(self):
+            self.items = []
+
+        def put(self, item):
+            self.items.append(item)
+
+    class FakePlayer:
+        playing = True
+        paused = False
+
+        def __init__(self):
+            self.queue = FakeQueue()
+
+    async def fake_ensure_node(_bot):
+        return None
+
+    async def fake_resolve_tracks(_query):
+        return [FakePlayable("requested"), FakePlayable("fallback-1"), FakePlayable("fallback-2")]
+
+    async def fake_ensure_player(_ctx):
+        return player
+
+    backend = WavelinkBackend()
+    player = FakePlayer()
+    backend.ensure_node = fake_ensure_node
+    backend.resolve_tracks = fake_resolve_tracks
+    backend.ensure_player = fake_ensure_player
+    session = MusicSession(guild_id=123)
+    ctx = type("Ctx", (), {"bot": object()})()
+
+    result = asyncio.run(backend.play(ctx, session, "requested", requester_id=42))
+
+    assert result.started is False
+    assert [item.title for item in player.queue.items] == ["requested", "fallback-1", "fallback-2"]
+    assert [track.title for track in session.queue] == ["requested", "fallback-1", "fallback-2"]
+
+
 def test_admin_actions_require_discord_admin_or_manage_guild_permission():
     normal_user = PermissionContext(user_id=1, guild_id=10, permissions=0)
     admin_user = PermissionContext(user_id=2, guild_id=10, permissions=0x8)
@@ -107,15 +194,30 @@ def test_npc_payload_uses_responses_api_storage_opt_out(monkeypatch):
 def test_npc_uses_hermes_cli_fallback_when_openai_key_missing(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("LOKI_NPC_HERMES_FALLBACK", "true")
+    hermes_path = str(Path("C:/tools/hermes.exe").resolve())
+    monkeypatch.setattr("loki_npc.openai_responses.shutil.which", lambda command: hermes_path)
 
-    def fake_run(command, *, capture_output, text, timeout, check):
-        assert command[:4] == ["hermes", "chat", "-Q", "-q"]
+    def fake_run(command, *, capture_output, env, text, timeout, check):
+        assert command[:4] == [hermes_path, "chat", "-Q", "-q"]
         assert "LOKI THE SUN GOD" in command[4]
+        assert "\x00" not in command[4]
+        assert env["PATH"].startswith(str(Path(hermes_path).parent))
         return type("Result", (), {"stdout": "LOKI via Hermes online.\n"})()
 
     monkeypatch.setattr("loki_npc.openai_responses.subprocess.run", fake_run)
 
-    assert asyncio.run(ask_npc(prompt="status", persona="warm", memory_context=[])) == "LOKI via Hermes online."
+    assert asyncio.run(ask_npc(prompt="status\x00", persona="warm", memory_context=[])) == "LOKI via Hermes online."
+
+
+def test_npc_returns_operator_diagnostic_when_no_hosted_brain_is_configured(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("LOKI_NPC_HERMES_FALLBACK", "true")
+    monkeypatch.setattr("loki_npc.openai_responses.shutil.which", lambda command: None)
+
+    answer = asyncio.run(ask_npc(prompt="status", persona="warm", memory_context=[]))
+
+    assert "hosted NPC brain is not configured" in answer
+    assert "OPENAI_API_KEY" in answer
 
 
 def test_default_persona_uses_safe_public_domain_loki_theme():
@@ -468,8 +570,8 @@ def test_loki_npc_accepts_natural_name_addressing_without_discord_mention():
         user = BotUser()
 
     class Message:
+        clean_content = "hey loki, are you online?"
         mentions = []
-        clean_content = "hey loki are you online?"
 
     npc = LokiNpc(Bot())
 
@@ -477,8 +579,17 @@ def test_loki_npc_accepts_natural_name_addressing_without_discord_mention():
     assert npc._prompt_without_address(Message()) == "are you online?"
 
 
+def test_loki_npc_routes_natural_play_requests_to_music_query():
+    from cogs.loki_npc import LokiNpc
+
+    assert LokiNpc._music_query_from_prompt("play lofi hip hop") == "lofi hip hop"
+    assert LokiNpc._music_query_from_prompt("please queue music synthwave radio!") == "synthwave radio"
+    assert LokiNpc._music_query_from_prompt("what is playing?") is None
+    assert LokiNpc._music_query_from_prompt("play music") is None
+
+
 def test_npc_channel_allowlist_and_private_channel_detection(monkeypatch):
-    pytest.importorskip("discord")
+
     from cogs.loki_npc import LokiNpc
 
     class Permissions:

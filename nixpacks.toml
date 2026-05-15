@@ -2,7 +2,11 @@
 nixPkgs = ["python312"]
 
 [phases.install]
-cmds = ["python -m pip install --upgrade pip", "python -m pip install -r requirements.txt"]
+cmds = ["set -e; test -f requirements.txt || { echo 'requirements.txt is required for deployment'; exit 1; }; python -m venv --copies /opt/venv; . /opt/venv/bin/activate; pip install --upgrade pip; pip install -r requirements.txt"]
+
+[phases.build]
+cmds = ["echo 'Skipping Nixpacks auto-detected build phase for Python services'"]
 
 [start]
-cmd = "gunicorn dashboard_app:app --bind 0.0.0.0:${PORT}"
+# LOKI_START_COMMAND is an operator-only Railway variable; see docs/PROCESS_AND_CONNECTIONS.md.
+cmd = "sh -c '. /opt/venv/bin/activate && ${LOKI_START_COMMAND:-gunicorn dashboard_app:app --bind 0.0.0.0:${PORT:-8080}}'"

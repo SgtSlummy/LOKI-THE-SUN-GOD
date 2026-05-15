@@ -143,7 +143,7 @@ def test_rendered_v8_bot_assembly_markdown_lists_compile_and_blocked_commands():
 def test_final_product_blueprint_captures_loki_identity_and_surfaces():
     blueprint = compile_loki_final_product_blueprint()
 
-    assert blueprint["product_name"] == "LOKI: THE SON GOD"
+    assert blueprint["product_name"] == "LOKI: THE SUN GOD"
     assert blueprint["primary_interface"] == "Discord"
     assert blueprint["product_type"] == "AGI-style Discord bot and app"
     assert blueprint["deployment_target"] == "fully_hosted_online_with_optional_local_gpu_workers"
@@ -200,7 +200,7 @@ def test_final_product_blueprint_has_phased_delivery_and_safety_gates():
 def test_final_product_markdown_and_artifact_paths_are_deterministic(tmp_path):
     markdown = render_loki_final_product_markdown(compile_loki_final_product_blueprint())
 
-    assert "# LOKI: THE SON GOD Final Product Blueprint" in markdown
+    assert "# LOKI: THE SUN GOD Final Product Blueprint" in markdown
     assert "Discord bot" in markdown
     assert "Camelot" in markdown
     assert "local GPU" in markdown
@@ -231,7 +231,7 @@ def test_final_product_markdown_and_artifact_paths_are_deterministic(tmp_path):
 def test_complete_package_manifest_defines_all_ship_targets_and_artifacts():
     manifest = compile_loki_complete_package_manifest()
 
-    assert manifest["product_name"] == "LOKI: THE SON GOD"
+    assert manifest["product_name"] == "LOKI: THE SUN GOD"
     assert manifest["completion_state"] == "package_manifest_ready_local_only"
     assert manifest["external_jobs_launched"] is False
     assert [package["id"] for package in manifest["packages"]] == [
@@ -275,7 +275,7 @@ def test_complete_package_manifest_keeps_live_launch_and_deploy_blocked():
 def test_complete_package_markdown_and_artifact_paths_are_deterministic(tmp_path):
     markdown = render_loki_complete_package_markdown(compile_loki_complete_package_manifest())
 
-    assert "# LOKI: THE SON GOD Complete Package Manifest" in markdown
+    assert "# LOKI: THE SUN GOD Complete Package Manifest" in markdown
     assert "discord-runtime" in markdown
     assert "desktop-controller" in markdown
     assert "dist/LOKI-THE-SUN-GOD-Dashboard.exe" in markdown
@@ -292,14 +292,14 @@ def test_complete_package_markdown_and_artifact_paths_are_deterministic(tmp_path
 def test_package_readiness_report_maps_each_package_to_completion_evidence():
     report = compile_loki_package_readiness_report()
 
-    assert report["product_name"] == "LOKI: THE SON GOD"
+    assert report["product_name"] == "LOKI: THE SUN GOD"
     assert report["readiness_state"] == "local_package_evidence_compiled"
     assert report["external_jobs_launched"] is False
     assert report["summary"] == {
         "total_packages": 8,
-        "automated_ready": 5,
-        "contract_ready": 3,
-        "manual_gate_required": 4,
+        "automated_ready": 4,
+        "contract_ready": 2,
+        "manual_gate_required": 2,
     }
     assert [row["package_id"] for row in report["matrix"]] == [
         "discord-runtime",
@@ -338,7 +338,7 @@ def test_package_readiness_report_never_converts_manual_gates_into_launches():
 def test_package_readiness_markdown_and_artifact_paths_are_deterministic(tmp_path):
     markdown = render_loki_package_readiness_markdown(compile_loki_package_readiness_report())
 
-    assert "# LOKI: THE SON GOD Package Readiness Report" in markdown
+    assert "# LOKI: THE SUN GOD Package Readiness Report" in markdown
     assert "local_package_evidence_compiled" in markdown
     assert "desktop-controller" in markdown
     assert "manual Windows PyInstaller smoke for desktop .exe" in markdown

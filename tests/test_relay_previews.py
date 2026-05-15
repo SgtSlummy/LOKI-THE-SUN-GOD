@@ -60,6 +60,29 @@ class FakeHistoryChannel:
         return _history()
 
 
+class FakeExistingMessage:
+    def __init__(self, message_id, embed):
+        self.id = message_id
+        self.content = ""
+        self.embeds = [embed]
+        self.attachments = []
+
+
+class FakeExistingHistoryChannel:
+    id = 444
+    name = "target"
+
+    def __init__(self, messages):
+        self.messages = messages
+
+    def history(self, *, limit: int):
+        async def _history():
+            for message in self.messages[:limit]:
+                yield message
+
+        return _history()
+
+
 class FakeAttachment:
     url = "https://cdn.discordapp.com/image.png"
     content_type = "image/png"
@@ -68,6 +91,7 @@ class FakeAttachment:
 def make_message(
     body: str,
     *,
+    embeds=None,
     mentions=None,
     role_mentions=None,
     channel_mentions=None,
@@ -77,6 +101,7 @@ def make_message(
         guild=SimpleNamespace(id=999),
         jump_url="https://discord.com/channels/999/111/123",
         content=body,
+        embeds=embeds or [],
         mentions=mentions or [],
         role_mentions=role_mentions or [],
         channel_mentions=channel_mentions or [],
@@ -305,6 +330,148 @@ class RelayPreviewSendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(sent_kwargs[0]["embeds"]), 2)
         self.assertEqual(sent_kwargs[0]["embeds"][0].description, None)
         self.assertEqual(sent_kwargs[0]["embeds"][1].image.url, "https://example.com/photo.jpg")
+
+    async def test_tenor_source_embed_without_raw_url_rebuilds_gif_preview(self):
+        sent_kwargs = []
+
+        async def fake_safe_send(_target, **kwargs):
+            sent_kwargs.append(kwargs)
+            return object()
+
+        async def fake_resolve(_urls):
+            return []
+
+        async def fake_download(_url):
+            return b"GIF89a"
+
+        tenor_embed = discord.Embed.from_dict(
+            {
+                "type": "gifv",
+                "url": "https://tenor.com/view/happy-cat-gif-10804346947536782797",
+                "title": "Happy Cat GIF",
+                "description": "Click to view the GIF",
+                "provider": {"name": "Tenor"},
+                "image": {"url": "https://media1.tenor.com/m/lfDATg4Bhc0AAAAC/happy-cat.gif"},
+                "thumbnail": {"url": "https://media.tenor.com/lfDATg4Bhc0AAAAe/happy-cat.png"},
+            }
+        )
+        relay = Relay(SimpleNamespace())
+
+        with (
+            patch.object(relay_module, "safe_send", fake_safe_send),
+            patch.object(relay_module, "resolve_link_previews", fake_resolve, create=True),
+            patch.object(relay, "_download_preview_file", fake_download),
+        ):
+            await relay._send_message_to_targets(
+                destinations=[FakeChannel()],
+                message=make_message("", embeds=[tenor_embed]),
+                author_name="Cannibal in #general-chat",
+                avatar_url="https://cdn.discordapp.com/avatar.png",
+                body="",
+                attachment=None,
+                attachment_type="",
+            )
+
+        self.assertEqual(sent_kwargs[0].get("content"), None)
+        self.assertEqual(len(sent_kwargs[0]["embeds"]), 2)
+        self.assertEqual(sent_kwargs[0]["embeds"][0].description, None)
+        self.assertEqual(sent_kwargs[0]["embeds"][1].image.url, "attachment://happy-cat.gif")
+        self.assertEqual(sent_kwargs[0]["file"].filename, "happy-cat.gif")
+
+    def test_broken_tenor_relay_message_detection_matches_missing_media_case(self):
+        tenor_preview = discord.Embed(title="Willem Dafoe GIF - Willem Dafoe Laugh - Discover & Share GIFs")
+        tenor_preview.description = "Click to view the GIF"
+        tenor_preview.set_author(name="Tenor")
+        context = discord.Embed(url="https://discord.com/channels/999/111/123")
+
+        message = SimpleNamespace(
+            author=SimpleNamespace(bot=True),
+            attachments=[],
+            embeds=[context, tenor_preview],
+        )
+
+        self.assertTrue(Relay._is_broken_tenor_relay_message(message))
+
+    async def test_repair_skips_broken_tenor_message_not_authored_by_current_bot(self):
+        tenor_preview = discord.Embed(title="Willem Dafoe GIF - Discover & Share GIFs")
+        tenor_preview.description = "Click to view the GIF"
+        context = discord.Embed(url="https://discord.com/channels/999/111/123")
+        relay_message = SimpleNamespace(
+            id=9991,
+            author=SimpleNamespace(id=1234, bot=True),
+            attachments=[],
+            embeds=[context, tenor_preview],
+        )
+        relay = Relay(SimpleNamespace(user=SimpleNamespace(id=5555)))
+
+        async def fail_source_lookup(_message):
+            raise AssertionError("repair should not fetch source messages for other bots")
+
+        relay._source_message_from_relay = fail_source_lookup
+
+        self.assertFalse(await relay._repair_broken_gif_message(FakeChannel(), relay_message))
+
+    def test_repair_source_policy_requires_configured_non_sensitive_friend_visible_source(self):
+        relay = Relay(SimpleNamespace())
+        relay.guild_id = 999
+        relay.friends_role_id = 777
+        source_channel = SimpleNamespace(id=111, name="source")
+        destination = SimpleNamespace(id=222, name="target")
+        guild = SimpleNamespace(id=999)
+        source_message = SimpleNamespace(id=123, guild=guild, channel=source_channel)
+
+        self.assertFalse(relay._repair_source_allowed(source_message, destination))
+
+        relay.target_channels = {111: source_channel, 222: destination}
+        with (
+            patch.object(relay, "_is_sensitive_source", return_value=False),
+            patch.object(relay, "_friends_can_view_source", return_value=True),
+        ):
+            self.assertTrue(relay._repair_source_allowed(source_message, destination))
+            self.assertFalse(relay._repair_source_allowed(source_message, source_channel))
+
+        relay.ignored_source_ids = {"111"}
+        with (
+            patch.object(relay, "_is_sensitive_source", return_value=False),
+            patch.object(relay, "_friends_can_view_source", return_value=True),
+        ):
+            self.assertFalse(relay._repair_source_allowed(source_message, destination))
+
+        relay.ignored_source_ids = set()
+        with patch.object(relay, "_is_sensitive_source", return_value=True):
+            self.assertFalse(relay._repair_source_allowed(source_message, destination))
+
+        with (
+            patch.object(relay, "_is_sensitive_source", return_value=False),
+            patch.object(relay, "_friends_can_view_source", return_value=False),
+        ):
+            self.assertFalse(relay._repair_source_allowed(source_message, destination))
+
+    async def test_source_message_lookup_rejects_unconfigured_marker_before_fetch(self):
+        relay_message = SimpleNamespace(embeds=[discord.Embed(url="https://discord.com/channels/999/111/123")])
+        bot = SimpleNamespace(
+            get_channel=lambda _channel_id: (_ for _ in ()).throw(AssertionError("get_channel should not run")),
+        )
+        relay = Relay(bot)
+        relay.guild_id = 999
+        relay.target_channels = {}
+
+        self.assertIsNone(await relay._source_message_from_relay(relay_message, destination=FakeChannel()))
+
+    def test_preview_filename_sanitizes_gif_basename(self):
+        self.assertEqual(
+            Relay._preview_filename("https://media.tenor.com/a%20b/../../Bad Name!!.gif", None),
+            "bad-name.gif",
+        )
+
+    async def test_source_history_check_can_ignore_current_broken_relay_message(self):
+        source_url = "https://discord.com/channels/999/111/123"
+        context_embed = discord.Embed(url=source_url)
+        channel = FakeExistingHistoryChannel([FakeExistingMessage(9991, context_embed)])
+        relay = Relay(SimpleNamespace())
+
+        self.assertTrue(await relay._destination_already_has_source(channel, (source_url,)))
+        self.assertFalse(await relay._destination_already_has_source(channel, (source_url,), ignore_message_id=9991))
 
     async def test_preview_metadata_urls_are_not_visible_text(self):
         sent_kwargs = []

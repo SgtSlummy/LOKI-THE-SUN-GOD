@@ -8,12 +8,13 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from contextlib import closing
 from pathlib import Path
 from typing import Any, Optional
 
 from loki_activity_bridge import ActivityBridgeClient
 from utils import db as shared_db
-from utils import runtime_paths
+from utils import mythos_router, runtime_paths
 from utils.command_catalog import parse_command_catalog as shared_parse_command_catalog
 
 RESOURCE_ROOT = runtime_paths.bundle_root()
@@ -1160,16 +1161,7 @@ def loki_activity_snapshot(guild_id: int | None = None) -> dict[str, Any]:
 
 
 def loki_mythos_snapshot() -> dict[str, Any]:
-    run_dir = APP_ROOT / ".mythos" / "loki-diva-reprocess"
-    files = []
-    if run_dir.exists():
-        files = [str(path.relative_to(APP_ROOT)) for path in sorted(run_dir.glob("**/*")) if path.is_file()]
-    return {
-        "run_dir": str(run_dir),
-        "exists": run_dir.exists(),
-        "files": files,
-        "prime_consumption_rule": "Read compiled packet only after ingest/compile/gate.",
-    }
+    return mythos_router.mythos_snapshot()
 
 
 def save_app_ai_env(values: dict[str, Any]) -> Path:
@@ -1264,8 +1256,8 @@ def create_manual_backup() -> dict[str, Any]:
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S", time.localtime())
     backup_path = backup_dir / f"bot-backup-{timestamp}.sqlite"
-    with sqlite3.connect(database) as source:
-        with sqlite3.connect(backup_path) as target:
+    with closing(sqlite3.connect(database)) as source:
+        with closing(sqlite3.connect(backup_path)) as target:
             source.backup(target)
 
     return {

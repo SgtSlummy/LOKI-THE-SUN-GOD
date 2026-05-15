@@ -87,7 +87,7 @@
     "verify Discord Developer Portal intents, OAuth redirect, and command publication target",
     "approve or reject live bot launch, crawler posting, and hosted deploy separately"
   ],
-  "product_name": "LOKI: THE SON GOD",
+  "product_name": "LOKI: THE SUN GOD",
   "readiness_state": "local_package_evidence_compiled",
   "still_requires_operator_approval": [
     "python bot.py",
@@ -99,9 +99,9 @@
     "shipping desktop .exe without secret scan and release check evidence"
   ],
   "summary": {
-    "automated_ready": 5,
-    "contract_ready": 3,
-    "manual_gate_required": 4,
+    "automated_ready": 4,
+    "contract_ready": 2,
+    "manual_gate_required": 2,
     "total_packages": 8
   }
 }

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Camelot Wing Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "entity_type",
+    "summary",
+    "details",
+    "sources",
+    "related_entities",
+    "tags",
+    "retrieval_keywords",
+    "sector_links",
+    "upgrade_relevance",
+    "priority_score",
+    "confidence_score",
+    "risk_score",
+    "status",
+    "action_items",
+    "test_links",
+    "commit_links",
+    "created_at",
+    "updated_at",
+    "last_reviewed_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "entity_type": {
+      "enum": [
+        "user",
+        "bot",
+        "concept",
+        "idea",
+        "repo",
+        "skill",
+        "plugin",
+        "media",
+        "upgrade",
+        "test",
+        "deployment",
+        "mutation",
+        "rollback"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "details": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_entities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "retrieval_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sector_links": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "upgrade_relevance": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "priority_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "risk_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "status": {
+      "enum": [
+        "new",
+        "reviewed",
+        "active",
+        "deprecated",
+        "blocked",
+        "complete"
+      ]
+    },
+    "action_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "test_links": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commit_links": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "last_reviewed_at": {
+      "type": "string"
+    }
+  }
+}

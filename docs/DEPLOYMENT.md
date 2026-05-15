@@ -2,18 +2,37 @@
 
 ## Current Deployment Status
 
-The rebuilt repo is deployment-ready after local verification, but no live Railway project was created from this workspace during the rebuild.
+Railway production was deployed and verified from this workspace on
+2026-05-13. The active production services are:
+
+- Dashboard: `dashboard`, deployment `e15386b4-c08c-4abd-a6d9-7f8bac36a745`,
+  at `https://dashboard-production-9290.up.railway.app`
+- Worker: `worker`, deployment `f0ba2d8d-6b5d-4940-b550-3f0bf5c753da`
+- Lavalink: `lavalink`, deployment `020cd7cf-1ea0-4c8c-aa15-0fbdcce5c0b5`,
+  at `https://lavalink-production-17ea.up.railway.app`
+- Postgres: `Postgres`, shared by the dashboard and worker through
+  `DATABASE_URL`
+
+The hosted dashboard health check returned `ok: true`,
+`database_backend: postgres`, `database_ok: true`, and `oauth_ready: true`.
+The worker startup logs showed LOKI THE SUN GOD logged in and loaded cogs.
 
 Highest-priority remaining items:
 
-1. Railway deployment.
-2. Hosted Discord OAuth callback test.
-3. Live Discord `/dashboard` plus post-restart relay message test in the actual channels.
+1. Complete browser Discord OAuth consent through the hosted dashboard.
+2. Verify live Discord `/dashboard` returns the hosted dashboard URL.
+3. Send a real Friends-role post-restart relay message in the actual channels.
+4. Fix Discord permission warnings if needed: slash sync and the configured
+   Wreckingball cleanup channel both returned `403 Missing Access` in worker
+   logs after deployment.
 
 The Vercel target is limited to the sanitized static operator preview in
 [VERCEL_PREVIEW.md](/C:/LOKI%20THE%20SUN%20GOD/docs/VERCEL_PREVIEW.md). Do not
 deploy the repo root to Vercel because local runtime data and logs can exist
 outside Git tracking.
+
+For the operator handoff, deploy process, and service connection map, see
+[PROCESS_AND_CONNECTIONS.md](/C:/LOKI%20THE%20SUN%20GOD/docs/PROCESS_AND_CONNECTIONS.md).
 
 ## What Ships
 

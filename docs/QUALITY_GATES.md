@@ -2,14 +2,18 @@
 
 ## Highest Priority Release Gap
 
-The rebuilt source tree passes local automated gates. Hosted production validation still needs real Railway, Discord OAuth, Discord bot, Lavalink, and optional OpenAI credentials.
+The rebuilt source tree passes local automated gates. Railway production web,
+worker, Postgres, and Lavalink services are deployed and online. Hosted
+production validation still needs Discord user acceptance for OAuth,
+`/dashboard`, and real Friends-role relay behavior.
 
 Manual release items should be handled in this order:
 
-1. Deploy the web and worker services to Railway or the selected host.
-2. Complete browser Discord OAuth consent through the deployed `/callback` URL.
+1. Complete browser Discord OAuth consent through the deployed `/callback` URL.
 2. Verify live Discord `/dashboard` returns the hosted dashboard URL.
 3. Send a real Friends-role post-restart relay message in the actual channels.
+4. Resolve Discord `403 Missing Access` warnings for slash sync and the
+   configured Wreckingball cleanup channel if those features are required.
 
 Local automated checks cover compile, command catalog generation, dashboard routes, MCP tools, secret scanning, and unit tests. Live Discord behavior remains the post-deploy acceptance gate.
 
@@ -71,7 +75,7 @@ Status meanings:
 | 38 | Automated | Desktop API smoke. |
 | 39 | Automated | PyInstaller build creates, verifies, and copies desktop EXE. |
 | 40 | Manual | WinUI build validates the WebView2 shell. |
-| 41 | Implemented | Railway-compatible process, runtime, and environment docs are present for web, worker, and Postgres services. |
+| 41 | Implemented | Railway-compatible process, runtime, and environment docs are present for web, worker, Postgres, and Lavalink services. |
 | 42 | Implemented | Hosted env checklist documented. |
 | 43 | Implemented | Discord redirect checklist documented with hosted callback URL. |
 | 44 | Automated | Packaged EXE launches dashboard mode and serves current `/healthz`. |
@@ -80,7 +84,7 @@ Status meanings:
 | 47 | Manual | MemPalace mine/search verification. |
 | 48 | Implemented | Final docs pass staged in docs. |
 | 49 | Manual | Final risk review after hosted deploy; live Discord checks remain. |
-| 50 | Manual | Hosted RC still requires deployment plus browser OAuth consent, live `/dashboard`, and live post-restart relay checks. |
+| 50 | Manual | Hosted RC deployment is complete; browser OAuth consent, live `/dashboard`, and live post-restart relay checks remain. |
 
 ## Activity Bridge Addendum
 

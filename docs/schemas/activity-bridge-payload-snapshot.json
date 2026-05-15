@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-05-14T20:05:35-07:00",
+  "source_files": [
+    "services/activity-bridge/shared/src/index.ts",
+    "services/activity-bridge/server/src/routes/rooms.ts"
+  ],
+  "room_state_fields": [
+    "roomId",
+    "guildId",
+    "channelId",
+    "instanceId",
+    "hostUserId",
+    "locked",
+    "currentUrl",
+    "currentTitle",
+    "currentQueueItemId",
+    "status",
+    "positionSeconds",
+    "updatedAt",
+    "queue",
+    "obs",
+    "twitch"
+  ],
+  "queue_item_fields": [
+    "id",
+    "url",
+    "title",
+    "addedByUserId",
+    "addedAt"
+  ],
+  "playback_statuses": [
+    "idle",
+    "playing",
+    "paused",
+    "ended"
+  ],
+  "server_to_client_message_types": [
+    "ROOM_STATE",
+    "PLAY",
+    "PAUSE",
+    "SEEK",
+    "SET_VIDEO",
+    "QUEUE_UPDATE",
+    "OBS_UPDATE",
+    "TWITCH_UPDATE",
+    "ROOM_ENDED",
+    "ERROR"
+  ],
+  "client_to_server_message_types": [
+    "JOIN_ROOM",
+    "REQUEST_STATE",
+    "CLIENT_READY",
+    "CONTROL_PLAY",
+    "CONTROL_PAUSE",
+    "CONTROL_SEEK"
+  ],
+  "http_control_actions": [
+    "set",
+    "queue",
+    "play",
+    "pause",
+    "seek",
+    "next",
+    "lock",
+    "host",
+    "end",
+    "obs-status",
+    "twitch-status",
+    "scene",
+    "overlay",
+    "title",
+    "stream-start",
+    "stream-stop"
+  ],
+  "notes": [
+    "LOKI Python remains the production Discord command owner.",
+    "Activity-side WebSocket controls remain disabled by default unless explicitly enabled.",
+    "Room API routes require ACTIVITY_BRIDGE_TOKEN before accepting control payloads."
+  ]
+}

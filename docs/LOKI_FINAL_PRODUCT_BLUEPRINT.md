@@ -1,10 +1,10 @@
-# LOKI: THE SON GOD Final Product Blueprint
+# LOKI: THE SUN GOD Final Product Blueprint
 
 Communication is Discord-first. LOKI is the AGI-style Discord bot, Discord app, dashboard, desktop controller, and Hermes/Camelot-backed autonomous operator system for the community.
 
 ## Identity
 
-- Product name: `LOKI: THE SON GOD`.
+- Product name: `LOKI: THE SUN GOD`.
 - Primary interface: `Discord`.
 - Product type: `AGI-style Discord bot and app`.
 - Deployment target: `fully_hosted_online_with_optional_local_gpu_workers`.

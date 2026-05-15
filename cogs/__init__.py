@@ -25,6 +25,7 @@ COG_MODULES = (
     "misc",
     "moderation",
     "moderation_ext",
+    "mythos_router",
     "notes",
     "polls",
     "purge_ext",

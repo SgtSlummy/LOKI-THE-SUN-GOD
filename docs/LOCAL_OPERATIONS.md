@@ -45,6 +45,45 @@ This verifies:
 - local desktop control API on `http://127.0.0.1:7331`
 - dashboard health on `http://127.0.0.1:5000/healthz`
 
+## Clean Generated Files
+
+Use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\clean_generated_artifacts.ps1
+```
+
+This removes local Python caches, test/build output, runtime logs, MCP smoke
+fixtures, and PyInstaller artifacts without touching `.env`, `.venv`,
+`data/bot.db`, MemPalace files, or deployment config.
+
+To also remove the Activity Bridge dependency install, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\clean_generated_artifacts.ps1 -IncludeNodeModules
+```
+
+To remove ignored Mythos run artifacts as well, add `-IncludeMythos`.
+
+## Mythos Bot Router
+
+LOKI loads `cogs.mythos_router` at startup. The Discord command surface is
+owner-only and exposes `/mythos status`, `/mythos ready`, `/mythos init`,
+`/mythos add`, `/mythos compile`, and `/mythos gate`.
+
+The router only calls `mythos-skill` with whitelisted argument lists. It never
+passes Discord input to a shell. Run slugs are restricted to safe local names
+under `.mythos`; set `LOKI_MYTHOS_RUN_SLUG` to change the default run from
+`loki-diva-reprocess`.
+
+Use `/mythos add` to record HTTPS GitHub repositories as Mythos source material
+for a run. The add route records source metadata in `.mythos/<run>/sources.json`;
+it does not clone repositories or execute downloaded code from Discord input.
+
+Mythos readiness still depends on the local toolchain. On Windows, install
+Visual Studio Build Tools with the C++ workload so `link.exe` is available
+before expecting `/mythos ready` or `/mythos gate` to pass.
+
 ## MCP Smoke Test
 
 Use:

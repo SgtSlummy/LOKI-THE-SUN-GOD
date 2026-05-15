@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LOKI Upgrade Grade",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "upgrade_id",
+    "name",
+    "sector",
+    "stage",
+    "commit",
+    "scores",
+    "overall_grade",
+    "risk_level",
+    "merge_readiness",
+    "deployment_readiness",
+    "required_fixes",
+    "optional_improvements",
+    "rollback_plan",
+    "review_notes",
+    "created_at"
+  ],
+  "properties": {
+    "upgrade_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "sector": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "functionality",
+        "stability",
+        "security",
+        "maintainability",
+        "documentation",
+        "test_coverage",
+        "deployment_safety",
+        "rollback_readiness",
+        "memory_integration",
+        "performance",
+        "user_value",
+        "plugin_skill_leverage",
+        "swarm_compatibility",
+        "database_compatibility",
+        "media_compatibility"
+      ],
+      "properties": {
+        "functionality": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "stability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "security": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "maintainability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "documentation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "test_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "deployment_safety": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "rollback_readiness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "memory_integration": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "performance": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "user_value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "plugin_skill_leverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "swarm_compatibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "database_compatibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "media_compatibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        }
+      }
+    },
+    "overall_grade": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "risk_level": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "merge_readiness": {
+      "enum": [
+        "not_ready",
+        "conditional",
+        "ready"
+      ]
+    },
+    "deployment_readiness": {
+      "enum": [
+        "not_ready",
+        "staging_ready",
+        "production_ready"
+      ]
+    },
+    "required_fixes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optional_improvements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rollback_plan": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "review_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string"
+    }
+  }
+}
