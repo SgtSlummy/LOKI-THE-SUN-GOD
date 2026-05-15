@@ -13,6 +13,7 @@ from loki_engine.permissions import (
 )
 from loki_memory.adapters import available_adapters
 from loki_music.equalizer import EQ_PRESETS, bands_for_preset, validate_custom_bands
+from loki_music.service import MusicSession, QueueLimitExceeded, Track
 from loki_music.wavelink_backend import filters_for_bands
 from loki_npc.memory import (
     DEFAULT_MEMORY_TTL_SECONDS,
@@ -32,6 +33,33 @@ from loki_research.experiments import (
     score_mutation_candidate,
 )
 from utils.command_catalog import parse_command_catalog
+
+
+def test_music_tracks_provide_provider_aware_dedupe_keys():
+    track = Track(
+        title="Solar Hymn",
+        uri="https://media.example/solar-hymn.ogg",
+        provider="Internet_Archive",
+        provider_id="Solar-Hymn",
+        duration_ms=123000,
+    )
+
+    assert track.dedupe_key() == ("internet_archive", "Solar-Hymn")
+    assert Track(title="Fallback", uri="HTTPS://EXAMPLE.COM/A.OGG").dedupe_key() == (
+        "unknown",
+        "HTTPS://EXAMPLE.COM/A.OGG",
+    )
+
+
+def test_music_session_enforces_guild_queue_limit():
+    session = MusicSession(guild_id=10, max_queue_size=1)
+    session.enqueue(Track(title="first"))
+
+    with pytest.raises(QueueLimitExceeded):
+        session.enqueue(Track(title="second"))
+
+    with pytest.raises(ValueError):
+        MusicSession(guild_id=10, max_queue_size=0)
 
 
 def test_equalizer_presets_are_lavalink_band_payloads_without_public_filter_modes():
