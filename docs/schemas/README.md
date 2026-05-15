@@ -8,4 +8,6 @@ Current snapshots: `database-schema-snapshot.json`, a read-only drift guard for 
 
 Environment templates are guarded by `tests/test_env_examples.py`. The test keeps committed `.env.example` files placeholder-only for sensitive variable names such as tokens, API keys, client secrets, access tokens, and passwords.
 
+Deployment config is guarded by `tests/test_deployment_config.py`. The test keeps root Railway/Nixpacks settings, Procfile process names, and the Activity Bridge Railway service aligned with the documented multi-service deployment contract.
+
 Planned snapshots include Activity Bridge payloads, MCP tool inputs/outputs, and a full environment variable manifest.

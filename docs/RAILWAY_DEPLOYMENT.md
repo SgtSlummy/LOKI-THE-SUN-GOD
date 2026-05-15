@@ -68,6 +68,12 @@ npm run build
 
 The repo includes a `Procfile` with both process names for hosts that read Procfiles, but Railway should be configured as two services so the bot worker and dashboard can restart independently.
 
+`tests/test_deployment_config.py` guards the committed deployment contract:
+root `railway.toml` stays on the Nixpacks builder, `nixpacks.toml` owns the
+Python start command and virtualenv setup, the Procfile keeps `web` and
+`worker` separate, and `services/activity-bridge/railway.toml` stays a
+separate Node/Railpack service.
+
 Do not paste `.env.example` directly into Railway. It is intentionally local-first: localhost URLs, `RELAY_ENABLED=false`, blank `DATABASE_URL`, and placeholder secrets. Use the shared/web/worker variable lists in this document instead.
 
 Always pass the target service explicitly when deploying from the CLI:

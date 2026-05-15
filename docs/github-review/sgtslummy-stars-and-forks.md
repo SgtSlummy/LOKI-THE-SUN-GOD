@@ -54,3 +54,13 @@ License notes:
 - GitHub metadata for `SgtSlummy/LOKI-THE-SUN-GOD` did not expose a clear SPDX license during this sample. Add an explicit license before encouraging broad external reuse.
 - AGPL-3.0 inspiration sources observed include `siyuan-note/siyuan`, `chatthy`, and `firecrawl`; avoid copying implementation code from them into LOKI unless the project intentionally accepts the license obligations.
 - Safe near-term improvements remain docs-only or test-only: `SECURITY.md`, `CONTRIBUTING.md`, license policy, placeholder-only `.env.example` tests, deployment config tests, music queue smoke tests, and memory/MCP redaction contracts.
+
+## 2026-05-15 deployment research refresh
+
+Public GitHub/API sampling during the 01:04 UTC Hermes run observed:
+
+- `SgtSlummy/LOKI-THE-SUN-GOD`: public Python repo, default branch `codex/activity-stream-bridge`, no SPDX license in GitHub metadata, one open issue, and deployment surfaces in `railway.toml`, `nixpacks.toml`, `Procfile`, and `services/activity-bridge/railway.toml`.
+- `SgtSlummy/paperclip`: public MIT-licensed fork of `paperclip`, useful as agent-work-management inspiration only until upstream architecture and data model are reviewed.
+- `firecrawl/firecrawl`: starred AGPL-3.0 web extraction system; keep as architecture/research inspiration only unless license obligations are explicitly accepted.
+
+Context7 documentation refreshes for `/railwayapp/docs` and `/railwayapp/nixpacks` confirmed that Railway config-as-code uses `railway.toml`/`railway.json` build and deploy sections, while Nixpacks uses TOML phases plus `[start].cmd`. The safe implementation chunk from this research is a deployment-config contract test, not a deployment behavior change.
