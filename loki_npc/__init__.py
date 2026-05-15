@@ -1,4 +1,6 @@
 from loki_npc.memory import (
+    delete_user_memory_with_receipt,
+    export_user_memory,
     member_memory_snapshot,
     purge_expired_public_memory,
     purge_user_memory,
@@ -12,6 +14,8 @@ __all__ = [
     "GeneratedPersona",
     "build_responses_payload",
     "default_persona",
+    "delete_user_memory_with_receipt",
+    "export_user_memory",
     "member_memory_snapshot",
     "persona_from_settings",
     "purge_expired_public_memory",

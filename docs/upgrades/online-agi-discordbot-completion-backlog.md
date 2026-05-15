@@ -44,6 +44,9 @@ LOKI THE SUN GOD should operate as an online Discord-first AGI-style system with
 - `/npc memory [member]` now exposes deterministic redacted public-memory snapshots
   through slash-command-only private responses; users can view their own memory
   and Manage Server operators can inspect other members.
+- `/npc memory-export <member>` and `/npc memory-delete <member>` now give
+  Manage Server operators private redacted export/delete actions with audit
+  receipts in `loki_audit_receipts`.
 - Deterministic no-LLM member memory helpers were added:
   - `recent_public_memory_for_user(...)`
   - `member_memory_snapshot(...)`
@@ -71,10 +74,9 @@ Acceptance:
 Status: runtime foundation exists; member summary product surface is incomplete.
 
 Next slices:
-1. Add admin-only memory export/delete commands with audit receipts.
-2. Add source-aware member profiles from public-memory snippets only.
-3. Add Camelot record import/export table or adapter matching `docs/schemas/camelot-wing.schema.json`.
-4. Add MCP read tools for memory search/export/delete previews.
+1. Add source-aware member profiles from public-memory snippets only.
+2. Add Camelot record import/export table or adapter matching `docs/schemas/camelot-wing.schema.json`.
+3. Add MCP read tools for memory search/export/delete previews.
 
 Acceptance:
 - Member summaries are deterministic without LLM when no provider is configured.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -13,7 +14,14 @@ from loki_engine.natural_language import NaturalLanguageRights, route_natural_la
 from loki_engine.permissions import PermissionContext, assert_admin_action
 from loki_music.service import QueueLimitExceeded, Track
 from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired
-from loki_npc.memory import member_memory_snapshot, public_memory_allowed, recent_public_memory, remember_public_message
+from loki_npc.memory import (
+    delete_user_memory_with_receipt,
+    export_user_memory,
+    member_memory_snapshot,
+    public_memory_allowed,
+    recent_public_memory,
+    remember_public_message,
+)
 from loki_npc.openai_responses import ask_npc
 from loki_npc.persona import persona_from_settings
 from utils import db
@@ -273,23 +281,31 @@ class LokiNpc(commands.Cog):
             return await ctx.send("Use this inside a server.")
         await ctx.send(self.persona_for_guild(ctx.guild.id).prompt_text())
 
+    @staticmethod
+    def _admin_decision(ctx: commands.Context, action: str):
+        permissions = getattr(getattr(ctx.author, "guild_permissions", None), "value", 0)
+        return assert_admin_action(
+            PermissionContext(
+                user_id=ctx.author.id,
+                guild_id=ctx.guild.id if ctx.guild else None,
+                permissions=permissions,
+            ),
+            action,
+        )
+
+    @staticmethod
+    def _require_private_interaction(ctx: commands.Context) -> bool:
+        return getattr(ctx, "interaction", None) is not None
+
     @npc.command(name="memory", description="Show redacted public memory for yourself or a managed member")
     async def npc_memory(self, ctx: commands.Context, member: discord.Member = None):
         if not ctx.guild:
             return await ctx.send("Use this inside a server.")
-        if getattr(ctx, "interaction", None) is None:
+        if not self._require_private_interaction(ctx):
             return await ctx.send("Use /npc memory so LOKI can return this memory snapshot privately.")
         target = member or ctx.author
         if target.id != ctx.author.id:
-            permissions = getattr(getattr(ctx.author, "guild_permissions", None), "value", 0)
-            decision = assert_admin_action(
-                PermissionContext(
-                    user_id=ctx.author.id,
-                    guild_id=ctx.guild.id,
-                    permissions=permissions,
-                ),
-                "view_member_public_memory",
-            )
+            decision = self._admin_decision(ctx, "view_member_public_memory")
             if not decision.allowed:
                 return await ctx.send(
                     "You can view your own memory. Viewing another member requires Manage Server.",
@@ -298,6 +314,67 @@ class LokiNpc(commands.Cog):
         snapshot = member_memory_snapshot(guild_id=ctx.guild.id, user_id=target.id, limit=5)
         await ctx.send(
             self._format_member_memory_snapshot(target, snapshot),
+            allowed_mentions=discord.AllowedMentions.none(),
+            ephemeral=True,
+        )
+
+    @staticmethod
+    def _memory_export_body_for_discord(payload: dict[str, object], *, max_chars: int = 1500) -> str:
+        body = json.dumps(payload | {"truncated": False}, indent=2, sort_keys=True)
+        if len(body) <= max_chars:
+            return body
+        preview = dict(payload)
+        entries = list(payload.get("entries", []))
+        preview["entries"] = []
+        preview["truncated"] = True
+        preview["export_note"] = (
+            "Preview reduced to keep the Discord response valid JSON. "
+            "Use DB/MCP export for all rows."
+        )
+        for entry in entries:
+            candidate = dict(preview)
+            candidate["entries"] = [*preview["entries"], entry]
+            candidate_body = json.dumps(candidate, indent=2, sort_keys=True)
+            if len(candidate_body) > max_chars:
+                break
+            preview = candidate
+        return json.dumps(preview, indent=2, sort_keys=True)
+
+    @npc.command(name="memory-export", description="Export redacted public memory for a managed member")
+    @commands.has_permissions(manage_guild=True)
+    async def npc_memory_export(self, ctx: commands.Context, member: discord.Member):
+        if not ctx.guild:
+            return await ctx.send("Use this inside a server.")
+        if not self._require_private_interaction(ctx):
+            return await ctx.send("Use /npc memory-export so LOKI can return this export privately.")
+        decision = self._admin_decision(ctx, "export_member_public_memory")
+        if not decision.allowed:
+            return await ctx.send(decision.reason, ephemeral=True)
+        payload = export_user_memory(guild_id=ctx.guild.id, user_id=member.id, actor_id=ctx.author.id, limit=20)
+        raw_name = getattr(member, "display_name", None) or getattr(member, "name", "member")
+        display_name = discord.utils.escape_markdown(raw_name)
+        body = self._memory_export_body_for_discord(payload)
+        await ctx.send(
+            f"LOKI public memory export for **{display_name}**\n```json\n{body}\n```",
+            allowed_mentions=discord.AllowedMentions.none(),
+            ephemeral=True,
+        )
+
+    @npc.command(name="memory-delete", description="Delete stored public memory for a managed member")
+    @commands.has_permissions(manage_guild=True)
+    async def npc_memory_delete(self, ctx: commands.Context, member: discord.Member):
+        if not ctx.guild:
+            return await ctx.send("Use this inside a server.")
+        if not self._require_private_interaction(ctx):
+            return await ctx.send("Use /npc memory-delete so LOKI can return this receipt privately.")
+        decision = self._admin_decision(ctx, "delete_member_public_memory")
+        if not decision.allowed:
+            return await ctx.send(decision.reason, ephemeral=True)
+        deleted = delete_user_memory_with_receipt(guild_id=ctx.guild.id, user_id=member.id, actor_id=ctx.author.id)
+        raw_name = getattr(member, "display_name", None) or getattr(member, "name", "member")
+        display_name = discord.utils.escape_markdown(raw_name)
+        await ctx.send(
+            f"Deleted {deleted} public memory snippet(s) for **{display_name}**. Audit receipt recorded.",
             allowed_mentions=discord.AllowedMentions.none(),
             ephemeral=True,
         )

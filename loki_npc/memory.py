@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 
@@ -85,6 +86,75 @@ def member_memory_snapshot(*, guild_id: int, user_id: int, limit: int = 5) -> di
         "newest_at": row["newest_at"] if row else None,
         "recent": recent_public_memory_for_user(guild_id=guild_id, user_id=user_id, limit=limit),
     }
+
+
+def record_memory_audit_receipt(
+    *, guild_id: int, actor_id: int, action: str, target_user_id: int, allowed: bool = True, details: str = ""
+) -> int:
+    """Persist a compact audit receipt for member-memory operator actions."""
+    detail_text = details or f"user_id={target_user_id}"
+    return db.sync_exec(
+        """
+        INSERT INTO loki_audit_receipts(guild_id, actor_id, action, allowed, reason, details, created_at)
+        VALUES(?,?,?,?,?,?,?)
+        """,
+        (guild_id, actor_id, action, 1 if allowed else 0, "npc_public_memory", detail_text[:2000], int(time.time())),
+    )
+
+
+def export_user_memory(*, guild_id: int, user_id: int, actor_id: int, limit: int = 20) -> dict[str, object]:
+    """Return redacted public-memory rows for one member and record an audit receipt."""
+    cutoff = int(time.time()) - DEFAULT_MEMORY_TTL_SECONDS
+    row_limit = max(1, min(50, limit))
+    rows = db.sync_all(
+        """
+        SELECT id, channel_id, user_id, redacted_content, source_url, confidence, created_at
+        FROM loki_memory_entries
+        WHERE guild_id=? AND user_id=? AND created_at>=?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """,
+        (guild_id, user_id, cutoff, row_limit),
+    )
+    entries = [
+        {
+            "id": int(row["id"]),
+            "channel_id": int(row["channel_id"]),
+            "user_id": int(row["user_id"]),
+            "redacted_content": redact_discord_content(str(row["redacted_content"])),
+            "confidence": float(row["confidence"] or 0),
+            "created_at": int(row["created_at"]),
+        }
+        for row in rows
+    ]
+    payload = {
+        "guild_id": guild_id,
+        "user_id": user_id,
+        "actor_id": actor_id,
+        "entry_count": len(entries),
+        "entries": entries,
+    }
+    record_memory_audit_receipt(
+        guild_id=guild_id,
+        actor_id=actor_id,
+        action="npc_memory_export",
+        target_user_id=user_id,
+        details=f"user_id={user_id} exported={len(entries)} payload_bytes={len(json.dumps(payload, sort_keys=True))}",
+    )
+    return payload
+
+
+def delete_user_memory_with_receipt(*, guild_id: int, user_id: int, actor_id: int) -> int:
+    """Delete one member's stored public memory and record an audit receipt."""
+    deleted = purge_user_memory(guild_id=guild_id, user_id=user_id)
+    record_memory_audit_receipt(
+        guild_id=guild_id,
+        actor_id=actor_id,
+        action="npc_memory_delete",
+        target_user_id=user_id,
+        details=f"user_id={user_id} deleted={deleted}",
+    )
+    return deleted
 
 
 def purge_expired_public_memory(
