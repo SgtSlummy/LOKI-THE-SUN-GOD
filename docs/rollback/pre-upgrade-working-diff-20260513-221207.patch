@@ -410,4 +410,3 @@ index 00c7a0e..cce0c39 100644
 +
      async def test_preview_metadata_urls_are_not_visible_text(self):
          sent_kwargs = []
-
