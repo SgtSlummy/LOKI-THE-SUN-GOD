@@ -4,11 +4,11 @@
 
 Railway production was redeployed and verified from this workspace on
 2026-05-15 from master commit
-`5ac1a6b4fd8f644252e89f092d3950551e0a7f39`. The active production services are:
+`0c94b0c5b4823629946d5051859190d86383c296`. The active production services are:
 
-- Dashboard: `dashboard`, deployment `fdb7fd47-3d6f-4cae-a5d8-c20090a63a78`,
+- Dashboard: `dashboard`, deployment `62489eab-9083-4089-8c1d-42937cd6660d`,
   at `https://dashboard-production-9290.up.railway.app`
-- Worker: `worker`, deployment `ceef7bc5-3a03-4ea6-964d-920a07fc7bbf`
+- Worker: `worker`, deployment `e53a3dcd-5fcb-4379-a0ef-5f3bb3f941a3`
 - Activity Bridge: `activity-bridge`, deployment
   `6d43943e-87c0-4837-8d5d-64bf1f5e0a59`, at
   `https://activity-bridge-production.up.railway.app`
