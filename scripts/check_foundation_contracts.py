@@ -23,6 +23,7 @@ REQUIRED_FILES = [
     "docs/schemas/mythos-task-envelope.schema.json",
     "docs/schemas/camelot-wing.schema.json",
     "docs/schemas/upgrade-grading.schema.json",
+    "docs/schemas/discord-context-menu-snapshot.json",
 ]
 REQUIRED_TERMS = {
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],

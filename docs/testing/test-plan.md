@@ -28,5 +28,6 @@ npm run build
 - Relay preview feature: `tests/test_relay_previews.py`
 - Activity room snapshot behavior: Activity Bridge `test:rooms` and `typecheck`
 - Foundation docs/schemas: `tests/test_foundation_contracts.py`
+- Discord context menus: `tests/test_discord_context_menu_snapshot.py`
 - Secret safety: `scripts/secret_scan.py`
 - JSON schema parse: `scripts/check_foundation_contracts.py`
