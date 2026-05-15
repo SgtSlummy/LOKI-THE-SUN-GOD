@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "schema_version": 1,
+  "generated_at": "2026-05-15T00:09:14-07:00",
+  "source_files": [
+    "cogs/forms.py",
+    "cogs/loki_music.py",
+    "cogs/tickets.py"
+  ],
+  "documentation_sources": [
+    "Context7 /rapptz/discord.py: persistent views require timeout=None, stable custom_id values, and startup add_view registration"
+  ],
+  "expected_totals": {
+    "persistent_view_classes": 4,
+    "startup_registrations": 4,
+    "cog_load_registrations": 3,
+    "constructor_registrations": 1,
+    "runtime_panel_registrations": 1
+  },
+  "registration_contract_hash_alg": "sha256",
+  "registration_contract_hash": "2ab50ef8f1d05348b42ba22afe8fe9918da2da1fc40730769739a2e1de4d028e",
+  "registrations": [
+    {
+      "cog": "Forms",
+      "method": "cog_load",
+      "source": "cogs/forms.py",
+      "view": "FormPanelView"
+    },
+    {
+      "cog": "LokiMusic",
+      "method": "__init__",
+      "source": "cogs/loki_music.py",
+      "view": "JukeboxControls"
+    },
+    {
+      "cog": "Tickets",
+      "method": "cog_load",
+      "source": "cogs/tickets.py",
+      "view": "TicketChannelView"
+    },
+    {
+      "cog": "Tickets",
+      "method": "cog_load",
+      "source": "cogs/tickets.py",
+      "view": "TicketPanelView"
+    }
+  ],
+  "runtime_panel_registrations": [
+    {
+      "cog": "Forms",
+      "method": "form_panel",
+      "source": "cogs/forms.py",
+      "view": "FormPanelView"
+    }
+  ],
+  "notes": [
+    "This snapshot complements the custom_id snapshot by proving each persistent view class is registered with bot.add_view during cog startup.",
+    "FormPanelView is registered for saved form rows during Forms.cog_load; new panels also register the active view when posted.",
+    "JukeboxControls is registered during LokiMusic construction because the view needs the cog instance for callbacks.",
+    "TicketPanelView and TicketChannelView are registered during Tickets.cog_load after ticket schema initialization."
+  ]
+}

@@ -25,6 +25,7 @@ REQUIRED_FILES = [
     "docs/schemas/upgrade-grading.schema.json",
     "docs/schemas/discord-context-menu-snapshot.json",
     "docs/schemas/discord-component-custom-id-snapshot.json",
+    "docs/schemas/discord-persistent-view-registration-snapshot.json",
 ]
 REQUIRED_TERMS = {
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],
