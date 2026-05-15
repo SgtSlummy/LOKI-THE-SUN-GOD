@@ -141,6 +141,39 @@ def test_mythos_add_source_rejects_non_github_urls():
         mythos_router.normalize_source_url("http://localhost:5000/private")
 
 
+def test_mythos_env_adds_windows_node_path_when_node_missing(monkeypatch, tmp_path):
+    node_dir = tmp_path / "nodejs"
+    node_dir.mkdir(parents=True)
+    (node_dir / "node.exe").write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(mythos_router, "_local_mythos_bin_dir", lambda: None)
+    monkeypatch.setattr(mythos_router.os, "environ", {"PATH": "", "ProgramFiles": str(tmp_path)})
+    monkeypatch.setattr(mythos_router.shutil, "which", lambda command, path=None: None)
+
+    env = mythos_router.mythos_env()
+
+    assert str(node_dir) in env["PATH"].split(mythos_router.os.pathsep)
+
+
+def test_mythos_env_keeps_existing_node_path_order(monkeypatch, tmp_path):
+    local_bin = tmp_path / "mythos-bin"
+    local_bin.mkdir()
+
+    monkeypatch.setattr(mythos_router, "_local_mythos_bin_dir", lambda: local_bin)
+    monkeypatch.setattr(
+        mythos_router.os,
+        "environ",
+        {"PATH": "/usr/bin", "ProgramFiles": str(tmp_path)},
+    )
+    monkeypatch.setattr(mythos_router.shutil, "which", lambda command, path=None: "/usr/bin/node" if command == "node" else None)
+
+    env = mythos_router.mythos_env()
+    entries = env["PATH"].split(mythos_router.os.pathsep)
+
+    assert entries[0] == str(local_bin)
+    assert entries[1:] == ["/usr/bin"]
+
+
 def test_command_catalog_exposes_owner_only_mythos_router():
     from utils.command_catalog import parse_command_catalog
 

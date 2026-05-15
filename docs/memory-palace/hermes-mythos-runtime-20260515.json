@@ -1,0 +1,55 @@
+{
+  "id": "camelot.mythos_runtime_ready_20260515",
+  "name": "Mythos Runtime Ready Path",
+  "entity_type": "upgrade",
+  "summary": "The Mythos router now finds a usable Node runtime automatically, so mythos-skill readiness passes from the project runtime.",
+  "details": "Hermes automation verified that utils/mythos_router.py was launching the npm shim without ensuring node was discoverable. A targeted fix now prepends discovered Node install directories when PATH lacks node, and the project runtime successfully executes mythos-skill ready. This makes Mythos workflow startup reliable without touching the in-flight relay/music work.",
+  "sources": [
+    "https://context7.com/rapptz/discord.py",
+    "https://context7.com/pythonistaguild/wavelink",
+    "https://context7.com/pallets/flask/3_1_1",
+    "https://github.com/SgtSlummy",
+    "local:/mnt/c/Users/carme/OneDrive/Desktop/Codex/LOKI THE SUN GOD/utils/mythos_router.py",
+    "local:/mnt/c/Users/carme/OneDrive/Desktop/Codex/LOKI THE SUN GOD/tests/test_mythos_router.py"
+  ],
+  "related_entities": [
+    "camelot.autonomous_evolution_sources",
+    "camelot.github_source_availability"
+  ],
+  "tags": [
+    "mythos",
+    "runtime",
+    "node",
+    "hermes",
+    "compatibility",
+    "testing"
+  ],
+  "retrieval_keywords": [
+    "mythos ready node path",
+    "hermes runtime fallback",
+    "mythos router node.exe",
+    "npm shim compatibility"
+  ],
+  "sector_links": [
+    "2. AGI / Agent Reasoning Layer",
+    "6. Mythos Router and Swarm Orchestration",
+    "10. Testing, QC, Grading, Mutation, GitHub Automation"
+  ],
+  "upgrade_relevance": 9,
+  "priority_score": 8,
+  "confidence_score": 9,
+  "risk_score": 2,
+  "status": "active",
+  "action_items": [
+    "Keep future Mythos work on the project runtime path until shell wrappers are normalized.",
+    "Add real evidence/compile/gate steps to the-moooon run directory in the next automation pass."
+  ],
+  "test_links": [
+    "local:/mnt/c/Users/carme/OneDrive/Desktop/Codex/LOKI THE SUN GOD/tests/test_mythos_router.py",
+    "command:./.venv/Scripts/python.exe -m pytest -q tests/test_mythos_router.py tests/test_relay_previews.py tests/test_song_requests_pin_mirror.py tests/test_wreckingball_cleanup.py tests/test_loki_rebuild_contracts.py"
+  ],
+  "commit_links": [],
+  "created_at": "2026-05-15T00:27:34-07:00",
+  "updated_at": "2026-05-15T00:27:34-07:00",
+  "last_reviewed_at": "2026-05-15T00:27:34-07:00"
+}

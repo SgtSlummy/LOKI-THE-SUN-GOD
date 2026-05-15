@@ -80,9 +80,10 @@ Use `/mythos add` to record HTTPS GitHub repositories as Mythos source material
 for a run. The add route records source metadata in `.mythos/<run>/sources.json`;
 it does not clone repositories or execute downloaded code from Discord input.
 
-Mythos readiness still depends on the local toolchain. On Windows, install
-Visual Studio Build Tools with the C++ workload so `link.exe` is available
-before expecting `/mythos ready` or `/mythos gate` to pass.
+Mythos readiness now passes through the project runtime because the router adds
+known Node install paths before launching `mythos-skill`. `/mythos gate` still
+depends on a real run directory with evidence, compile output, and recorded
+synthesis; do not treat readiness alone as a completed Mythos cycle.
 
 ## MCP Smoke Test
 

@@ -34,3 +34,27 @@ Public GitHub API sample reviewed during the first scheduled doctrine run:
 | `Manavarya09/design-extract` | Design-system extraction and MCP patterns | Candidate dashboard/design-token research source |
 
 Do not vendor or install dependencies from starred repos without license/security review.
+
+## 2026-05-15 signal refresh
+
+Current public signals stayed concentrated around agent orchestration, MCP tool use,
+memory/retrieval, and local-first assistant surfaces rather than Discord-specific
+music stacks.
+
+| Repo | Usefulness | Integration posture |
+|---|---|---|
+| `paperclipai/paperclip` | Multi-agent operator console patterns | Use as dashboard/governance inspiration only |
+| `Lum1104/Understand-Anything` | Knowledge-graph and semantic retrieval patterns | Compare against Camelot/search roadmap |
+| `MemPalace/mempalace` | Durable local-first memory patterns | Strong fit for Camelot retrieval/storage design |
+| `Neonia-io/agent-mcp-examples` | MCP auto-discovery and remote filtering patterns | Strong fit for MCP/tooling verification work |
+| `openclaw/openclaw` | Channel-agnostic assistant control-plane patterns | Keep as architecture inspiration only |
+| `firecrawl/firecrawl` | Agent-facing web retrieval service patterns | Use as service-boundary inspiration only; avoid code reuse without AGPL review |
+| `siyuan-note/siyuan` | Local-first PKM and self-hosted knowledge-base ergonomics | Architecture inspiration only; avoid code reuse without AGPL review |
+
+License posture:
+
+- Lower-friction references: MIT/Apache-style repos such as `paperclip`,
+  `Understand-Anything`, `MemPalace`, and `agent-mcp-examples`.
+- Higher-friction references: AGPL repositories such as `firecrawl` and
+  `siyuan`; treat them as architectural references unless copyleft obligations
+  are explicitly acceptable.
