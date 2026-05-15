@@ -6,4 +6,6 @@ Current schemas: `mythos-task-envelope.schema.json`, `camelot-wing.schema.json`,
 
 Current snapshots: `database-schema-snapshot.json`, a read-only drift guard for `utils/db.py:CORE_SCHEMA` and its Postgres conversion path.
 
-Planned snapshots include Activity Bridge payloads, MCP tool inputs/outputs, and environment variable manifests.
+Environment templates are guarded by `tests/test_env_examples.py`. The test keeps committed `.env.example` files placeholder-only for sensitive variable names such as tokens, API keys, client secrets, access tokens, and passwords.
+
+Planned snapshots include Activity Bridge payloads, MCP tool inputs/outputs, and a full environment variable manifest.
