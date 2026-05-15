@@ -22,5 +22,6 @@ Users, Bots, Concepts, Ideas, Repositories, Skills, Plugins, Media, Upgrades, Te
 - `camelot.autonomous_evolution_sources`: public inspirations for safe research/evolution loops.
 - `camelot.quantum_roots_confidence`: conceptual scoring for corroboration, contradiction checks, confidence decay, and source health.
 - `camelot.discord_context_menu_contract`: static snapshot of user/message context-menu commands, preserving right-click Apps coverage outside slash-command registry parsing.
+- `camelot.discord_component_custom_id_contract`: static snapshot of persistent Discord UI button `custom_id` ownership for forms, tickets, and LOKI jukebox controls, including the dynamic form key length bound.
 
 Canonical record schema: `docs/schemas/camelot-wing.schema.json`.

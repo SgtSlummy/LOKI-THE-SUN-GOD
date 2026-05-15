@@ -24,6 +24,7 @@ REQUIRED_FILES = [
     "docs/schemas/camelot-wing.schema.json",
     "docs/schemas/upgrade-grading.schema.json",
     "docs/schemas/discord-context-menu-snapshot.json",
+    "docs/schemas/discord-component-custom-id-snapshot.json",
 ]
 REQUIRED_TERMS = {
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],

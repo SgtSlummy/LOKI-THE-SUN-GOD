@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "schema_version": 1,
+  "generated_at": "2026-05-15T00:42:00-07:00",
+  "source_files": [
+    "cogs/forms.py",
+    "cogs/loki_music.py",
+    "cogs/tickets.py"
+  ],
+  "documentation_sources": [
+    "Context7 /rapptz/discord.py interactions API: discord.ui.View, discord.ui.Button, persistent views, custom_id"
+  ],
+  "expected_totals": {
+    "button_constructor": 1,
+    "button_decorator": 4,
+    "total": 5,
+    "dynamic": 1,
+    "persistent_view": 5
+  },
+  "dynamic_constraints": {
+    "form::{guild_id}::{form_name}": {
+      "max_custom_id_length": 100,
+      "max_snowflake_digits": 20,
+      "max_form_name_length": 72
+    }
+  },
+  "component_custom_id_contract_hash_alg": "sha256",
+  "component_custom_id_contract_hash": "b92d88b0b425a7dac9a5ed20bd900803e9b94638a6804b46f65ce42905b14f8d",
+  "components": [
+    {
+      "custom_id": "form::{guild_id}::{form_name}",
+      "dynamic": true,
+      "kind": "button_constructor",
+      "label": "button_label[:80]",
+      "source": "cogs/forms.py",
+      "view": "FormPanelView",
+      "callback": "__init__",
+      "persistent_view": true
+    },
+    {
+      "custom_id": "loki:juke:play",
+      "dynamic": false,
+      "kind": "button_decorator",
+      "label": "Play",
+      "source": "cogs/loki_music.py",
+      "view": "JukeboxControls",
+      "callback": "play_button",
+      "persistent_view": true
+    },
+    {
+      "custom_id": "loki:juke:stop",
+      "dynamic": false,
+      "kind": "button_decorator",
+      "label": "Stop",
+      "source": "cogs/loki_music.py",
+      "view": "JukeboxControls",
+      "callback": "stop_button",
+      "persistent_view": true
+    },
+    {
+      "custom_id": "ticket:open",
+      "dynamic": false,
+      "kind": "button_decorator",
+      "label": "Open ticket",
+      "source": "cogs/tickets.py",
+      "view": "TicketPanelView",
+      "callback": "open_btn",
+      "persistent_view": true
+    },
+    {
+      "custom_id": "ticket:close",
+      "dynamic": false,
+      "kind": "button_decorator",
+      "label": "Close ticket",
+      "source": "cogs/tickets.py",
+      "view": "TicketChannelView",
+      "callback": "close_btn",
+      "persistent_view": true
+    }
+  ],
+  "notes": [
+    "discord.py persistent views require timeout=None and stable custom_id values so interactions can be routed after restart.",
+    "The form button custom_id is intentionally dynamic but keeps a stable form::{guild_id}::{form_name} namespace.",
+    "Link buttons without custom_id are excluded because Discord routes them by URL, not component interaction callbacks."
+  ]
+}

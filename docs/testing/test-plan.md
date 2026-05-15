@@ -29,5 +29,7 @@ npm run build
 - Activity room snapshot behavior: Activity Bridge `test:rooms` and `typecheck`
 - Foundation docs/schemas: `tests/test_foundation_contracts.py`
 - Discord context menus: `tests/test_discord_context_menu_snapshot.py`
+- Discord persistent UI components: `tests/test_discord_component_custom_id_snapshot.py`
+- Form persistent button bounds: `tests/test_form_custom_ids.py`
 - Secret safety: `scripts/secret_scan.py`
 - JSON schema parse: `scripts/check_foundation_contracts.py`
