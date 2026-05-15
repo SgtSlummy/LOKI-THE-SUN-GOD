@@ -29,6 +29,9 @@ REQUIRED_FILES = [
     "tests/test_env_examples.py",
     "tests/test_deployment_config.py",
     "tests/test_activity_bridge_payload_snapshot.py",
+    "docs/schemas/discord-context-menu-snapshot.json",
+    "docs/schemas/discord-component-custom-id-snapshot.json",
+    "docs/schemas/discord-persistent-view-registration-snapshot.json",
 ]
 REQUIRED_TERMS = {
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],

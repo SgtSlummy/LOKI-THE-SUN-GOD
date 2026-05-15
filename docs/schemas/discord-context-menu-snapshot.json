@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "schema_version": 1,
+  "generated_at": "2026-05-14T22:05:35-07:00",
+  "source_files": [
+    "cogs/context_menus.py",
+    "cogs/translate.py"
+  ],
+  "documentation_sources": [
+    "Context7 /websites/discordpy_readthedocs_io_en interactions API: ContextMenu, AppCommandType, CommandTree.sync"
+  ],
+  "expected_totals": {
+    "total": 10,
+    "user": 5,
+    "message": 5
+  },
+  "context_menu_contract_hash_alg": "sha256",
+  "context_menu_contract_hash": "38a01107b3542f30e9f10a6728592abbda9ba8fce9107b26e1ca63229dd76117",
+  "commands": [
+    {
+      "name": "User Info",
+      "type": "user",
+      "callback": "user_info_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Add Note",
+      "type": "user",
+      "callback": "add_note_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Quick Mute (10m)",
+      "type": "user",
+      "callback": "quick_mute_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Show Avatar",
+      "type": "user",
+      "callback": "show_avatar_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Warn",
+      "type": "user",
+      "callback": "warn_user_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Star to Starboard",
+      "type": "message",
+      "callback": "star_msg_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Save as Tag",
+      "type": "message",
+      "callback": "save_tag_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Quote to Channel",
+      "type": "message",
+      "callback": "quote_ch_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Delete + Warn",
+      "type": "message",
+      "callback": "del_warn_cb",
+      "source": "cogs/context_menus.py"
+    },
+    {
+      "name": "Translate to English",
+      "type": "message",
+      "callback": "translate_msg",
+      "source": "cogs/translate.py"
+    }
+  ],
+  "notes": [
+    "Context menus are application commands and must be synced through CommandTree.sync before they appear in Discord.",
+    "discord.py exposes separate AppCommandType values for user and message context menus.",
+    "The Translate message context menu is registered by cogs/translate.py; cogs/context_menus.py intentionally avoids duplicating it."
+  ]
+}

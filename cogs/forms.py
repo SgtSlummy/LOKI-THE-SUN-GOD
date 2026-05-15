@@ -13,6 +13,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils import db
+from utils.form_ids import form_custom_id, normalize_form_name
 from utils.helpers import now
 
 
@@ -103,10 +104,11 @@ class FormPanelView(discord.ui.View):
 
     def __init__(self, guild_id: int, form_name: str, button_label: str = "Fill Form"):
         super().__init__(timeout=None)
+        form_name = normalize_form_name(form_name)
         button = discord.ui.Button(
             label=button_label[:80],
             style=discord.ButtonStyle.primary,
-            custom_id=f"form::{guild_id}::{form_name}",
+            custom_id=form_custom_id(guild_id, form_name),
         )
         button.callback = self._callback
         self.add_item(button)
@@ -147,7 +149,10 @@ class Forms(commands.Cog):
             cur = await c.execute("SELECT guild_id, name, button_label FROM forms")
             rows = await cur.fetchall()
         for guild_id, name, label in rows:
-            self.bot.add_view(FormPanelView(guild_id, name, label or "Fill Form"))
+            try:
+                self.bot.add_view(FormPanelView(guild_id, name, label or "Fill Form"))
+            except ValueError:
+                continue
 
     @commands.hybrid_group(
         name="form",
@@ -168,20 +173,24 @@ class Forms(commands.Cog):
     )
     @commands.has_permissions(manage_guild=True)
     async def form_create(self, ctx, name: str, *, title: str = None):
-        title = title or name
+        try:
+            form_key = normalize_form_name(name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
+        title = title or form_key
         async with db.get() as c:
             try:
                 await c.execute(
                     "INSERT INTO forms(guild_id,name,title,fields) VALUES(?,?,?,?)",
-                    (ctx.guild.id, name.lower(), title, "[]"),
+                    (ctx.guild.id, form_key, title, "[]"),
                 )
                 await c.commit()
             except Exception:
-                return await ctx.send(f"A form named `{name}` already exists.")
+                return await ctx.send(f"A form named `{form_key}` already exists.")
         await ctx.send(
-            f"Created form `{name}` with title **{title}**.\n"
-            f"Next: `!form addfield {name} <label> [short|long] [yes|no] [placeholder]`\n"
-            f"Then: `!form settarget {name} #channel`"
+            f"Created form `{form_key}` with title **{title}**.\n"
+            f"Next: `!form addfield {form_key} <label> [short|long] [yes|no] [placeholder]`\n"
+            f"Then: `!form settarget {form_key} #channel`"
         )
 
     @form.command(name="addfield", description="Add a field to an existing form")
@@ -203,16 +212,20 @@ class Forms(commands.Cog):
         *,
         placeholder: str = "",
     ):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         style = "long" if style.lower() in ("long", "paragraph", "l") else "short"
         is_required = required.lower() not in ("no", "false", "n", "0")
         async with db.get() as c:
             cur = await c.execute(
                 "SELECT fields FROM forms WHERE guild_id=? AND name=?",
-                (ctx.guild.id, form_name.lower()),
+                (ctx.guild.id, form_key),
             )
             row = await cur.fetchone()
         if not row:
-            return await ctx.send(f"No form named `{form_name}` was found.")
+            return await ctx.send(f"No form named `{form_key}` was found.")
         fields = json.loads(row[0] or "[]")
         if len(fields) >= 5:
             return await ctx.send("Forms can only have up to 5 fields because of Discord modal limits.")
@@ -227,11 +240,11 @@ class Forms(commands.Cog):
         async with db.get() as c:
             await c.execute(
                 "UPDATE forms SET fields=? WHERE guild_id=? AND name=?",
-                (json.dumps(fields), ctx.guild.id, form_name.lower()),
+                (json.dumps(fields), ctx.guild.id, form_key),
             )
             await c.commit()
         required_text = "required" if is_required else "optional"
-        await ctx.send(f"Added field **{label}** to `{form_name}` ({style}, {required_text}).")
+        await ctx.send(f"Added field **{label}** to `{form_key}` ({style}, {required_text}).")
 
     @form.command(name="settarget", description="Set the destination channel for form responses")
     @app_commands.describe(
@@ -240,15 +253,19 @@ class Forms(commands.Cog):
     )
     @commands.has_permissions(manage_guild=True)
     async def form_settarget(self, ctx, form_name: str, channel: discord.TextChannel):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         async with db.get() as c:
             cur = await c.execute(
                 "UPDATE forms SET target_channel_id=? WHERE guild_id=? AND name=?",
-                (channel.id, ctx.guild.id, form_name.lower()),
+                (channel.id, ctx.guild.id, form_key),
             )
             await c.commit()
         if not cur.rowcount:
-            return await ctx.send(f"No form named `{form_name}` was found.")
-        await ctx.send(f"Responses for `{form_name}` will now go to {channel.mention}.")
+            return await ctx.send(f"No form named `{form_key}` was found.")
+        await ctx.send(f"Responses for `{form_key}` will now go to {channel.mention}.")
 
     @form.command(name="setlabel", description="Update the public button label for a form")
     @app_commands.describe(
@@ -257,15 +274,19 @@ class Forms(commands.Cog):
     )
     @commands.has_permissions(manage_guild=True)
     async def form_setlabel(self, ctx, form_name: str, *, label: str):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         async with db.get() as c:
             cur = await c.execute(
                 "UPDATE forms SET button_label=? WHERE guild_id=? AND name=?",
-                (label[:80], ctx.guild.id, form_name.lower()),
+                (label[:80], ctx.guild.id, form_key),
             )
             await c.commit()
         if not cur.rowcount:
-            return await ctx.send(f"No form named `{form_name}` was found.")
-        await ctx.send(f"Updated the button label for `{form_name}` to `{label[:80]}`.")
+            return await ctx.send(f"No form named `{form_key}` was found.")
+        await ctx.send(f"Updated the button label for `{form_key}` to `{label[:80]}`.")
 
     @form.command(name="panel", description="Post the public button panel for a form")
     @app_commands.describe(
@@ -282,28 +303,32 @@ class Forms(commands.Cog):
         *,
         description: str = "Click the button below to fill out this form.",
     ):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         async with db.get() as c:
             cur = await c.execute(
                 "SELECT title, fields, target_channel_id, button_label FROM forms WHERE guild_id=? AND name=?",
-                (ctx.guild.id, form_name.lower()),
+                (ctx.guild.id, form_key),
             )
             row = await cur.fetchone()
         if not row:
-            return await ctx.send(f"No form named `{form_name}` was found.")
+            return await ctx.send(f"No form named `{form_key}` was found.")
         title, fields_json, target_channel_id, button_label = row
         fields = json.loads(fields_json or "[]")
         if not fields:
-            return await ctx.send(f"Add at least one field before posting `{form_name}`.")
+            return await ctx.send(f"Add at least one field before posting `{form_key}`.")
         if not target_channel_id:
-            return await ctx.send(f"Set a response channel first with `!form settarget {form_name} #channel`.")
+            return await ctx.send(f"Set a response channel first with `!form settarget {form_key} #channel`.")
         target = channel or ctx.channel
         embed = discord.Embed(title=title, description=description, color=0x5865F2)
-        embed.set_footer(text=f"Form key: {form_name}")
-        view = FormPanelView(ctx.guild.id, form_name.lower(), button_label or "Fill Form")
+        embed.set_footer(text=f"Form key: {form_key}")
+        view = FormPanelView(ctx.guild.id, form_key, button_label or "Fill Form")
         self.bot.add_view(view)
         await target.send(embed=embed, view=view)
         if target != ctx.channel:
-            await ctx.send(f"Posted the `{form_name}` panel in {target.mention}.")
+            await ctx.send(f"Posted the `{form_key}` panel in {target.mention}.")
 
     @form.command(name="list", description="List forms configured for this server")
     @commands.has_permissions(manage_guild=True)
@@ -331,19 +356,23 @@ class Forms(commands.Cog):
     @app_commands.describe(form_name="Saved form you want to inspect")
     @commands.has_permissions(manage_guild=True)
     async def form_info(self, ctx, form_name: str):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         async with db.get() as c:
             cur = await c.execute(
                 "SELECT title, fields, target_channel_id, button_label FROM forms WHERE guild_id=? AND name=?",
-                (ctx.guild.id, form_name.lower()),
+                (ctx.guild.id, form_key),
             )
             row = await cur.fetchone()
         if not row:
-            return await ctx.send(f"No form named `{form_name}` was found.")
+            return await ctx.send(f"No form named `{form_key}` was found.")
         title, fields_json, channel_id, button_label = row
         fields = json.loads(fields_json or "[]")
         channel = self.bot.get_channel(channel_id) if channel_id else None
         embed = discord.Embed(title=f"Form: {title}", color=0x5865F2)
-        embed.add_field(name="Key", value=form_name, inline=True)
+        embed.add_field(name="Key", value=form_key, inline=True)
         embed.add_field(name="Button label", value=button_label or "Fill Form", inline=True)
         embed.add_field(name="Response channel", value=channel.mention if channel else "not set", inline=False)
         field_lines = [
@@ -362,16 +391,20 @@ class Forms(commands.Cog):
     @app_commands.describe(form_name="Saved form that should be removed")
     @commands.has_permissions(manage_guild=True)
     async def form_delete(self, ctx, form_name: str):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         async with db.get() as c:
             cur = await c.execute(
                 "DELETE FROM forms WHERE guild_id=? AND name=?",
-                (ctx.guild.id, form_name.lower()),
+                (ctx.guild.id, form_key),
             )
             await c.commit()
         if cur.rowcount:
-            await ctx.send(f"Deleted form `{form_name}`.")
+            await ctx.send(f"Deleted form `{form_key}`.")
         else:
-            await ctx.send(f"No form named `{form_name}` was found.")
+            await ctx.send(f"No form named `{form_key}` was found.")
 
     @form.command(name="responses", description="Review recent submissions for a form")
     @app_commands.describe(
@@ -380,16 +413,20 @@ class Forms(commands.Cog):
     )
     @commands.has_permissions(manage_messages=True)
     async def form_responses(self, ctx, form_name: str, count: int = 5):
+        try:
+            form_key = normalize_form_name(form_name)
+        except ValueError as exc:
+            return await ctx.send(str(exc))
         async with db.get() as c:
             cur = await c.execute(
                 "SELECT user_id, responses, submitted_at FROM form_responses "
                 "WHERE guild_id=? AND form_name=? ORDER BY submitted_at DESC LIMIT ?",
-                (ctx.guild.id, form_name.lower(), count),
+                (ctx.guild.id, form_key, count),
             )
             rows = await cur.fetchall()
         if not rows:
-            return await ctx.send(f"No saved responses were found for `{form_name}`.")
-        embed = discord.Embed(title=f"Recent responses: {form_name}", color=0x5865F2)
+            return await ctx.send(f"No saved responses were found for `{form_key}`.")
+        embed = discord.Embed(title=f"Recent responses: {form_key}", color=0x5865F2)
         for user_id, response_json, submitted_at in rows:
             member = ctx.guild.get_member(user_id)
             author_name = str(member) if member else str(user_id)

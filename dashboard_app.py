@@ -32,6 +32,7 @@ from loki_music.equalizer import preset_names
 from loki_npc.persona import persona_from_settings
 from loki_research.experiments import ExperimentConfig, assert_safe_experiment_config
 from utils import db as shared_db
+from utils.form_ids import normalize_form_name
 from utils import operator_surface
 from utils.command_catalog import parse_command_catalog
 from utils.dashboard_theme import DASHBOARD_BRAND, css_variables
@@ -1470,9 +1471,14 @@ def guild_streams_delete(guild_id):
 @guild_admin_required
 def guild_forms_create(guild_id):
     guild_id = int(guild_id)
-    name = (request.form.get("name") or "").strip().lower()
+    raw_name = request.form.get("name") or ""
     title = (request.form.get("title") or "").strip()
-    if not name or not title:
+    try:
+        name = normalize_form_name(raw_name)
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("guild_forms", guild_id=guild_id))
+    if not title:
         flash("Name and title required.", "danger")
         return redirect(url_for("guild_forms", guild_id=guild_id))
     try:

@@ -75,5 +75,8 @@ Users, Bots, Concepts, Ideas, Repositories, Skills, Plugins, Media, Upgrades, Te
 - `camelot.env_template_safety`: test-backed contract that `.env.example` files contain placeholders only for sensitive keys; tags: `security`, `secrets`, `deployment`, `rollback`, `tests`.
 - `camelot.deployment_config_contracts`: test-backed contract for Railway/Nixpacks/Procfile deployment invariants; tags: `deployment`, `railway`, `nixpacks`, `procfile`, `activity-bridge`, `tests`, `rollback`.
 - `camelot.activity_bridge_payload_contracts`: test-backed contract for Activity Bridge room state fields, WebSocket payload types, and HTTP room-control actions; tags: `activity-bridge`, `discord-activity`, `websocket`, `payloads`, `tests`, `rollback`.
+- `camelot.discord_context_menu_contract`: static snapshot of user/message context-menu commands, preserving right-click Apps coverage outside slash-command registry parsing.
+- `camelot.discord_component_custom_id_contract`: static snapshot of persistent Discord UI button `custom_id` ownership for forms, tickets, and LOKI jukebox controls, including the dynamic form key length bound.
+- `camelot.discord_persistent_view_registration_contract`: static snapshot proving persistent Discord UI views are registered with `bot.add_view` during cog startup so post-restart component interactions stay routable.
 
 Canonical record schema: `docs/schemas/camelot-wing.schema.json`.
