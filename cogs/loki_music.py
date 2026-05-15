@@ -8,7 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from loki_music.equalizer import bands_for_preset, preset_names
-from loki_music.service import MusicSession, Track
+from loki_music.service import MusicSession, QueueLimitExceeded, Track
 from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired, WavelinkBackend
 from utils import db
 
@@ -181,8 +181,13 @@ class LokiMusic(commands.Cog):
             result = await self.backend.play(ctx, session, query, requester_id=ctx.author.id)
         except VoiceChannelRequired as exc:
             return await ctx.send(str(exc))
+        except QueueLimitExceeded as exc:
+            return await ctx.send(str(exc))
         except MusicBackendUnavailable:
-            session.enqueue(Track(title=query, uri=query, requester_id=ctx.author.id))
+            try:
+                session.enqueue(Track(title=query, uri=query, requester_id=ctx.author.id))
+            except QueueLimitExceeded as exc:
+                return await ctx.send(str(exc))
             await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="backend unavailable")
             title = discord.utils.escape_markdown(query)
             return await ctx.send(
@@ -341,14 +346,15 @@ class LokiMusic(commands.Cog):
                 filters=self.backend.filters_for_bands(session.mixer.current_eq_payload()),
             )
             return
-        if session.loop_mode == "queue" and session.current is not None:
-            session.enqueue(session.current)
+        loop_current = session.current if session.loop_mode == "queue" else None
         if getattr(player, "queue", None) is None or player.queue.is_empty:
             session.current = None
             await self._update_jukebox(guild, reason="track end")
             return
         playable = player.queue.get()
         next_track = session.dequeue_next()
+        if loop_current is not None:
+            session.enqueue(loop_current)
         if next_track is None:
             next_track = Track(
                 title=str(getattr(playable, "title", "Unknown track") or "Unknown track"),

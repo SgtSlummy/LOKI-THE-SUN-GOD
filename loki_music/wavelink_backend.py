@@ -205,6 +205,7 @@ class WavelinkBackend:
         track = self._track_from_playable(first, query, requester_id)
 
         if getattr(player, "playing", False) or getattr(player, "paused", False):
+            session.ensure_queue_capacity(len(playables))
             player.queue.put(first)
             session.enqueue(track)
             for fallback in rest:
@@ -212,6 +213,7 @@ class WavelinkBackend:
                 session.enqueue(self._track_from_playable(fallback, query, requester_id))
             return PlaybackResult(track=track, started=False, backend="wavelink")
 
+        session.ensure_queue_capacity(len(rest))
         for fallback in rest:
             player.queue.put(fallback)
             session.enqueue(self._track_from_playable(fallback, query, requester_id))

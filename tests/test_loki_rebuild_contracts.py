@@ -14,7 +14,7 @@ from loki_engine.permissions import (
 )
 from loki_memory.adapters import available_adapters
 from loki_music.equalizer import EQ_PRESETS, bands_for_preset, validate_custom_bands
-from loki_music.service import MusicSession, Track
+from loki_music.service import MusicSession, QueueLimitExceeded, Track
 from loki_music.wavelink_backend import WavelinkBackend, filters_for_bands, music_runtime_status
 from loki_npc.memory import (
     DEFAULT_MEMORY_TTL_SECONDS,
@@ -34,6 +34,36 @@ from loki_research.experiments import (
     score_mutation_candidate,
 )
 from utils.command_catalog import parse_command_catalog
+
+
+def test_music_tracks_provide_provider_aware_dedupe_keys():
+    track = Track(
+        title="Solar Hymn",
+        uri="https://media.example/solar-hymn.ogg",
+        provider="Internet_Archive",
+        provider_id="Solar-Hymn",
+        duration_ms=123000,
+    )
+
+    assert track.dedupe_key() == ("internet_archive", "Solar-Hymn")
+    assert Track(title="Fallback", uri="HTTPS://EXAMPLE.COM/A.OGG").dedupe_key() == (
+        "unknown",
+        "HTTPS://EXAMPLE.COM/A.OGG",
+    )
+
+
+def test_music_session_enforces_guild_queue_limit():
+    session = MusicSession(guild_id=10, max_queue_size=1)
+    session.enqueue(Track(title="first"))
+
+    with pytest.raises(QueueLimitExceeded):
+        session.enqueue(Track(title="second"))
+
+    with pytest.raises(ValueError):
+        MusicSession(guild_id=10, max_queue_size=0)
+
+    with pytest.raises(ValueError):
+        MusicSession(guild_id=10, max_queue_size=True)
 
 
 def test_equalizer_presets_are_lavalink_band_payloads_without_public_filter_modes():
@@ -151,6 +181,107 @@ def test_wavelink_play_queues_requested_track_before_fallbacks_when_already_play
     assert result.started is False
     assert [item.title for item in player.queue.items] == ["requested", "fallback-1", "fallback-2"]
     assert [track.title for track in session.queue] == ["requested", "fallback-1", "fallback-2"]
+
+
+def test_wavelink_play_does_not_mutate_player_queue_when_session_limit_is_hit():
+    class FakePlayable:
+        def __init__(self, title):
+            self.title = title
+            self.uri = f"https://example.invalid/{title}"
+
+    class FakeQueue:
+        def __init__(self):
+            self.items = []
+
+        def put(self, item):
+            self.items.append(item)
+
+    class FakePlayer:
+        playing = True
+        paused = False
+
+        def __init__(self):
+            self.queue = FakeQueue()
+
+    async def fake_ensure_node(_bot):
+        return None
+
+    async def fake_resolve_tracks(_query):
+        return [FakePlayable("requested"), FakePlayable("fallback")]
+
+    async def fake_ensure_player(_ctx):
+        return player
+
+    backend = WavelinkBackend()
+    player = FakePlayer()
+    backend.ensure_node = fake_ensure_node
+    backend.resolve_tracks = fake_resolve_tracks
+    backend.ensure_player = fake_ensure_player
+    session = MusicSession(guild_id=123, max_queue_size=1)
+    ctx = type("Ctx", (), {"bot": object()})()
+
+    with pytest.raises(QueueLimitExceeded):
+        asyncio.run(backend.play(ctx, session, "requested", requester_id=42))
+
+    assert player.queue.items == []
+    assert session.queue == []
+
+
+def test_loki_queue_loop_advances_without_transient_queue_limit_failure():
+    pytest.importorskip("discord")
+    from cogs.loki_music import LokiMusic
+
+    class FakePlayable:
+        title = "next"
+        uri = "https://example.invalid/next"
+
+    class FakePlayerQueue:
+        def __init__(self):
+            self.items = [FakePlayable()]
+
+        @property
+        def is_empty(self):
+            return not self.items
+
+        def get(self):
+            return self.items.pop(0)
+
+    class FakePlayer:
+        def __init__(self):
+            self.guild = type("Guild", (), {"id": 123})()
+            self.queue = FakePlayerQueue()
+            self.played = []
+
+        async def play(self, playable, **_kwargs):
+            self.played.append(playable)
+
+    class FakeBackend:
+        def filters_for_bands(self, _bands):
+            return None
+
+    session = MusicSession(guild_id=123, max_queue_size=1)
+    session.current = Track(title="current")
+    session.loop_mode = "queue"
+    session.enqueue(Track(title="next"))
+
+    cog = LokiMusic.__new__(LokiMusic)
+    cog.backend = FakeBackend()
+    cog.session_for = lambda _guild_id: session
+    updates = []
+
+    async def fake_update_jukebox(*_args, **kwargs):
+        updates.append(kwargs.get("reason"))
+
+    cog._update_jukebox = fake_update_jukebox
+    player = FakePlayer()
+    payload = type("Payload", (), {"player": player, "track": object()})()
+
+    asyncio.run(cog._play_next_after_current(payload))
+
+    assert player.played
+    assert session.current.title == "next"
+    assert [track.title for track in session.queue] == ["current"]
+    assert updates == ["track advance"]
 
 
 def test_admin_actions_require_discord_admin_or_manage_guild_permission():

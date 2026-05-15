@@ -5,11 +5,25 @@ from dataclasses import dataclass, field
 from loki_music.equalizer import bands_for_preset, validate_custom_bands
 
 
+class QueueLimitExceeded(ValueError):
+    """Raised when a guild music queue would exceed its configured limit."""
+
+
 @dataclass(frozen=True)
 class Track:
     title: str
     uri: str = ""
     requester_id: int | None = None
+    provider: str = "unknown"
+    provider_id: str = ""
+    duration_ms: int | None = None
+
+    def dedupe_key(self) -> tuple[str, str]:
+        """Return a stable provider-aware key for queue/media de-duplication."""
+
+        provider = (self.provider or "unknown").strip().lower() or "unknown"
+        provider_id = (self.provider_id or self.uri or self.title).strip()
+        return provider, provider_id
 
 
 @dataclass
@@ -50,8 +64,22 @@ class MusicSession:
     mixer: MixerState = field(default_factory=MixerState)
     loop_mode: str = "off"
     settings_updated_at: int | None = None
+    max_queue_size: int = 200
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.max_queue_size, int) or isinstance(self.max_queue_size, bool) or self.max_queue_size < 1:
+            raise ValueError("max_queue_size must be a positive integer.")
+
+    def ensure_queue_capacity(self, additional_tracks: int = 1) -> None:
+        """Raise if adding tracks would exceed the pending queue limit."""
+
+        if additional_tracks < 0:
+            raise ValueError("additional_tracks must not be negative.")
+        if len(self.queue) + additional_tracks > self.max_queue_size:
+            raise QueueLimitExceeded(f"Music queue is limited to {self.max_queue_size} pending tracks.")
 
     def enqueue(self, track: Track) -> None:
+        self.ensure_queue_capacity()
         self.queue.append(track)
 
     def dequeue_next(self) -> Track | None:

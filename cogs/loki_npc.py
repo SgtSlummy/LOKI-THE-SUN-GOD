@@ -11,7 +11,7 @@ from discord.ext import commands
 
 from loki_engine.natural_language import NaturalLanguageRights, route_natural_language_request
 from loki_engine.permissions import PermissionContext, assert_admin_action
-from loki_music.service import Track
+from loki_music.service import QueueLimitExceeded, Track
 from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired
 from loki_npc.memory import public_memory_allowed, recent_public_memory, remember_public_message
 from loki_npc.openai_responses import ask_npc
@@ -133,8 +133,15 @@ class LokiNpc(commands.Cog):
         except VoiceChannelRequired as exc:
             await message.reply(str(exc), mention_author=False)
             return
+        except QueueLimitExceeded as exc:
+            await message.reply(str(exc), mention_author=False)
+            return
         except MusicBackendUnavailable:
-            session.enqueue(Track(title=query, uri=query, requester_id=message.author.id))
+            try:
+                session.enqueue(Track(title=query, uri=query, requester_id=message.author.id))
+            except QueueLimitExceeded as exc:
+                await message.reply(str(exc), mention_author=False)
+                return
             await music._update_jukebox(
                 message.guild,
                 fallback_channel=message.channel,
