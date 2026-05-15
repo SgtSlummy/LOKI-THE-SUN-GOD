@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import http from "node:http";
+import path from "node:path";
 import express from "express";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
@@ -48,6 +50,21 @@ app.get("/healthz", (_req, res) => {
 
 app.use("/api", tokenRouter);
 app.use("/api", roomRouter(rooms));
+
+const clientDist = path.resolve(process.cwd(), "client", "dist");
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+  logger.info("Serving Activity client bundle", { clientDist });
+} else {
+  logger.warn("Activity client bundle not found; static Activity routes disabled.", { clientDist });
+}
 
 const server = http.createServer(app);
 attachWebSocketServer(server, rooms);
