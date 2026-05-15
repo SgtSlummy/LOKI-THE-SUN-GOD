@@ -52,6 +52,41 @@ def recent_public_memory(guild_id: int, limit: int = 8) -> list[str]:
     return [row["redacted_content"] for row in rows]
 
 
+def recent_public_memory_for_user(*, guild_id: int, user_id: int, limit: int = 8) -> list[str]:
+    """Return recent redacted public-memory snippets for one guild member."""
+    cutoff = int(time.time()) - DEFAULT_MEMORY_TTL_SECONDS
+    rows = db.sync_all(
+        """
+        SELECT redacted_content FROM loki_memory_entries
+        WHERE guild_id=? AND user_id=? AND created_at>=?
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (guild_id, user_id, cutoff, max(1, min(20, limit))),
+    )
+    return [row["redacted_content"] for row in rows]
+
+
+def member_memory_snapshot(*, guild_id: int, user_id: int, limit: int = 5) -> dict[str, object]:
+    """Build a deterministic, no-LLM summary of stored public memory for one member."""
+    cutoff = int(time.time()) - DEFAULT_MEMORY_TTL_SECONDS
+    row = db.sync_one(
+        """
+        SELECT COUNT(*) AS entry_count, MAX(created_at) AS newest_at
+        FROM loki_memory_entries
+        WHERE guild_id=? AND user_id=? AND created_at>=?
+        """,
+        (guild_id, user_id, cutoff),
+    )
+    return {
+        "guild_id": guild_id,
+        "user_id": user_id,
+        "entry_count": int(row["entry_count"] if row else 0),
+        "newest_at": row["newest_at"] if row else None,
+        "recent": recent_public_memory_for_user(guild_id=guild_id, user_id=user_id, limit=limit),
+    }
+
+
 def purge_expired_public_memory(
     *, guild_id: int | None = None, now: int | None = None, ttl_seconds: int = DEFAULT_MEMORY_TTL_SECONDS
 ) -> int:

@@ -33,9 +33,11 @@ class LokiNpc(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if not self.enabled() or message.author.bot or not message.guild:
+        if message.author.bot or not message.guild:
             return
-        if not self._channel_allowed(message.channel):
+        if not self.enabled_for_guild(message.guild.id):
+            return
+        if not self._channel_allowed(message.channel, guild_id=message.guild.id):
             return
         author_opted_out = str(message.author.id) in self._csv_set("LOKI_NPC_MEMORY_OPT_OUT_USER_IDS")
         is_private_channel = self._is_private_channel(message.channel, message.guild)
@@ -165,8 +167,8 @@ class LokiNpc(commands.Cog):
             mention_author=False,
         )
 
-    def _channel_allowed(self, channel: discord.abc.Messageable) -> bool:
-        allowed = self._csv_set("LOKI_NPC_ALLOWED_CHANNEL_IDS")
+    def _channel_allowed(self, channel: discord.abc.Messageable, *, guild_id: int | None = None) -> bool:
+        allowed = self.allowed_channel_ids_for_guild(guild_id)
         if not allowed:
             return True
         channel_ids = self._channel_scope_ids(channel)
@@ -200,6 +202,28 @@ class LokiNpc(commands.Cog):
     def _csv_set(name: str) -> set[str]:
         return {part.strip() for part in (os.getenv(name) or "").split(",") if part.strip()}
 
+    @classmethod
+    def _parse_channel_allowlist(cls, value: str | None) -> set[str]:
+        return {part.strip() for part in (value or "").split(",") if part.strip()}
+
+    @staticmethod
+    def _settings_for_guild(guild_id: int | None):
+        if guild_id is None:
+            return None
+        return db.sync_one("SELECT * FROM loki_npc_settings WHERE guild_id=?", (guild_id,))
+
+    def enabled_for_guild(self, guild_id: int | None) -> bool:
+        row = self._settings_for_guild(guild_id)
+        if row is not None:
+            return bool(row["enabled"])
+        return self.enabled()
+
+    def allowed_channel_ids_for_guild(self, guild_id: int | None) -> set[str]:
+        row = self._settings_for_guild(guild_id)
+        if row is not None:
+            return self._parse_channel_allowlist(row["channel_allowlist"])
+        return self._csv_set("LOKI_NPC_ALLOWED_CHANNEL_IDS")
+
     @staticmethod
     def persona_for_guild(guild_id: int):
         row = db.sync_one("SELECT persona_json FROM loki_npc_settings WHERE guild_id=?", (guild_id,))
@@ -212,7 +236,7 @@ class LokiNpc(commands.Cog):
 
     @npc.command(name="status", description="Show LOKI NPC status")
     async def npc_status(self, ctx: commands.Context):
-        state = "enabled" if self.enabled() else "disabled"
+        state = "enabled" if self.enabled_for_guild(ctx.guild.id if ctx.guild else None) else "disabled"
         await ctx.send(f"LOKI NPC is **{state}**. Public replies require mentioning the bot.")
 
     @npc.command(name="reset", description="Reset LOKI NPC personality for this server")
@@ -229,6 +253,18 @@ class LokiNpc(commands.Cog):
         )
         if not decision.allowed:
             return await ctx.send(decision.reason)
+        if not ctx.guild:
+            return await ctx.send("Use this inside a server.")
+        existing = self._settings_for_guild(ctx.guild.id)
+        if existing is not None:
+            db.sync_exec(
+                """
+                UPDATE loki_npc_settings
+                SET persona_json=?, updated_at=?
+                WHERE guild_id=?
+                """,
+                ("", int(time.time()), ctx.guild.id),
+            )
         await ctx.send("LOKI NPC personality reset to the generated default for this server.")
 
     @npc.command(name="personality", description="Show the generated LOKI NPC personality")

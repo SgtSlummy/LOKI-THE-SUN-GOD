@@ -1077,11 +1077,15 @@ def guild_npc(guild_id):
     structure = _guild_template_context(guild_id)
     settings = db_one("SELECT * FROM loki_npc_settings WHERE guild_id=?", (guild_id,))
     if not settings:
-        db_exec(
-            "INSERT OR IGNORE INTO loki_npc_settings(guild_id, updated_at) VALUES(?,?)",
-            (guild_id, int(time.time())),
-        )
-        settings = db_one("SELECT * FROM loki_npc_settings WHERE guild_id=?", (guild_id,))
+        settings = {
+            "guild_id": guild_id,
+            "enabled": 1 if os.getenv("LOKI_NPC_ENABLED", "false").lower() in {"1", "true", "yes", "on"} else 0,
+            "persona_json": "",
+            "channel_allowlist": os.getenv("LOKI_NPC_ALLOWED_CHANNEL_IDS", ""),
+            "web_crawl_enabled": 0,
+            "auto_post_channel_id": None,
+            "updated_at": None,
+        }
     g_info = _session_guild_info(guild_id)
     return render_template(
         "npc.html",

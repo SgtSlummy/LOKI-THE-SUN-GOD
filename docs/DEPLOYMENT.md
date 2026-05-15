@@ -2,29 +2,32 @@
 
 ## Current Deployment Status
 
-Railway production was deployed and verified from this workspace on
-2026-05-13. The active production services are:
+Railway production was redeployed and verified from this workspace on
+2026-05-15 from master commit
+`5ac1a6b4fd8f644252e89f092d3950551e0a7f39`. The active production services are:
 
-- Dashboard: `dashboard`, deployment `e15386b4-c08c-4abd-a6d9-7f8bac36a745`,
+- Dashboard: `dashboard`, deployment `fdb7fd47-3d6f-4cae-a5d8-c20090a63a78`,
   at `https://dashboard-production-9290.up.railway.app`
-- Worker: `worker`, deployment `f0ba2d8d-6b5d-4940-b550-3f0bf5c753da`
-- Lavalink: `lavalink`, deployment `020cd7cf-1ea0-4c8c-aa15-0fbdcce5c0b5`,
-  at `https://lavalink-production-17ea.up.railway.app`
+- Worker: `worker`, deployment `ceef7bc5-3a03-4ea6-964d-920a07fc7bbf`
+- Activity Bridge: `activity-bridge`, deployment
+  `6d43943e-87c0-4837-8d5d-64bf1f5e0a59`, at
+  `https://activity-bridge-production.up.railway.app`
 - Postgres: `Postgres`, shared by the dashboard and worker through
   `DATABASE_URL`
 
 The hosted dashboard health check returned `ok: true`,
 `database_backend: postgres`, `database_ok: true`, and `oauth_ready: true`.
-The worker startup logs showed LOKI THE SUN GOD logged in and loaded cogs.
+The hosted Activity Bridge health check returned `ok: true` and
+`apiAuthConfigured: true`. GitHub CI completed successfully for the published
+commit.
 
-Highest-priority remaining items:
+Current highest-priority remaining item:
 
-1. Complete browser Discord OAuth consent through the hosted dashboard.
-2. Verify live Discord `/dashboard` returns the hosted dashboard URL.
-3. Send a real Friends-role post-restart relay message in the actual channels.
-4. Fix Discord permission warnings if needed: slash sync and the configured
-   Wreckingball cleanup channel both returned `403 Missing Access` in worker
-   logs after deployment.
+1. Complete the human/live Discord UX boundary with a real user or separate test
+   client: invoke slash commands from Discord and confirm audible voice playback.
+   Bot-token automation already verifies bot identity, guild reachability,
+   permissions, slash-command registration, dashboard health, and Activity
+   Bridge health.
 
 The Vercel target is limited to the sanitized static operator preview in
 [VERCEL_PREVIEW.md](/C:/LOKI%20THE%20SUN%20GOD/docs/VERCEL_PREVIEW.md). Do not

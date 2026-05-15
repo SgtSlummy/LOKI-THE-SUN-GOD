@@ -5,12 +5,12 @@ This report converts the complete package manifest into a local evidence matrix.
 ## Summary
 
 - Product name: `LOKI: THE SUN GOD`.
-- Readiness state: `local_package_evidence_compiled`.
-- External jobs launched: `False`.
+- Readiness state: `hosted_runtime_published_with_manual_voice_boundary`.
+- External jobs launched: `True` for approved Railway publication; `False` for autonomous crawler posting, Hermes cron/gateway, and local GPU workers.
 - Total packages: `8`.
-- Automated ready: `4`.
+- Automated ready: `5`.
 - Contract ready: `2`.
-- Manual gate required: `2`.
+- Manual gate required: `1`.
 
 ## Readiness Matrix
 
@@ -40,9 +40,9 @@ This report converts the complete package manifest into a local evidence matrix.
 
 ### activity-bridge
 
-- Status: `automated_ready`.
-- Artifact: `services/activity-bridge/client/dist`.
-- Evidence: `services/activity-bridge/client/dist`, `npm run test:rooms`, `npm run typecheck`, `npm run build`.
+- Status: `automated_ready_hosted`.
+- Artifact: `services/activity-bridge/client/dist` plus Railway service `activity-bridge`.
+- Evidence: `services/activity-bridge/client/dist`, `npm run test:rooms`, `npm run typecheck`, `npm run build`, deployment `6d43943e-87c0-4837-8d5d-64bf1f5e0a59`, healthz `ok:true`.
 
 ### hermes-camelot-memory
 
@@ -64,18 +64,15 @@ This report converts the complete package manifest into a local evidence matrix.
 
 ## Still Requires Operator Approval
 
-- `python bot.py`.
-- `railway up`.
 - `hermes gateway install`.
 - `hermes cron create`.
-- `publishing Discord app commands to a live guild`.
 - `autonomous crawler posting to Discord`.
 - `shipping desktop .exe without secret scan and release check evidence`.
+- real-user slash-command invocation and audible voice playback validation.
 
 ## Next Operator Actions
 
-- provide production secrets outside git.
-- run strict environment release check on the deployment host.
+- configure `LOKI_ACCEPTANCE_VOICE_CHANNEL_ID` for a staging voice channel.
+- run a real Discord user or separate test client through `/dashboard`, `/play`, `/queue`, and `/stop`.
 - smoke-test desktop .exe on Windows after PyInstaller build.
-- verify Discord Developer Portal intents, OAuth redirect, and command publication target.
-- approve or reject live bot launch, crawler posting, and hosted deploy separately.
+- approve or reject autonomous crawler posting and Hermes cron/gateway installation separately.
