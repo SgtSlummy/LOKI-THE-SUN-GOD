@@ -1,0 +1,63 @@
+{
+  "id": "camelot.codex_agent_standards_20260515",
+  "name": "Codex Agent Standards",
+  "entity_type": "upgrade",
+  "summary": "Repository-local AGENTS.md now defines Codex operating rules, safety boundaries, language standards, platform standards, and source anchors.",
+  "details": "Hermes automation added a root AGENTS.md so future Codex runs have a durable local instruction contract. The file covers small reversible changes, run locks, secret handling, official documentation lookup, Conventional Commits, targeted verification, programming standards, Discord bot concerns, Docker/Kubernetes guidance, and Hermes/Mythos/Camelot memory expectations. A static contract test guards the most important standards and primary source links.",
+  "sources": [
+    "local:/mnt/c/Users/carme/.codex/worktrees/a88c/LOKI THE SUN GOD/AGENTS.md",
+    "local:/mnt/c/Users/carme/.codex/worktrees/a88c/LOKI THE SUN GOD/tests/test_agents_instructions_contract.py",
+    "https://peps.python.org/pep-0008/",
+    "https://peps.python.org/pep-0257/",
+    "https://www.conventionalcommits.org/en/v1.0.0/",
+    "https://www.w3.org/TR/wcag/"
+  ],
+  "related_entities": [
+    "camelot.github_source_availability",
+    "camelot.autonomous_evolution_sources",
+    "camelot.mythos_runtime_ready_20260515"
+  ],
+  "tags": [
+    "agents-md",
+    "codex",
+    "standards",
+    "hermes",
+    "camelot",
+    "quality-gates",
+    "security"
+  ],
+  "retrieval_keywords": [
+    "Codex AGENTS standards",
+    "PEP 8 instruction contract",
+    "Conventional Commits AGENTS.md",
+    "Hermes run lock instructions",
+    "Camelot memory instructions"
+  ],
+  "sector_links": [
+    "2. AGI / Agent Reasoning Layer",
+    "6. Mythos Router and Swarm Orchestration",
+    "9. Deployment, Containers, and Scaling",
+    "10. Testing, QC, Grading, Mutation, GitHub Automation"
+  ],
+  "upgrade_relevance": 8,
+  "priority_score": 8,
+  "confidence_score": 9,
+  "risk_score": 2,
+  "status": "active",
+  "action_items": [
+    "Open a PR for the AGENTS instruction contract.",
+    "Consider wiring AGENTS.md into broader foundation checks after review.",
+    "Refresh source anchors when project standards or platform docs change."
+  ],
+  "test_links": [
+    "command:python3 tests/test_agents_instructions_contract.py",
+    "command:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -s tests/test_agents_instructions_contract.py -q",
+    "command:python3 scripts/check_foundation_contracts.py",
+    "command:python3 scripts/secret_scan.py",
+    "command:git diff --check"
+  ],
+  "commit_links": [],
+  "created_at": "2026-05-15T01:03:40-07:00",
+  "updated_at": "2026-05-15T01:03:40-07:00",
+  "last_reviewed_at": "2026-05-15T01:03:40-07:00"
+}

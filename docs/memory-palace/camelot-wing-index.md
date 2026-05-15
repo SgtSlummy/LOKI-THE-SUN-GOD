@@ -21,5 +21,6 @@ Users, Bots, Concepts, Ideas, Repositories, Skills, Plugins, Media, Upgrades, Te
 - `camelot.github_source_availability`: public source availability for LOKI/upstreams.
 - `camelot.autonomous_evolution_sources`: public inspirations for safe research/evolution loops.
 - `camelot.quantum_roots_confidence`: conceptual scoring for corroboration, contradiction checks, confidence decay, and source health.
+- `camelot.codex_agent_standards_20260515`: repository-local Codex operating instructions with language, platform, security, and rollback standards.
 
 Canonical record schema: `docs/schemas/camelot-wing.schema.json`.
