@@ -168,8 +168,164 @@ def test_member_memory_snapshot_is_redacted_bounded_and_user_scoped(monkeypatch,
     assert snapshot["user_id"] == 30
     assert snapshot["entry_count"] == 2
     assert len(snapshot["recent"]) == 2
+    assert snapshot["recent"] == ["email me at [email]", "likes synthwave and [secret]"]
     assert "other member" not in " ".join(snapshot["recent"])
     assert "user@example.com" not in " ".join(snapshot["recent"])
     assert "abc.def.ghi" not in " ".join(snapshot["recent"])
     assert "[email]" in " ".join(snapshot["recent"])
     assert "[secret]" in " ".join(snapshot["recent"])
+
+
+def test_npc_memory_command_shows_deterministic_member_snapshot(monkeypatch, tmp_path):
+    _init_temp_db(monkeypatch, tmp_path)
+    remember_public_message(guild_id=10, channel_id=20, user_id=30, content="builds modular synth rigs")
+    remember_public_message(guild_id=10, channel_id=20, user_id=30, content="token abc.def.ghi")
+
+    class Guild:
+        id = 10
+
+    class Author:
+        id = 30
+
+    class Member:
+        id = 30
+        display_name = "Solar DJ"
+        mention = "<@30>"
+
+    class Ctx:
+        guild = Guild()
+        author = Author()
+        interaction = object()
+
+        def __init__(self):
+            self.messages: list[str] = []
+            self.send_kwargs: list[dict] = []
+
+        async def send(self, message, **kwargs):
+            self.messages.append(message)
+            self.send_kwargs.append(kwargs)
+
+    npc = LokiNpc.__new__(LokiNpc)
+    ctx = Ctx()
+
+    asyncio.run(LokiNpc.npc_memory.callback(npc, ctx, Member()))
+
+    output = ctx.messages[-1]
+    assert "Solar DJ" in output
+    assert "2 public memory snippets" in output
+    assert "builds modular synth rigs" in output
+    assert "abc.def.ghi" not in output
+    assert "[secret]" in output
+    assert ctx.send_kwargs[-1]["ephemeral"] is True
+    assert ctx.send_kwargs[-1]["allowed_mentions"].everyone is False
+
+
+def test_npc_memory_command_allows_manage_guild_cross_member_lookup(monkeypatch, tmp_path):
+    _init_temp_db(monkeypatch, tmp_path)
+    remember_public_message(guild_id=10, channel_id=20, user_id=30, content="shares modular patches")
+
+    class Permissions:
+        value = MANAGE_GUILD
+
+    class Guild:
+        id = 10
+
+    class Author:
+        id = 40
+        guild_permissions = Permissions()
+
+    class Member:
+        id = 30
+        display_name = "Solar DJ"
+        mention = "<@30>"
+
+    class Ctx:
+        guild = Guild()
+        author = Author()
+        interaction = object()
+
+        def __init__(self):
+            self.messages: list[str] = []
+            self.send_kwargs: list[dict] = []
+
+        async def send(self, message, **kwargs):
+            self.messages.append(message)
+            self.send_kwargs.append(kwargs)
+
+    npc = LokiNpc.__new__(LokiNpc)
+    ctx = Ctx()
+
+    asyncio.run(LokiNpc.npc_memory.callback(npc, ctx, Member()))
+
+    assert "Solar DJ" in ctx.messages[-1]
+    assert "shares modular patches" in ctx.messages[-1]
+    assert ctx.send_kwargs[-1]["ephemeral"] is True
+
+
+def test_npc_memory_command_rejects_prefix_context_to_avoid_public_memory_leak(monkeypatch, tmp_path):
+    _init_temp_db(monkeypatch, tmp_path)
+    remember_public_message(guild_id=10, channel_id=20, user_id=30, content="private-ish aggregate")
+
+    class Guild:
+        id = 10
+
+    class Author:
+        id = 30
+
+    class Ctx:
+        guild = Guild()
+        author = Author()
+        interaction = None
+
+        def __init__(self):
+            self.messages: list[str] = []
+
+        async def send(self, message, **kwargs):
+            self.messages.append(message)
+
+    npc = LokiNpc.__new__(LokiNpc)
+    ctx = Ctx()
+
+    asyncio.run(LokiNpc.npc_memory.callback(npc, ctx, None))
+
+    assert "use /npc memory" in ctx.messages[-1].lower()
+    assert "private-ish aggregate" not in ctx.messages[-1]
+
+
+def test_npc_memory_command_rejects_cross_member_lookup_without_manage_guild(monkeypatch, tmp_path):
+    _init_temp_db(monkeypatch, tmp_path)
+
+    class Permissions:
+        value = 0
+
+    class Guild:
+        id = 10
+
+    class Author:
+        id = 40
+        guild_permissions = Permissions()
+
+    class Member:
+        id = 30
+        display_name = "Solar DJ"
+        mention = "<@30>"
+
+    class Ctx:
+        guild = Guild()
+        author = Author()
+        interaction = object()
+
+        def __init__(self):
+            self.messages: list[str] = []
+            self.send_kwargs: list[dict] = []
+
+        async def send(self, message, **kwargs):
+            self.messages.append(message)
+            self.send_kwargs.append(kwargs)
+
+    npc = LokiNpc.__new__(LokiNpc)
+    ctx = Ctx()
+
+    asyncio.run(LokiNpc.npc_memory.callback(npc, ctx, Member()))
+
+    assert "own memory" in ctx.messages[-1].lower()

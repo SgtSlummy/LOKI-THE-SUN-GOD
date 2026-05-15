@@ -44,7 +44,7 @@ def recent_public_memory(guild_id: int, limit: int = 8) -> list[str]:
         """
         SELECT redacted_content FROM loki_memory_entries
         WHERE guild_id=? AND created_at>=?
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT ?
         """,
         (guild_id, cutoff, max(1, min(20, limit))),
@@ -59,7 +59,7 @@ def recent_public_memory_for_user(*, guild_id: int, user_id: int, limit: int = 8
         """
         SELECT redacted_content FROM loki_memory_entries
         WHERE guild_id=? AND user_id=? AND created_at>=?
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT ?
         """,
         (guild_id, user_id, cutoff, max(1, min(20, limit))),

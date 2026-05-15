@@ -13,7 +13,7 @@ from loki_engine.natural_language import NaturalLanguageRights, route_natural_la
 from loki_engine.permissions import PermissionContext, assert_admin_action
 from loki_music.service import QueueLimitExceeded, Track
 from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired
-from loki_npc.memory import public_memory_allowed, recent_public_memory, remember_public_message
+from loki_npc.memory import member_memory_snapshot, public_memory_allowed, recent_public_memory, remember_public_message
 from loki_npc.openai_responses import ask_npc
 from loki_npc.persona import persona_from_settings
 from utils import db
@@ -272,6 +272,55 @@ class LokiNpc(commands.Cog):
         if not ctx.guild:
             return await ctx.send("Use this inside a server.")
         await ctx.send(self.persona_for_guild(ctx.guild.id).prompt_text())
+
+    @npc.command(name="memory", description="Show redacted public memory for yourself or a managed member")
+    async def npc_memory(self, ctx: commands.Context, member: discord.Member = None):
+        if not ctx.guild:
+            return await ctx.send("Use this inside a server.")
+        if getattr(ctx, "interaction", None) is None:
+            return await ctx.send("Use /npc memory so LOKI can return this memory snapshot privately.")
+        target = member or ctx.author
+        if target.id != ctx.author.id:
+            permissions = getattr(getattr(ctx.author, "guild_permissions", None), "value", 0)
+            decision = assert_admin_action(
+                PermissionContext(
+                    user_id=ctx.author.id,
+                    guild_id=ctx.guild.id,
+                    permissions=permissions,
+                ),
+                "view_member_public_memory",
+            )
+            if not decision.allowed:
+                return await ctx.send(
+                    "You can view your own memory. Viewing another member requires Manage Server.",
+                    ephemeral=True,
+                )
+        snapshot = member_memory_snapshot(guild_id=ctx.guild.id, user_id=target.id, limit=5)
+        await ctx.send(
+            self._format_member_memory_snapshot(target, snapshot),
+            allowed_mentions=discord.AllowedMentions.none(),
+            ephemeral=True,
+        )
+
+    @staticmethod
+    def _format_member_memory_snapshot(member: discord.abc.User, snapshot: dict[str, object]) -> str:
+        raw_name = getattr(member, "display_name", None) or getattr(member, "name", "member")
+        display_name = discord.utils.escape_markdown(raw_name)
+        count = int(snapshot.get("entry_count") or 0)
+        noun = "snippet" if count == 1 else "snippets"
+        lines = [
+            f"LOKI public memory for **{display_name}**",
+            f"{count} public memory {noun} stored from non-private channels.",
+        ]
+        recent = [str(item) for item in snapshot.get("recent", [])]
+        if not recent:
+            lines.append("No recent public memory snippets are stored for this member.")
+            return "\n".join(lines)
+        lines.append("Recent redacted snippets:")
+        for index, snippet in enumerate(recent[:5], start=1):
+            safe = discord.utils.escape_mentions(discord.utils.escape_markdown(snippet))
+            lines.append(f"{index}. {safe[:280]}")
+        return "\n".join(lines)
 
 
 async def setup(bot):
