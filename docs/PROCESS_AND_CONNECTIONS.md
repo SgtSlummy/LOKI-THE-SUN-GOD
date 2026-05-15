@@ -236,7 +236,8 @@ Room: general
 Drawers: 186
 ```
 
-Mythos readiness was attempted through `mythos-skill ready`, but it failed
-because the Windows Rust toolchain could not find `link.exe`. Do not claim a
-Mythos gate for this documentation pass until Visual Studio C++ Build Tools or
-another supported linker path is installed and `mythos-skill ready` passes.
+Mythos readiness now passes when invoked through the project runtime
+(`utils/mythos_router.run_mythos_action("ready")`), which injects a usable
+Node runtime path before launching the npm shim. Do not claim a full Mythos
+packet gate from this note alone; `init`/`compile`/`gate` still require the
+normal evidence and synthesis flow for the specific run directory.

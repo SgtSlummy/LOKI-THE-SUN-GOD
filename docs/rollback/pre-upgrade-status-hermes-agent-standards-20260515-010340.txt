@@ -1,0 +1,3 @@
+## HEAD (no branch)
+?? .hermes/
+?? docs/rollback/pre-upgrade-status-hermes-agent-standards-20260515-010340.txt

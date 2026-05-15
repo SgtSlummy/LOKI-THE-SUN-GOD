@@ -79,4 +79,6 @@ Users, Bots, Concepts, Ideas, Repositories, Skills, Plugins, Media, Upgrades, Te
 - `camelot.discord_component_custom_id_contract`: static snapshot of persistent Discord UI button `custom_id` ownership for forms, tickets, and LOKI jukebox controls, including the dynamic form key length bound.
 - `camelot.discord_persistent_view_registration_contract`: static snapshot proving persistent Discord UI views are registered with `bot.add_view` during cog startup so post-restart component interactions stay routable.
 
+- `camelot.codex_agent_standards_20260515`: repository-local Codex operating instructions with language, platform, security, and rollback standards.
+
 Canonical record schema: `docs/schemas/camelot-wing.schema.json`.

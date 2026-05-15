@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_FILES = [
+    "AGENTS.md",
     "docs/upgrades/10-sector-upgrade-plan.md",
     "docs/discord/command-event-ownership.md",
     "docs/architecture/mythos-swarm-architecture.md",
@@ -26,14 +27,20 @@ REQUIRED_FILES = [
     "docs/schemas/mythos-task-envelope.schema.json",
     "docs/schemas/camelot-wing.schema.json",
     "docs/schemas/upgrade-grading.schema.json",
-    "tests/test_env_examples.py",
-    "tests/test_deployment_config.py",
-    "tests/test_activity_bridge_payload_snapshot.py",
     "docs/schemas/discord-context-menu-snapshot.json",
     "docs/schemas/discord-component-custom-id-snapshot.json",
     "docs/schemas/discord-persistent-view-registration-snapshot.json",
+    "tests/test_env_examples.py",
+    "tests/test_deployment_config.py",
+    "tests/test_activity_bridge_payload_snapshot.py",
 ]
 REQUIRED_TERMS = {
+    "AGENTS.md": [
+        "Use Context7 first when available",
+        "Conventional Commits",
+        "PEP 8",
+        "Never commit secrets",
+    ],
     "docs/upgrades/10-sector-upgrade-plan.md": ["Discord Core", "Camelot", "Mythos", "rollback"],
     "docs/discord/command-event-ownership.md": [
         "Production Discord command owner",

@@ -1,0 +1,45 @@
+{
+  "upgrade_id": "mythos-runtime-node-fallback-20260515",
+  "name": "Mythos runtime node fallback",
+  "sector": "6. Mythos Router and Swarm Orchestration",
+  "stage": 1,
+  "commit": null,
+  "scores": {
+    "functionality": 9,
+    "stability": 9,
+    "security": 8,
+    "maintainability": 9,
+    "documentation": 8,
+    "test_coverage": 9,
+    "deployment_safety": 9,
+    "rollback_readiness": 9,
+    "memory_integration": 8,
+    "performance": 8,
+    "user_value": 8,
+    "plugin_skill_leverage": 9,
+    "swarm_compatibility": 9,
+    "database_compatibility": 10,
+    "media_compatibility": 10
+  },
+  "overall_grade": 8.7,
+  "risk_level": "low",
+  "merge_readiness": "conditional",
+  "deployment_readiness": "staging_ready",
+  "required_fixes": [
+    "Keep this change isolated from the unrelated relay/song mirror working tree edits."
+  ],
+  "optional_improvements": [
+    "Normalize direct shell usage of mythos-skill in bash sessions.",
+    "Add compile/gate automation around .mythos/the-moooon evidence ingestion."
+  ],
+  "rollback_plan": [
+    "Revert utils/mythos_router.py and tests/test_mythos_router.py to the previous revision.",
+    "Re-run tests/test_mythos_router.py to confirm old behavior if rollback is required."
+  ],
+  "review_notes": [
+    "Root cause was the npm shim depending on node being on PATH.",
+    "Project runtime verification showed mythos-skill ready passes after the fallback.",
+    "Targeted and adjacent regression tests passed."
+  ],
+  "created_at": "2026-05-15T00:27:34-07:00"
+}

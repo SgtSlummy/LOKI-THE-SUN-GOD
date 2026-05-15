@@ -312,9 +312,16 @@ def _normalize_seed_synthesis_finding(run_dir: Path | None) -> None:
 
 def mythos_env() -> dict[str, str]:
     env = dict(os.environ)
+    path_entries: list[str] = []
     local_bin = _local_mythos_bin_dir()
     if local_bin is not None:
-        env["PATH"] = str(local_bin) + os.pathsep + env.get("PATH", "")
+        path_entries.append(str(local_bin))
+    if not shutil.which("node", path=env.get("PATH", "")):
+        path_entries.extend(str(path) for path in _node_bin_dirs(env))
+    if path_entries:
+        existing_path = env.get("PATH", "")
+        path_entries.extend(entry for entry in existing_path.split(os.pathsep) if entry)
+        env["PATH"] = os.pathsep.join(dict.fromkeys(path_entries))
     return env
 
 
@@ -325,6 +332,33 @@ def _local_mythos_bin_dir() -> Path | None:
     candidate = Path(local_appdata) / "mythos-skill-src" / "mythos-compiler" / "target" / "debug"
     executable = candidate / ("mythos.exe" if os.name == "nt" else "mythos")
     return candidate if executable.exists() else None
+
+
+def _node_bin_dirs(env: dict[str, str] | None = None) -> list[Path]:
+    values = env or os.environ
+    candidates: list[Path] = []
+
+    for key in ("ProgramFiles", "LOCALAPPDATA", "ProgramFiles(x86)"):
+        root = (values.get(key) or "").strip()
+        if not root:
+            continue
+        candidates.append(Path(root) / "nodejs")
+
+    if os.name != "nt":
+        candidates.extend(
+            [
+                Path("/mnt/c/Program Files/nodejs"),
+                Path("/mnt/c/Users") / (values.get("USERNAME") or "") / "AppData/Local/Programs/nodejs",
+                Path("/mnt/c/Program Files (x86)/nodejs"),
+            ]
+        )
+
+    discovered: list[Path] = []
+    for candidate in candidates:
+        node_binary = candidate / ("node.exe" if candidate.drive or candidate.suffix == ".exe" or os.name == "nt" else "node")
+        if node_binary.exists():
+            discovered.append(candidate)
+    return discovered
 
 
 def mythos_workdir() -> Path:
