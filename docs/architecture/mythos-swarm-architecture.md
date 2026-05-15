@@ -4,6 +4,13 @@ Updated: 2026-05-14 13:07 UTC
 
 LOKI uses a Hermes/Mythos operating model for autonomous improvement while keeping production Discord behavior safe.
 
+## Foundation Contract
+
+- Preserve natural-language Discord UX as the default member-facing path.
+- Keep admin and operator approval gates in front of mutations, live posting, deployment, and credential changes.
+- Preserve the Lavalink music path unless a tested migration plan and rollback path are approved.
+- Keep Hermes autonomous work advisory, branch-local, tested, and reversible before any live action.
+
 ## Control Plane
 
 ```text

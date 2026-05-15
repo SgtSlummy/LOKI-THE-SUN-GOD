@@ -8,6 +8,13 @@ Updated: 2026-05-14 13:07 UTC
 - Pre-run status: `docs/rollback/pre-upgrade-status-20260514-130730.txt`.
 - Pre-run working diff: `docs/rollback/pre-upgrade-working-diff-20260514-130730.patch`.
 
+## Foundation Contract Restore Rules
+
+- Restore natural-language Discord UX first if a change makes slash commands the default member path.
+- Restore admin/operator gates first if a change exposes dashboard, database, deployment, credential, or live-posting mutation paths.
+- Restore Lavalink music routing first if a change breaks production playback assumptions.
+- Restore Hermes autonomous runs to local, advisory, tested, and approval-gated behavior before any live retry.
+
 ## Standard Revert
 
 For the most recent local commit:

@@ -13,6 +13,16 @@ Manual release items should be handled in this order:
 
 Local automated checks cover compile, command catalog generation, dashboard routes, MCP tools, secret scanning, and unit tests. Live Discord behavior remains the post-deploy acceptance gate.
 
+## Foundation Contract Gates
+
+Every upgrade must preserve these invariants before release:
+
+- Natural-language Discord UX remains the default path; slash sync stays an explicit operator fallback.
+- Admin and operator permission gates protect dashboard mutations, deployment actions, credentials, and live Discord posting.
+- Hermes autonomous runs may prepare docs, tests, branches, commits, and local checks, but live deployment/posting still requires approval.
+- Lavalink remains the production music playback path unless a tested replacement and rollback plan are approved.
+- Rollback evidence must exist for each meaningful change before merge or deploy.
+
 Status meanings:
 
 - `Automated`: covered by `scripts/release_check.py`, `scripts/db_smoke_test.py`, `scripts/mcp_smoke_test.py`, or packaged dashboard verification.
