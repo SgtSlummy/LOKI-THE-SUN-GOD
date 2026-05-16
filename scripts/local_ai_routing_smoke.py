@@ -14,14 +14,15 @@ if str(ROOT) not in sys.path:
 
 
 class OllamaTagsHandler(BaseHTTPRequestHandler):
+    models = [
+        {"name": "llama3.2:3b"},
+        {"name": "qwen2.5-coder:7b"},
+        {"name": "dolphin3:8b"},
+    ]
+
     def do_GET(self) -> None:
         if self.path == "/api/tags":
-            body = {
-                "models": [
-                    {"name": "llama3.2:3b"},
-                    {"name": "qwen2.5-coder:7b"},
-                ]
-            }
+            body = {"models": self.models}
             payload = json.dumps(body).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -29,8 +30,10 @@ class OllamaTagsHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+
         self.send_response(404)
         self.end_headers()
+
 
     def log_message(self, _format: str, *_args: object) -> None:
         return
@@ -69,15 +72,24 @@ def main() -> int:
             status = operator_surface.ollama_router_status(ollama_host=ollama_host)
             if not status["ollama_up"]:
                 raise AssertionError("Mock Ollama server was not detected as online.")
-            if status["preferred_local_model"] != "qwen2.5-coder:7b":
+            if status["preferred_local_model"] != "dolphin3:8b":
                 raise AssertionError(f"Unexpected selected model: {status['preferred_local_model']}")
             if status["local_model_source"] != "preferred" or not status["local_model_ready"]:
                 raise AssertionError("Preferred local model status was not marked ready.")
 
+            original_models = OllamaTagsHandler.models
+            try:
+                OllamaTagsHandler.models = [{"name": "qwen2.5-coder:7b"}]
+                fallback_status = operator_surface.ollama_router_status(ollama_host=ollama_host)
+            finally:
+                OllamaTagsHandler.models = original_models
+            if fallback_status["preferred_local_model"] != "qwen2.5-coder:7b":
+                raise AssertionError("qwen2.5-coder:7b should remain the fallback when dolphin3:8b is absent.")
+
             result = operator_surface.configure_9router_local_model(ollama_host, status["preferred_local_model"])
             router_db = Path(result["db_path"])
             data = json.loads(router_db.read_text(encoding="utf-8"))
-            expected_route = "ollama-local/qwen2.5-coder:7b"
+            expected_route = "ollama-local/dolphin3:8b"
             if data["modelAliases"].get("local-default") != expected_route:
                 raise AssertionError("9router local-default alias was not written.")
             connection = next(
@@ -85,20 +97,20 @@ def main() -> int:
             )
             if connection["providerSpecificData"].get("baseUrl") != ollama_host:
                 raise AssertionError("9router Ollama base URL was not preserved.")
-            if connection["providerSpecificData"].get("enabledModels") != ["qwen2.5-coder:7b"]:
+            if connection["providerSpecificData"].get("enabledModels") != ["dolphin3:8b"]:
                 raise AssertionError("9router enabled model list was not written.")
             custom_model_ids = {
                 item.get("id")
                 for item in data["customModels"]
                 if item.get("providerAlias") == "ollama-local" and item.get("type", "llm") == "llm"
             }
-            if "qwen2.5-coder:7b" not in custom_model_ids:
+            if "dolphin3:8b" not in custom_model_ids:
                 raise AssertionError("9router custom model list is missing the local model.")
 
             offline = operator_surface.ollama_router_status(ollama_host="http://127.0.0.1:9")
             if offline["ollama_up"] or offline["local_model_ready"]:
                 raise AssertionError("Offline Ollama should produce a degraded local model state.")
-            if "ollama pull qwen2.5-coder:7b" not in offline["local_model_setup_hint"]:
+            if "ollama pull dolphin3:8b" not in offline["local_model_setup_hint"]:
                 raise AssertionError("Offline Ollama state did not include the setup hint.")
 
         print("local AI routing smoke test passed")

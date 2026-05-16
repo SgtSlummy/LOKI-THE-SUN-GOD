@@ -38,7 +38,8 @@ ROUTER_REPO_PATH = (
 ROUTER_ENV_PATH = ROUTER_REPO_PATH / ".env"
 ROUTER_ENV_EXAMPLE_PATH = ROUTER_REPO_PATH / ".env.example"
 OLLAMA_HOST_DEFAULT = "http://127.0.0.1:11434"
-LOCAL_MODEL_PREFERENCES = ("qwen2.5-coder:7b", "llama3.1:8b", "llama3.2:3b")
+REMOTE_9ROUTER_RESEARCH_URL = "https://9router-production-4a07.up.railway.app/dashboard/research"
+LOCAL_MODEL_PREFERENCES = ("dolphin3:8b", "qwen2.5-coder:7b", "llama3.1:8b", "llama3.2:3b")
 LOCAL_MODEL_ALIAS = "local-default"
 MEMPALACE_ROOT = Path.home() / ".mempalace"
 MEMPALACE_CONFIG_PATH = MEMPALACE_ROOT / "config.json"
@@ -1009,7 +1010,7 @@ def ollama_router_status(ollama_host: str | None = None) -> dict[str, Any]:
         "local_model_source": "missing",
         "local_model_ready": False,
         "local_model_route": "",
-        "local_model_setup_hint": "Run `ollama pull qwen2.5-coder:7b` to install the recommended local model.",
+        "local_model_setup_hint": "Run `ollama pull dolphin3:8b` to install the recommended Dolphin local model.",
     }
     try:
         tags = http_json(f"{normalized_ollama_host}/api/tags", timeout=3) or {}
@@ -1054,6 +1055,7 @@ def ai_router_snapshot() -> dict[str, Any]:
         "app_env_path": str(env_path()),
         "router_env_path": str(router_env_path()),
         "router_repo_path": str(router_repo_path()),
+        "remote_9router_research_url": REMOTE_9ROUTER_RESEARCH_URL,
         "codex_settings_path": str(codex_settings_path()),
         "mempalace_config_path": str(mempalace_config_path()),
         "preferred_local_model": status["preferred_local_model"],

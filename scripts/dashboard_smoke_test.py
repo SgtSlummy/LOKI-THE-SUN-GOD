@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import sys
 import tempfile
 import time
@@ -178,7 +179,17 @@ def main() -> int:
         _prepare_environment(tmp_path)
         _seed_database()
 
+        platform.system = lambda: "Windows"
+
         import dashboard_app
+        from utils import operator_surface
+
+        operator_surface.mempalace_status_snapshot = lambda: {
+            "ready": False,
+            "summary": "MemPalace smoke snapshot disabled for deterministic dashboard tests.",
+            "wings": [],
+            "topic_wings": [],
+        }
 
         client = dashboard_app.app.test_client()
         _get_ok(client, "/")
@@ -222,6 +233,14 @@ def main() -> int:
             f"/api/guild/{GUILD_ID}/tickets/export.json?format=csv",
         ):
             _get_ok(client, path)
+
+        ai_page = client.get("/ops/ai")
+        if ai_page.status_code != 200:
+            raise AssertionError(f"AI router page failed: {ai_page.status_code}")
+        if operator_surface.REMOTE_9ROUTER_RESEARCH_URL.encode() not in ai_page.data:
+            raise AssertionError("AI router page did not render the hosted Dolphin research dashboard link.")
+        if b'rel="noopener noreferrer"' not in ai_page.data:
+            raise AssertionError("External 9router research link did not include rel=noopener noreferrer.")
 
         _post_ok(
             client,
@@ -270,6 +289,24 @@ def main() -> int:
                 "OBSERVABILITY_ENABLED": "on",
             },
         )
+        _post_ok(
+            client,
+            "/ops/ai/router/save",
+            {
+                "PORT": "20128",
+                "BASE_URL": "http://localhost:20128",
+                "CLOUD_URL": "",
+                "NEXT_PUBLIC_BASE_URL": "http://localhost:20128",
+                "NEXT_PUBLIC_CLOUD_URL": "",
+                "DATA_DIR": str(tmp_path / "9router-data"),
+                "OBSERVABILITY_ENABLED": "on",
+            },
+        )
+        router_env = operator_surface.read_env_file_at(operator_surface.router_env_path())
+        if router_env.get("CLOUD_URL") != "https://9router.com":
+            raise AssertionError("Blank CLOUD_URL should fall back to the runtime-safe 9router origin.")
+        if router_env.get("NEXT_PUBLIC_CLOUD_URL") != "https://9router.com":
+            raise AssertionError("Blank NEXT_PUBLIC_CLOUD_URL should fall back to the runtime-safe 9router origin.")
         _post_ok(
             client,
             "/ops/ai/memory/save",
@@ -456,7 +493,6 @@ def main() -> int:
             raise AssertionError(f"Embed send token validation failed: {embed.status_code} {body}")
 
         import desktop_app
-        from utils import operator_surface
 
         desktop_cfg = desktop_app.load_config()
         desktop_client = desktop_app.make_app(desktop_app.ServiceManager(desktop_cfg), desktop_cfg).test_client()
@@ -465,6 +501,9 @@ def main() -> int:
         dashboard_ids = {item.get("id") for item in dashboard_items}
         if "mee6_dashboard" not in dashboard_ids:
             raise AssertionError("Desktop dashboards did not include MEE6.")
+        router_item = next((item for item in dashboard_items if item.get("id") == "router9"), None)
+        if not router_item or router_item.get("url") != operator_surface.REMOTE_9ROUTER_RESEARCH_URL:
+            raise AssertionError(f"Desktop 9router dashboard did not point at Dolphin research: {router_item}")
         for item in dashboard_items:
             label = str(item.get("label") or "").lower().replace("·", "-")
             url = str(item.get("url") or "").lower()

@@ -680,7 +680,7 @@ def ai_ops_save_local_model():
     elif selected_model:
         flash("Local model defaults saved for LOKI THE SUN GOD and Codex.", "success")
     else:
-        flash("No local model found yet. Run `ollama pull qwen2.5-coder:7b`, then save again.", "warning")
+        flash("No local model found yet. Run `ollama pull dolphin3:8b`, then save again.", "warning")
     return redirect(url_for("ai_ops"))
 
 

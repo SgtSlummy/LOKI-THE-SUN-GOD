@@ -155,7 +155,13 @@ DEFAULT_CONFIG = {
             "icon": "ui-checks",
             "color": "blurple",
         },
-        {"id": "router9", "label": "9router", "url": "http://localhost:20128", "icon": "diagram-3", "color": "mint"},
+        {
+            "id": "router9",
+            "label": "9router Dolphin Research",
+            "url": operator_surface.REMOTE_9ROUTER_RESEARCH_URL,
+            "icon": "diagram-3",
+            "color": "mint",
+        },
         {
             "id": "discord_dev",
             "label": "Discord Developer Portal",
@@ -1670,7 +1676,7 @@ iframe{border:0;background:#0c0d10}
           <div class="option-row">
             <div class="text-white font-medium">Local Ollama setup options</div>
             <div class="space-y-3 mt-3 text-sm text-slate-300">
-              <p><strong class="text-white">Option 1:</strong> install Ollama and pull a light local model such as <code>ollama pull qwen2.5-coder:7b</code> or <code>ollama pull llama3.2:3b</code>.</p>
+              <p><strong class="text-white">Option 1:</strong> install Ollama and pull a light local model such as <code>ollama pull dolphin3:8b</code>, <code>ollama pull qwen2.5-coder:7b</code>, or <code>ollama pull llama3.2:3b</code>.</p>
               <p><strong class="text-white">Option 2:</strong> keep Ollama local-only and use the model directly from the desktop for offline-first AI tasks.</p>
               <p><strong class="text-white">Option 3:</strong> run 9router on <code>http://localhost:20128</code> so Codex-style aliases can hand off between local Ollama and cloud providers.</p>
               <p><strong class="text-white">Option 4:</strong> set Codex routing env values to point at 9router:
@@ -1679,7 +1685,7 @@ iframe{border:0;background:#0c0d10}
             </div>
             <div class="mt-4 flex flex-wrap gap-2">
               <span class="pill">1. <code>ollama list</code></span>
-              <span class="pill">2. <code>ollama pull qwen2.5-coder:7b</code></span>
+              <span class="pill">2. <code>ollama pull dolphin3:8b</code></span>
               <span class="pill">3. <code>npm.cmd run dev</code> in 9router</span>
             </div>
           </div>

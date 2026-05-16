@@ -13,7 +13,7 @@
         </p>
       </div>
       <div class="flex gap-2 flex-wrap text-xs">
-        <a href="http://localhost:20128/dashboard" target="_blank" class="px-3 py-2 rounded-lg bg-blurple/15 text-blurple hover:bg-blurple/25">Open 9router</a>
+        <a href="{{ ai.remote_9router_research_url }}" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-lg bg-blurple/15 text-blurple hover:bg-blurple/25">Open 9router Dolphin research</a>
         <a href="http://localhost:20128/v1/models" target="_blank" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">View router models</a>
         <a href="{{ url_for('research_ops') }}" class="px-3 py-2 rounded-lg border border-ink-600 text-slate-300 hover:bg-ink-700/60">Research lab</a>
       </div>
@@ -74,7 +74,7 @@
             {% endfor %}
           </select>
         {% else %}
-          <input name="PREFERRED_LOCAL_MODEL" value="{{ ai.preferred_local_model }}" placeholder="qwen2.5-coder:7b" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
+          <input name="PREFERRED_LOCAL_MODEL" value="{{ ai.preferred_local_model }}" placeholder="dolphin3:8b" class="w-full rounded-lg bg-ink-900 border border-ink-600 px-3 py-2">
         {% endif %}
       </div>
       <label class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-ink-900/60 border border-ink-600/60 cursor-pointer self-end">

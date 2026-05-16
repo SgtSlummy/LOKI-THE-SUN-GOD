@@ -49,8 +49,9 @@ The LOKI tab now expects these local HTTP endpoints:
 ## Local Model Notes
 
 - Ollama health is inferred from configured `OLLAMA_HOST`, defaulting to `http://127.0.0.1:11434/api/tags`.
-- 9router health is inferred from `http://127.0.0.1:20128/v1/models`.
-- Local-first routing prefers `qwen2.5-coder:7b`, `llama3.1:8b`, `llama3.2:3b`, then the first installed Ollama model.
+- 9router health is inferred from `http://127.0.0.1:20128/v1/models` for local runtime checks.
+- The current hosted 9router Dolphin research dashboard is `https://9router-production-4a07.up.railway.app/dashboard/research`.
+- Local-first routing prefers `dolphin3:8b`, `qwen2.5-coder:7b`, `llama3.1:8b`, `llama3.2:3b`, then the first installed Ollama model.
 - 9router uses the alias `local-default -> ollama-local/<model>` when the local model route is saved.
 - Codex routing state is read from `%USERPROFILE%\\.Codex\\settings.json`.
 - LOKI THE SUN GOD's Discord `/ask` command uses `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `LOKI_LLM_MODEL` through a Chat Completions-compatible endpoint.
