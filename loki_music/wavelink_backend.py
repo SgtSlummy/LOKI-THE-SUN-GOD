@@ -212,12 +212,20 @@ class WavelinkBackend:
             requester_id=requester_id,
         )
 
-    async def play(self, ctx: Any, session: MusicSession, query: str, requester_id: int | None) -> PlaybackResult:
+    async def play(
+        self,
+        ctx: Any,
+        session: MusicSession,
+        query: str,
+        requester_id: int | None,
+        *,
+        resolution_limit: int = 5,
+    ) -> PlaybackResult:
         if self._is_spotify_url(query):
             raise TrackResolutionFailed(self._spotify_metadata_message())
 
         await self.ensure_node(ctx.bot)
-        playables = await self.resolve_tracks(query)
+        playables = await self.resolve_tracks(query, limit=resolution_limit)
         if not playables:
             raise TrackResolutionFailed(
                 "No playable Lavalink result was found. Try a more specific song/artist search, YouTube URL, "

@@ -152,7 +152,7 @@ def test_wavelink_play_rejects_spotify_urls_before_lavalink_or_voice_join():
         async def fake_ensure_node(_bot):
             calls.append("ensure_node")
 
-        async def fake_resolve_tracks(_query):
+        async def fake_resolve_tracks(_query, *, limit=5):
             calls.append("resolve_tracks")
             return []
 
@@ -184,7 +184,7 @@ def test_wavelink_play_reports_unplayable_queries_without_queueing_or_voice_join
     async def fake_ensure_node(_bot):
         calls.append("ensure_node")
 
-    async def fake_resolve_tracks(_query):
+    async def fake_resolve_tracks(_query, *, limit=5):
         calls.append("resolve_tracks")
         return []
 
@@ -231,7 +231,7 @@ def test_wavelink_play_queues_requested_track_before_fallbacks_when_already_play
     async def fake_ensure_node(_bot):
         return None
 
-    async def fake_resolve_tracks(_query):
+    async def fake_resolve_tracks(_query, *, limit=5):
         return [FakePlayable("requested"), FakePlayable("fallback-1"), FakePlayable("fallback-2")]
 
     async def fake_ensure_player(_ctx):
@@ -275,7 +275,7 @@ def test_wavelink_play_does_not_mutate_player_queue_when_session_limit_is_hit():
     async def fake_ensure_node(_bot):
         return None
 
-    async def fake_resolve_tracks(_query):
+    async def fake_resolve_tracks(_query, *, limit=5):
         return [FakePlayable("requested"), FakePlayable("fallback")]
 
     async def fake_ensure_player(_ctx):

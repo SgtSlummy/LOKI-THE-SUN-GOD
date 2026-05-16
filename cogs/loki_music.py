@@ -9,6 +9,7 @@ from discord.ext import commands
 
 from loki_music.equalizer import bands_for_preset, preset_names
 from loki_music.service import MusicSession, QueueLimitExceeded, Track
+from loki_music.song_list import SongListImportError, parse_song_list
 from loki_music.wavelink_backend import (
     MusicBackendUnavailable,
     TrackResolutionFailed,
@@ -175,6 +176,75 @@ class LokiMusic(commands.Cog):
         if not dj_role_id:
             return False
         return any(getattr(role, "id", None) == dj_role_id for role in getattr(ctx.author, "roles", []))
+
+    async def _import_song_list(self, ctx: commands.Context, payload: str) -> None:
+        if not ctx.guild:
+            return await ctx.send(
+                "Use song-list imports inside a server.",
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        defer = getattr(ctx, "defer", None)
+        if callable(defer):
+            try:
+                await defer(ephemeral=True)
+            except (discord.HTTPException, RuntimeError, AttributeError):
+                pass
+        try:
+            entries = parse_song_list(payload)
+        except SongListImportError as exc:
+            return await ctx.send(str(exc), allowed_mentions=discord.AllowedMentions.none())
+
+        session = self.session_for(ctx.guild.id)
+        try:
+            session.ensure_queue_capacity(len(entries))
+        except QueueLimitExceeded as exc:
+            return await ctx.send(str(exc), allowed_mentions=discord.AllowedMentions.none())
+
+        imported = 0
+        metadata_converted = 0
+        skipped = 0
+        for entry in entries:
+            try:
+                await self.backend.play(ctx, session, entry.query, requester_id=ctx.author.id, resolution_limit=1)
+                imported += 1
+                if entry.used_spotify_metadata:
+                    metadata_converted += 1
+                continue
+            except (MusicBackendUnavailable, VoiceChannelRequired):
+                pass
+            except (TrackResolutionFailed, QueueLimitExceeded):
+                skipped += 1
+                continue
+            try:
+                session.enqueue(
+                    Track(
+                        title=entry.query,
+                        uri=entry.source_url or entry.query,
+                        requester_id=ctx.author.id,
+                        provider=entry.provider,
+                        provider_id=entry.source_url or entry.query,
+                    )
+                )
+            except QueueLimitExceeded as exc:
+                return await ctx.send(str(exc), allowed_mentions=discord.AllowedMentions.none())
+            imported += 1
+            if entry.used_spotify_metadata:
+                metadata_converted += 1
+
+        await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="song list import")
+        detail = f"Imported {imported} song(s) into the LOKI queue."
+        if metadata_converted:
+            detail += f" Spotify metadata converted to search text for {metadata_converted} item(s)."
+        if skipped:
+            detail += f" Skipped {skipped} unplayable item(s)."
+        await ctx.send(detail, view=JukeboxControls(self), allowed_mentions=discord.AllowedMentions.none())
+
+    @commands.hybrid_command(name="songlist", description="Paste a Diva-style song list into the LOKI queue")
+    @app_commands.describe(
+        payload="One song per line: titles, markdown links, Spotify track labels, YouTube, or SoundCloud"
+    )
+    async def songlist(self, ctx: commands.Context, *, payload: str):
+        await self._import_song_list(ctx, payload)
 
     @commands.hybrid_command(name="play", description="Play a song or add it to the LOKI queue")
     @app_commands.describe(query="Song name, URL, playlist, or search query")

@@ -54,6 +54,11 @@ LOKI THE SUN GOD should operate as an online Discord-first AGI-style system with
   - `/activity queue [media_url] [title]` reads the current room queue for non-admin users and lets authorized operators enqueue media through the bridge.
   - `/activity set-media`, `/activity pause`, `/activity play`, and `/activity next` route bridge controls through the shared client without blocking the bot event loop.
   - Mutating room controls are permission-gated through the existing create/manage-events/admin policy before any bridge write.
+- Music now has a Diva-style paste/import path for song lists:
+  - `/songlist` accepts one song per line with numbered bullets, plain titles, markdown links, YouTube URLs, SoundCloud URLs, and Spotify track links that include titles.
+  - Spotify track links are treated as metadata/search hints and converted to Lavalink search text; LOKI still does not claim direct Spotify streaming.
+  - Spotify playlist/album expansion fails closed until a dedicated metadata resolver/API expansion path exists.
+  - Queue capacity is checked before import mutation, duplicate pasted lines are collapsed, and replies suppress mentions.
 
 ### Previously completed
 
