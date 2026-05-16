@@ -423,6 +423,34 @@ CREATE TABLE IF NOT EXISTS loki_memory_entries (
 
 CREATE INDEX IF NOT EXISTS idx_loki_memory_entries_guild ON loki_memory_entries(guild_id, created_at);
 
+CREATE TABLE IF NOT EXISTS loki_camelot_records (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    sources_json TEXT DEFAULT '[]',
+    related_entities_json TEXT DEFAULT '[]',
+    tags_json TEXT DEFAULT '[]',
+    retrieval_keywords_json TEXT DEFAULT '[]',
+    sector_links_json TEXT DEFAULT '[]',
+    upgrade_relevance REAL DEFAULT 0,
+    priority_score REAL DEFAULT 0,
+    confidence_score REAL DEFAULT 0,
+    risk_score REAL DEFAULT 0,
+    status TEXT DEFAULT 'new',
+    action_items_json TEXT DEFAULT '[]',
+    test_links_json TEXT DEFAULT '[]',
+    commit_links_json TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_reviewed_at TEXT NOT NULL,
+    actor_id INTEGER,
+    payload_json TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_loki_camelot_records_entity ON loki_camelot_records(entity_type, status, updated_at);
+
 CREATE TABLE IF NOT EXISTS loki_research_sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guild_id INTEGER,
@@ -603,6 +631,7 @@ PG_CONFLICT_TARGETS = {
     "worker_leases": ("lease_name",),
     "loki_music_settings": ("guild_id",),
     "loki_npc_settings": ("guild_id",),
+    "loki_camelot_records": ("id",),
     "loki_experiment_runs": ("run_id",),
     "loki_experiment_candidates": ("candidate_id",),
     "dashboard_sessions": ("session_id",),

@@ -36,6 +36,15 @@ LOKI THE SUN GOD should operate as an online Discord-first AGI-style system with
 
 ### Newly completed in this pass
 
+- Camelot-compatible record persistence now exists for the P1 knowledge-management slice:
+  - `loki_camelot_records` stores schema-shaped wing records with payload JSON.
+  - `loki_memory.camelot_records` validates the checked-in Camelot schema contract without adding runtime dependencies.
+  - Import/export helpers enforce required fields, enums, list shapes, score bounds, and no-extra-properties.
+  - Member public-memory snapshots can be converted into Camelot `user` records using only redacted public snippets.
+  - Tests cover validation, secret/email redaction, upsert/get/export/import, and member snapshot conversion.
+
+### Previously completed
+
 - NPC runtime now reads per-guild dashboard settings instead of only environment variables:
   - `loki_npc_settings.enabled` gates replies for the guild.
   - `loki_npc_settings.channel_allowlist` gates message handling for the guild.
@@ -78,8 +87,8 @@ Acceptance:
 Status: runtime foundation exists; member summary product surface is incomplete.
 
 Next slices:
-1. Add source-aware member profiles from public-memory snippets only.
-2. Add Camelot record import/export table or adapter matching `docs/schemas/camelot-wing.schema.json`.
+1. Add source-aware member profiles from public-memory snippets only. (partial: deterministic member snapshots can now be converted into Camelot `user` records.)
+2. Add Camelot record import/export table or adapter matching `docs/schemas/camelot-wing.schema.json`. (complete: `loki_camelot_records` and `loki_memory.camelot_records`.)
 3. Add MCP read tools for memory search/export/delete previews.
 
 Acceptance:
