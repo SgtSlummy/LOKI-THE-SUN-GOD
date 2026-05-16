@@ -1,0 +1,396 @@
+{
+  "environment": [
+    {
+      "name": "DISCORD_ALLOWED_CHANNELS",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "GITHUB_PAT_TOKEN",
+      "present": true,
+      "sensitive": true,
+      "value": "<redacted>"
+    },
+    {
+      "name": "HERMES_GIT_BASH_PATH",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_HOME",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_INTERACTIVE",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_KANBAN_BOARD",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_QUIET",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_REDACT_SECRETS",
+      "present": true,
+      "sensitive": true,
+      "value": "<redacted>"
+    },
+    {
+      "name": "HERMES_SESSION_ID",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_SPOTIFY_CLIENT_ID",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "HERMES_YOLO_MODE",
+      "present": true,
+      "sensitive": false,
+      "value": "<set>"
+    },
+    {
+      "name": "IFTTT_WEBHOOK_KEY",
+      "present": true,
+      "sensitive": true,
+      "value": "<redacted>"
+    },
+    {
+      "name": "TWILIO_AUTH_TOKEN",
+      "present": true,
+      "sensitive": true,
+      "value": "<redacted>"
+    }
+  ],
+  "generated_at": "2026-05-16T19:14:08+00:00",
+  "runtime": {
+    "executable": "C:\\Users\\carme\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+    "packages": {
+      "kernels": "0.14.1",
+      "torch": "2.12.0+cpu",
+      "transformers": "5.8.1"
+    },
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.10"
+  },
+  "schedules": [
+    {
+      "name": "rss-watcher",
+      "schedule": "*/15 * * * *",
+      "task": "watchers-core-004"
+    },
+    {
+      "name": "github-watcher",
+      "schedule": "*/15 * * * *",
+      "task": "watchers-core-004"
+    },
+    {
+      "name": "json-api-watcher",
+      "schedule": "*/15 * * * *",
+      "task": "watchers-core-004"
+    },
+    {
+      "name": "shepherd-heartbeat",
+      "schedule": "*/5 * * * *",
+      "task": "shepherd-router-006"
+    },
+    {
+      "name": "daily-grade-report",
+      "schedule": "0 9 * * *",
+      "task": "evaluation-grading-011"
+    }
+  ],
+  "source_pdf": "C:\\Users\\carme\\OneDrive\\Documents\\Hermes plan.pdf",
+  "source_pdf_present": true,
+  "source_pdf_text_chars": 18884,
+  "source_pdf_text_hash": "3e76c356e6368323",
+  "sources": [
+    {
+      "confidence": 0.8,
+      "key": "mission-control",
+      "title": "Mission Control \u2014 Hermes Agent Multi-Agent & Orchestration",
+      "topic": "agent fleet orchestration, telemetry, approval gates",
+      "url": "https://hermesatlas.com/projects/builderz-labs/mission-control"
+    },
+    {
+      "confidence": 0.8,
+      "key": "swarmclaw",
+      "title": "SwarmClaw \u2014 Hermes Agent Multi-Agent & Orchestration",
+      "topic": "self-hosted swarms, delegation, memory, scheduled tasks",
+      "url": "https://hermesatlas.com/projects/swarmclawai/swarmclaw"
+    },
+    {
+      "confidence": 0.8,
+      "key": "opencode-hermes-multiagent",
+      "title": "OpenCode Hermes Multi-Agent Pipeline",
+      "topic": "specialist agents, pipeline roles, mandatory quality gates",
+      "url": "https://hermesatlas.com/projects/1ilkhamov/opencode-hermes-multiagent"
+    },
+    {
+      "confidence": 0.9,
+      "key": "hermes-watchers",
+      "title": "Hermes Watchers \u2014 Poll RSS, JSON APIs, and GitHub with watermark dedup",
+      "topic": "watch scripts, watermark deduplication, cron-safe output",
+      "url": "https://hermes-agent.nousresearch.com/docs/user-guide/skills/optional/devops/devops-watchers"
+    },
+    {
+      "confidence": 0.95,
+      "key": "pep8",
+      "title": "PEP 8 \u2014 Style Guide for Python Code",
+      "topic": "Python formatting, naming, indentation, wrapping",
+      "url": "https://peps.python.org/pep-0008/"
+    },
+    {
+      "confidence": 0.9,
+      "key": "google-pyguide",
+      "title": "Google Python Style Guide",
+      "topic": "Python linting, pylint use, style discipline",
+      "url": "https://google.github.io/styleguide/pyguide.html"
+    },
+    {
+      "confidence": 1.0,
+      "key": "loki-backlog",
+      "title": "LOKI Online AGI / Discord Bot / Music / LLM / Knowledge System Completion Backlog",
+      "topic": "current LOKI remaining programming goals and release gates",
+      "url": "docs/upgrades/online-agi-discordbot-completion-backlog.md"
+    },
+    {
+      "confidence": 1.0,
+      "key": "loki-agent-workflow",
+      "title": "LOKI AI Agent Workflow",
+      "topic": "bounded autonomy, agent lanes, memory and safety gates",
+      "url": "docs/AI_AGENT_WORKFLOW.md"
+    }
+  ],
+  "tasks": [
+    {
+      "depends_on": [],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-1-research-preparation",
+      "priority": "P0",
+      "references": [
+        "mission-control",
+        "swarmclaw",
+        "opencode-hermes-multiagent",
+        "loki-backlog"
+      ],
+      "risk": "low",
+      "sector": "knowledge-library",
+      "status": "planned",
+      "summary": "Create a repository-local SQLite library containing source metadata, summaries, task links, env metadata, cron schedules, and grading records.",
+      "task_id": "research-library-001",
+      "title": "Initialize deterministic source and summary library"
+    },
+    {
+      "depends_on": [
+        "research-library-001"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-1-research-preparation",
+      "priority": "P0",
+      "references": [
+        "mission-control",
+        "swarmclaw",
+        "opencode-hermes-multiagent",
+        "hermes-watchers"
+      ],
+      "risk": "medium",
+      "sector": "mythos-router-and-swarm-orchestration",
+      "status": "planned",
+      "summary": "Compare Mission Control, SwarmClaw, OpenCode Hermes, and Hermes watcher patterns, then map them into LOKI's advisory-only autonomy model.",
+      "task_id": "research-frameworks-002",
+      "title": "Document orchestration patterns for HermesP and HermesS"
+    },
+    {
+      "depends_on": [
+        "research-library-001"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-1-research-preparation",
+      "priority": "P0",
+      "references": [
+        "loki-backlog",
+        "loki-agent-workflow"
+      ],
+      "risk": "low",
+      "sector": "database-railway-persistence",
+      "status": "planned",
+      "summary": "Record Python, OS, package/tool presence, Railway variable names, and service URLs without storing secret values.",
+      "task_id": "env-bootstrap-003",
+      "title": "Capture redacted environment and runtime inventory"
+    },
+    {
+      "depends_on": [
+        "research-frameworks-002",
+        "env-bootstrap-003"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P1",
+      "references": [
+        "hermes-watchers",
+        "pep8",
+        "google-pyguide"
+      ],
+      "risk": "medium",
+      "sector": "plugin-skill-expansion",
+      "status": "planned",
+      "summary": "Build cron-safe watcher scripts with watermark deduplication, capped state, rate-limit handling, and test fixtures for external APIs.",
+      "task_id": "watchers-core-004",
+      "title": "Implement RSS, GitHub, and JSON watcher modules"
+    },
+    {
+      "depends_on": [
+        "watchers-core-004"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P4",
+      "references": [
+        "loki-backlog",
+        "loki-agent-workflow"
+      ],
+      "risk": "high",
+      "sector": "knowledge-management-and-retrieval",
+      "status": "planned",
+      "summary": "Define allowlist/denylist controls, source confidence scoring, unsafe-content filters, audit receipts, and operator approval before posting.",
+      "task_id": "crawler-policy-005",
+      "title": "Add safe crawler/recommendation policy and queue"
+    },
+    {
+      "depends_on": [
+        "research-frameworks-002",
+        "env-bootstrap-003"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P5",
+      "references": [
+        "mission-control",
+        "swarmclaw",
+        "opencode-hermes-multiagent",
+        "loki-agent-workflow"
+      ],
+      "risk": "high",
+      "sector": "mythos-router-and-swarm-orchestration",
+      "status": "planned",
+      "summary": "Create HermesS persistence for task dispatch, dependencies, heartbeats, restart/reassign decisions, role rotation, audit logs, and cron schedules.",
+      "task_id": "shepherd-router-006",
+      "title": "Build Shepherd Router task queue and heartbeat monitor"
+    },
+    {
+      "depends_on": [
+        "research-library-001"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P1",
+      "references": [
+        "loki-backlog",
+        "loki-agent-workflow"
+      ],
+      "risk": "medium",
+      "sector": "camelot-memory-palace",
+      "status": "planned",
+      "summary": "Finish the remaining P1 surface by displaying deterministic member profiles and Camelot exports while preserving public-memory-only redaction rules.",
+      "task_id": "camelot-profiles-007",
+      "title": "Add dashboard/operator views for Camelot exports and source-aware profiles"
+    },
+    {
+      "depends_on": [
+        "env-bootstrap-003"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P2",
+      "references": [
+        "loki-backlog"
+      ],
+      "risk": "medium",
+      "sector": "discord-core-bot-architecture",
+      "status": "planned",
+      "summary": "Complete the remaining Activity Bridge slice with durable room status, stale cleanup semantics, and Discord command failure tests.",
+      "task_id": "activity-heartbeat-008",
+      "title": "Add Activity Bridge room heartbeat, stale cleanup, and persistence contract"
+    },
+    {
+      "depends_on": [
+        "env-bootstrap-003"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P3",
+      "references": [
+        "loki-backlog",
+        "pep8"
+      ],
+      "risk": "medium",
+      "sector": "music-and-media-systems",
+      "status": "planned",
+      "summary": "Implement non-blocking optional audio capability checks, ffmpeg wrappers, and DCA asset helpers that never block Railway startup when dependencies are absent.",
+      "task_id": "audio-capabilities-009",
+      "title": "Add optional FFmpeg/DCA capability probes and wrappers"
+    },
+    {
+      "depends_on": [
+        "shepherd-router-006"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-2-implementation-linking",
+      "priority": "P5",
+      "references": [
+        "loki-backlog",
+        "loki-agent-workflow",
+        "opencode-hermes-multiagent"
+      ],
+      "risk": "high",
+      "sector": "agi-agent-reasoning-layer",
+      "status": "planned",
+      "summary": "Build a dashboard/operator endpoint for redacted status packets, proposal grading, rollback metadata, and advisory-only approval boundaries.",
+      "task_id": "mythos-packet-010",
+      "title": "Expose safe Mythos packet compilation and proposal queue"
+    },
+    {
+      "depends_on": [
+        "watchers-core-004",
+        "crawler-policy-005",
+        "shepherd-router-006",
+        "camelot-profiles-007",
+        "activity-heartbeat-008",
+        "audio-capabilities-009",
+        "mythos-packet-010"
+      ],
+      "gate": "pytest, ruff, release_check, secret_scan, git diff --check",
+      "pass_name": "pass-3-evaluation-grading",
+      "priority": "P0",
+      "references": [
+        "pep8",
+        "google-pyguide",
+        "loki-backlog"
+      ],
+      "risk": "medium",
+      "sector": "testing-qc-grading-mutation-github-automation",
+      "status": "planned",
+      "summary": "Run local gates, validate source coverage, grade each task across code, tests, docs, security, rollback, memory integration, and user value.",
+      "task_id": "evaluation-grading-011",
+      "title": "Grade every slice and retry below-threshold work safely"
+    }
+  ]
+}
