@@ -22,6 +22,10 @@ class MusicBackendUnavailable(RuntimeError):
     pass
 
 
+class TrackResolutionFailed(RuntimeError):
+    pass
+
+
 class VoiceChannelRequired(RuntimeError):
     pass
 
@@ -126,6 +130,20 @@ class WavelinkBackend:
     def _looks_like_url(query: str) -> bool:
         return bool(re.match(r"^[a-z][a-z0-9+.-]*://", query.strip(), flags=re.IGNORECASE))
 
+    @staticmethod
+    def _is_spotify_url(query: str) -> bool:
+        normalized = query.strip().lower()
+        return normalized.startswith("spotify:") or bool(
+            re.match(r"^https?://(?:open\.)?spotify\.(?:com|link)/", normalized, flags=re.IGNORECASE)
+        )
+
+    @staticmethod
+    def _spotify_metadata_message() -> str:
+        return (
+            "Spotify links are metadata/search only for now; LOKI cannot stream directly from Spotify. "
+            "Paste a song/artist search, YouTube URL, or SoundCloud URL instead."
+        )
+
     async def resolve_tracks(self, query: str, *, limit: int = 5) -> list[Any]:
         if wavelink is None:
             raise MusicBackendUnavailable("wavelink is not installed.")
@@ -195,10 +213,16 @@ class WavelinkBackend:
         )
 
     async def play(self, ctx: Any, session: MusicSession, query: str, requester_id: int | None) -> PlaybackResult:
+        if self._is_spotify_url(query):
+            raise TrackResolutionFailed(self._spotify_metadata_message())
+
         await self.ensure_node(ctx.bot)
         playables = await self.resolve_tracks(query)
         if not playables:
-            raise MusicBackendUnavailable("No playable Lavalink result was found.")
+            raise TrackResolutionFailed(
+                "No playable Lavalink result was found. Try a more specific song/artist search, YouTube URL, "
+                "or SoundCloud URL."
+            )
         player = await self.ensure_player(ctx)
 
         first, rest = playables[0], playables[1:]

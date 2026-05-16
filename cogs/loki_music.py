@@ -9,7 +9,12 @@ from discord.ext import commands
 
 from loki_music.equalizer import bands_for_preset, preset_names
 from loki_music.service import MusicSession, QueueLimitExceeded, Track
-from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired, WavelinkBackend
+from loki_music.wavelink_backend import (
+    MusicBackendUnavailable,
+    TrackResolutionFailed,
+    VoiceChannelRequired,
+    WavelinkBackend,
+)
 from utils import db
 
 
@@ -180,6 +185,8 @@ class LokiMusic(commands.Cog):
         try:
             result = await self.backend.play(ctx, session, query, requester_id=ctx.author.id)
         except VoiceChannelRequired as exc:
+            return await ctx.send(str(exc))
+        except TrackResolutionFailed as exc:
             return await ctx.send(str(exc))
         except QueueLimitExceeded as exc:
             return await ctx.send(str(exc))

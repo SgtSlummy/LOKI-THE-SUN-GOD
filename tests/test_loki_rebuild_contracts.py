@@ -139,6 +139,75 @@ def test_loki_jukebox_embed_lists_current_track_and_queue():
     assert "2. Temple Bass" in fields["Song list"]
 
 
+def test_wavelink_play_rejects_spotify_urls_before_lavalink_or_voice_join():
+    from loki_music.wavelink_backend import TrackResolutionFailed
+
+    for spotify_query in (
+        "https://open.spotify.com/playlist/0QW17nZXGLzSWr308isEaU?si=example",
+        "spotify:track:0VjIjW4GlUZAMYd2vXMi3b",
+        "https://spotify.link/example",
+    ):
+        calls = []
+
+        async def fake_ensure_node(_bot):
+            calls.append("ensure_node")
+
+        async def fake_resolve_tracks(_query):
+            calls.append("resolve_tracks")
+            return []
+
+        async def fake_ensure_player(_ctx):
+            calls.append("ensure_player")
+            raise AssertionError("Spotify metadata URLs must not trigger Discord voice join")
+
+        backend = WavelinkBackend()
+        backend.ensure_node = fake_ensure_node
+        backend.resolve_tracks = fake_resolve_tracks
+        backend.ensure_player = fake_ensure_player
+        session = MusicSession(guild_id=123)
+        ctx = type("Ctx", (), {"bot": object()})()
+
+        with pytest.raises(TrackResolutionFailed) as excinfo:
+            asyncio.run(backend.play(ctx, session, spotify_query, requester_id=42))
+
+        assert "Spotify links are metadata/search only" in str(excinfo.value)
+        assert calls == []
+        assert session.queue == []
+        assert session.current is None
+
+
+def test_wavelink_play_reports_unplayable_queries_without_queueing_or_voice_join():
+    from loki_music.wavelink_backend import TrackResolutionFailed
+
+    calls = []
+
+    async def fake_ensure_node(_bot):
+        calls.append("ensure_node")
+
+    async def fake_resolve_tracks(_query):
+        calls.append("resolve_tracks")
+        return []
+
+    async def fake_ensure_player(_ctx):
+        calls.append("ensure_player")
+        raise AssertionError("No playable result must not trigger Discord voice join")
+
+    backend = WavelinkBackend()
+    backend.ensure_node = fake_ensure_node
+    backend.resolve_tracks = fake_resolve_tracks
+    backend.ensure_player = fake_ensure_player
+    session = MusicSession(guild_id=123)
+    ctx = type("Ctx", (), {"bot": object()})()
+
+    with pytest.raises(TrackResolutionFailed) as excinfo:
+        asyncio.run(backend.play(ctx, session, "unresolvable query", requester_id=42))
+
+    assert "No playable Lavalink result" in str(excinfo.value)
+    assert calls == ["ensure_node", "resolve_tracks"]
+    assert session.queue == []
+    assert session.current is None
+
+
 def test_wavelink_play_queues_requested_track_before_fallbacks_when_already_playing():
     class FakePlayable:
         def __init__(self, title):

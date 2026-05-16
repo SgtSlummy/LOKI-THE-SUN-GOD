@@ -13,7 +13,7 @@ from discord.ext import commands
 from loki_engine.natural_language import NaturalLanguageRights, route_natural_language_request
 from loki_engine.permissions import PermissionContext, assert_admin_action
 from loki_music.service import QueueLimitExceeded, Track
-from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired
+from loki_music.wavelink_backend import MusicBackendUnavailable, TrackResolutionFailed, VoiceChannelRequired
 from loki_npc.memory import (
     delete_user_memory_with_receipt,
     export_user_memory,
@@ -141,6 +141,9 @@ class LokiNpc(commands.Cog):
         try:
             result = await music.backend.play(ctx, session, query, requester_id=message.author.id)
         except VoiceChannelRequired as exc:
+            await message.reply(str(exc), mention_author=False)
+            return
+        except TrackResolutionFailed as exc:
             await message.reply(str(exc), mention_author=False)
             return
         except QueueLimitExceeded as exc:
