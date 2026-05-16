@@ -9,6 +9,8 @@ from mcp.server.fastmcp import FastMCP
 
 from loki_mcp.models import (
     ActivityStateResult,
+    CamelotExportQuery,
+    CamelotExportResult,
     ChannelClusterResult,
     CommandSearchQuery,
     CommandSearchResult,
@@ -22,6 +24,11 @@ from loki_mcp.models import (
     GuildQuery,
     LegacyLibrarySearchQuery,
     LegacyLibrarySearchResult,
+    MemoryDeletePreviewResult,
+    MemoryExportPreviewResult,
+    MemorySearchQuery,
+    MemorySearchResult,
+    MemoryUserPreviewQuery,
     MusicStateResult,
     MutationResult,
     MythosSummaryResult,
@@ -263,6 +270,43 @@ def create_server() -> FastMCP:
     )
     def loki_get_mythos_summary(args: EmptyArgs) -> MythosSummaryResult:
         return MythosSummaryResult(summary=operator_surface.loki_mythos_snapshot())
+
+    @mcp.tool(
+        name="loki_search_public_memory",
+        description="Search redacted public NPC memory snippets without source URLs or private-channel data.",
+        structured_output=True,
+    )
+    def loki_search_public_memory(args: MemorySearchQuery) -> MemorySearchResult:
+        return MemorySearchResult(**operator_surface.loki_memory_search(**args.model_dump()))
+
+    @mcp.tool(
+        name="loki_preview_memory_export",
+        description=(
+            "Preview a redacted member memory export without creating an audit receipt "
+            "or exposing source URLs."
+        ),
+        structured_output=True,
+    )
+    def loki_preview_memory_export(args: MemoryUserPreviewQuery) -> MemoryExportPreviewResult:
+        return MemoryExportPreviewResult(**operator_surface.loki_memory_export_preview(**args.model_dump()))
+
+    @mcp.tool(
+        name="loki_preview_memory_delete",
+        description="Preview how many public-memory rows a member delete action would remove; performs no deletion.",
+        structured_output=True,
+    )
+    def loki_preview_memory_delete(args: MemoryUserPreviewQuery) -> MemoryDeletePreviewResult:
+        payload = args.model_dump()
+        payload.pop("limit", None)
+        return MemoryDeletePreviewResult(**operator_surface.loki_memory_delete_preview(**payload))
+
+    @mcp.tool(
+        name="loki_export_camelot_records",
+        description="Export read-only Camelot-compatible records for knowledge-management review.",
+        structured_output=True,
+    )
+    def loki_export_camelot_records(args: CamelotExportQuery) -> CamelotExportResult:
+        return CamelotExportResult(**operator_surface.loki_camelot_export(**args.model_dump()))
 
     if writes_enabled():
 

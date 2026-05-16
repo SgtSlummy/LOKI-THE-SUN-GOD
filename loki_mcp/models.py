@@ -29,6 +29,31 @@ class LegacyLibrarySearchQuery(BaseModel):
     include_content: bool = Field(default=False, description="Include the full extracted legacy index in results.")
 
 
+class MemorySearchQuery(BaseModel):
+    guild_id: int = Field(..., ge=1, description="Discord guild ID for public NPC memory lookup.")
+    query: str = Field(default="", description="Optional free-text search over redacted public memory snippets.")
+    user_id: Optional[int] = Field(default=None, ge=1, description="Optional Discord member ID filter.")
+    limit: int = Field(default=10, ge=1, le=50, description="Maximum redacted memory snippets to return.")
+
+
+class MemoryUserPreviewQuery(BaseModel):
+    guild_id: int = Field(..., ge=1, description="Discord guild ID for the memory preview.")
+    user_id: int = Field(..., ge=1, description="Discord member ID for the preview.")
+    limit: int = Field(default=20, ge=1, le=50, description="Maximum redacted memory snippets to include.")
+
+
+class CamelotExportQuery(BaseModel):
+    entity_type: str = Field(
+        default="",
+        description="Optional Camelot entity type filter, such as user, bot, concept, or plugin.",
+    )
+    status: str = Field(
+        default="",
+        description="Optional Camelot status filter: new, reviewed, active, deprecated, blocked, or complete.",
+    )
+    limit: int = Field(default=50, ge=1, le=50, description="Maximum Camelot records to export.")
+
+
 class StickyDeleteInput(BaseModel):
     guild_id: int = Field(..., ge=1, description="Guild that owns the sticky entry.")
     channel_id: int = Field(..., ge=1, description="Channel ID for the sticky entry to remove.")
@@ -111,6 +136,42 @@ class ActivityStateResult(BaseModel):
 
 class MythosSummaryResult(BaseModel):
     summary: dict[str, Any]
+
+
+class MemorySearchResult(BaseModel):
+    guild_id: int
+    query: str
+    user_id: Optional[int] = None
+    entries: list[dict[str, Any]]
+    total: int
+    redacted: bool
+    source_url_included: bool
+
+
+class MemoryExportPreviewResult(BaseModel):
+    guild_id: int
+    user_id: int
+    entry_count: int
+    entries: list[dict[str, Any]]
+    redacted: bool
+    source_url_included: bool
+    audit_receipt_created: bool
+
+
+class MemoryDeletePreviewResult(BaseModel):
+    guild_id: int
+    user_id: int
+    would_delete_count: int
+    oldest_at: Optional[int] = None
+    newest_at: Optional[int] = None
+    deleted: bool
+    audit_receipt_created: bool
+
+
+class CamelotExportResult(BaseModel):
+    schema_path: str
+    record_count: int
+    records: list[dict[str, Any]]
 
 
 class MutationResult(BaseModel):

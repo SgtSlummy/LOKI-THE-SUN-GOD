@@ -1245,7 +1245,6 @@ def create_manual_backup() -> dict[str, Any]:
             "error": "Manual dashboard backup supports local SQLite only. Use your Postgres provider backup tools.",
             "status": backup_status(),
         }
-
     database = db_path()
     if not database.exists():
         return {
@@ -1253,7 +1252,6 @@ def create_manual_backup() -> dict[str, Any]:
             "error": f"Primary SQLite database was not found at {database}.",
             "status": backup_status(),
         }
-
     backup_dir = database.parent / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S", time.localtime())
@@ -1266,6 +1264,157 @@ def create_manual_backup() -> dict[str, Any]:
         "ok": True,
         "backup": _file_metadata(backup_path),
         "status": backup_status(),
+    }
+
+
+def _bounded_limit(limit: int, *, default: int = 10, maximum: int = 50) -> int:
+    try:
+        value = int(limit)
+    except (TypeError, ValueError):
+        value = default
+    return max(1, min(maximum, value))
+
+
+def loki_memory_search(
+    *, guild_id: int, query: str = "", user_id: int | None = None, limit: int = 10
+) -> dict[str, Any]:
+    """Return read-only, re-redacted public NPC memory matches for MCP/operator use."""
+    from loki_npc.memory import DEFAULT_MEMORY_TTL_SECONDS, redact_discord_content
+
+    cutoff = int(time.time()) - DEFAULT_MEMORY_TTL_SECONDS
+    row_limit = _bounded_limit(limit)
+    clauses = ["guild_id=?", "created_at>=?"]
+    params: list[Any] = [guild_id, cutoff]
+    if user_id is not None:
+        clauses.append("user_id=?")
+        params.append(user_id)
+    raw_query = (query or "").strip()
+    redacted_query = redact_discord_content(raw_query).strip()
+    sensitive_query = bool(raw_query and redacted_query != raw_query)
+    needle = redacted_query.lower()
+    # Do not let MCP memory search become a membership oracle for historical
+    # malformed rows that may contain unredacted emails/tokens. Secret-like
+    # queries are rejected, and normal queries are matched only after each
+    # candidate row is defensively re-redacted in Python.
+    if sensitive_query:
+        rows = []
+    else:
+        params.append(_bounded_limit(row_limit * 10, default=50, maximum=200))
+        rows = shared_db.sync_all(
+            f"""
+            SELECT id, channel_id, user_id, redacted_content, confidence, created_at
+            FROM loki_memory_entries
+            WHERE {' AND '.join(clauses)}
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        )
+    entries: list[dict[str, Any]] = []
+    for row in rows:
+        redacted_content = redact_discord_content(str(row["redacted_content"] or ""))
+        if needle and needle not in redacted_content.lower():
+            continue
+        entries.append(
+            {
+                "id": int(row["id"]),
+                "channel_id": int(row["channel_id"]),
+                "user_id": int(row["user_id"]),
+                "redacted_content": redacted_content,
+                "confidence": float(row["confidence"] or 0),
+                "created_at": int(row["created_at"]),
+            }
+        )
+        if len(entries) >= row_limit:
+            break
+    return {
+        "guild_id": guild_id,
+        "query": "[redacted]" if sensitive_query else query,
+        "user_id": user_id,
+        "entries": entries,
+        "total": len(entries),
+        "redacted": True,
+        "source_url_included": False,
+    }
+
+
+def loki_memory_export_preview(*, guild_id: int, user_id: int, limit: int = 20) -> dict[str, Any]:
+    """Preview redacted user memory export without creating audit rows or exposing source URLs."""
+    from loki_npc.memory import DEFAULT_MEMORY_TTL_SECONDS, redact_discord_content
+
+    cutoff = int(time.time()) - DEFAULT_MEMORY_TTL_SECONDS
+    row_limit = _bounded_limit(limit, default=20)
+    rows = shared_db.sync_all(
+        """
+        SELECT id, channel_id, user_id, redacted_content, confidence, created_at
+        FROM loki_memory_entries
+        WHERE guild_id=? AND user_id=? AND created_at>=?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """,
+        (guild_id, user_id, cutoff, row_limit),
+    )
+    entries = [
+        {
+            "id": int(row["id"]),
+            "channel_id": int(row["channel_id"]),
+            "user_id": int(row["user_id"]),
+            "redacted_content": redact_discord_content(str(row["redacted_content"] or "")),
+            "confidence": float(row["confidence"] or 0),
+            "created_at": int(row["created_at"]),
+        }
+        for row in rows
+    ]
+    return {
+        "guild_id": guild_id,
+        "user_id": user_id,
+        "entry_count": len(entries),
+        "entries": entries,
+        "redacted": True,
+        "source_url_included": False,
+        "audit_receipt_created": False,
+    }
+
+
+def loki_memory_delete_preview(*, guild_id: int, user_id: int) -> dict[str, Any]:
+    """Preview the count/range of public memory rows a future delete action would remove."""
+    from loki_npc.memory import DEFAULT_MEMORY_TTL_SECONDS
+
+    cutoff = int(time.time()) - DEFAULT_MEMORY_TTL_SECONDS
+    row = shared_db.sync_one(
+        """
+        SELECT COUNT(*) AS entry_count, MIN(created_at) AS oldest_at, MAX(created_at) AS newest_at
+        FROM loki_memory_entries
+        WHERE guild_id=? AND user_id=? AND created_at>=?
+        """,
+        (guild_id, user_id, cutoff),
+    )
+    return {
+        "guild_id": guild_id,
+        "user_id": user_id,
+        "would_delete_count": int(row["entry_count"] if row else 0),
+        "oldest_at": row["oldest_at"] if row else None,
+        "newest_at": row["newest_at"] if row else None,
+        "deleted": False,
+        "audit_receipt_created": False,
+    }
+
+
+def loki_camelot_export(
+    *, entity_type: str | None = None, status: str | None = None, limit: int = 50
+) -> dict[str, Any]:
+    """Return read-only Camelot records for MCP/operator surfaces."""
+    from loki_memory.camelot_records import export_camelot_records
+
+    payload = export_camelot_records(
+        entity_type=entity_type or None,
+        status=status or None,
+        limit=_bounded_limit(limit),
+    )
+    return {
+        "schema_path": payload.get("schema", "docs/schemas/camelot-wing.schema.json"),
+        "record_count": payload.get("record_count", 0),
+        "records": payload.get("records", []),
     }
 
 

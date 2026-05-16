@@ -54,6 +54,10 @@ async def run_smoke_test() -> None:
                 "loki_search_external_legacy_libraries",
                 "loki_get_diagnostics",
                 "loki_get_ollama_status",
+                "loki_search_public_memory",
+                "loki_preview_memory_export",
+                "loki_preview_memory_delete",
+                "loki_export_camelot_records",
             }
             missing_tools = sorted(required_tools - set(tool_names))
             if missing_tools:
@@ -131,6 +135,41 @@ async def run_smoke_test() -> None:
             legacy_libraries = legacy_payload.get("libraries") or []
             if legacy_libraries[0].get("library") != "ralph-wiggum-legacy":
                 raise AssertionError(f"Unexpected external legacy library: {legacy_libraries[0]}")
+
+            memory_search = await session.call_tool(
+                "loki_search_public_memory",
+                {"args": {"guild_id": FIXTURE_GUILD_ID, "query": "queue", "limit": 5}},
+            )
+            memory_payload = memory_search.structuredContent or {}
+            if memory_payload.get("total") != 1:
+                raise AssertionError(f"Unexpected public memory search total: {memory_payload.get('total')}")
+            memory_entry = (memory_payload.get("entries") or [{}])[0]
+            if "source_url" in memory_entry or "sk-" in memory_entry.get("redacted_content", ""):
+                raise AssertionError(f"Unsafe memory search payload: {memory_entry}")
+
+            export_preview = await session.call_tool(
+                "loki_preview_memory_export",
+                {"args": {"guild_id": FIXTURE_GUILD_ID, "user_id": 424242424242424242, "limit": 5}},
+            )
+            export_payload = export_preview.structuredContent or {}
+            if export_payload.get("entry_count") != 2 or export_payload.get("audit_receipt_created"):
+                raise AssertionError(f"Unexpected memory export preview: {export_payload}")
+
+            delete_preview = await session.call_tool(
+                "loki_preview_memory_delete",
+                {"args": {"guild_id": FIXTURE_GUILD_ID, "user_id": 424242424242424242, "limit": 5}},
+            )
+            delete_payload = delete_preview.structuredContent or {}
+            if delete_payload.get("would_delete_count") != 2 or delete_payload.get("deleted"):
+                raise AssertionError(f"Unexpected memory delete preview: {delete_payload}")
+
+            camelot_export = await session.call_tool(
+                "loki_export_camelot_records",
+                {"args": {"entity_type": "user", "status": "active", "limit": 5}},
+            )
+            camelot_payload = camelot_export.structuredContent or {}
+            if camelot_payload.get("record_count") != 1:
+                raise AssertionError(f"Unexpected Camelot export total: {camelot_payload.get('record_count')}")
 
             prompt = await session.get_prompt(
                 "loki_operator_brief",

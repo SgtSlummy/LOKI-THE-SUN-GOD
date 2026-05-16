@@ -42,6 +42,12 @@ LOKI THE SUN GOD should operate as an online Discord-first AGI-style system with
   - Import/export helpers enforce required fields, enums, list shapes, score bounds, and no-extra-properties.
   - Member public-memory snapshots can be converted into Camelot `user` records using only redacted public snippets.
   - Tests cover validation, secret/email redaction, upsert/get/export/import, and member snapshot conversion.
+- MCP read tools now expose safe knowledge-management previews:
+  - `loki_search_public_memory` searches redacted public NPC memory without source URLs.
+  - `loki_preview_memory_export` previews redacted member exports without audit rows or source URLs.
+  - `loki_preview_memory_delete` reports delete counts/ranges without mutating rows.
+  - `loki_export_camelot_records` exports read-only Camelot records through the MCP surface.
+  - The MCP smoke test seeds memory/Camelot fixtures and verifies these read-only tools stay non-mutating.
 
 ### Previously completed
 
@@ -89,7 +95,8 @@ Status: runtime foundation exists; member summary product surface is incomplete.
 Next slices:
 1. Add source-aware member profiles from public-memory snippets only. (partial: deterministic member snapshots can now be converted into Camelot `user` records.)
 2. Add Camelot record import/export table or adapter matching `docs/schemas/camelot-wing.schema.json`. (complete: `loki_camelot_records` and `loki_memory.camelot_records`.)
-3. Add MCP read tools for memory search/export/delete previews.
+3. Add MCP read tools for memory search/export/delete previews. (complete: read-only MCP tools expose redacted search, export/delete previews, and Camelot export.)
+4. Add operator/dashboard views for source-aware member profiles and Camelot exports.
 
 Acceptance:
 - Member summaries are deterministic without LLM when no provider is configured.

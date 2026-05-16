@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 from utils import db as shared_db
@@ -103,6 +104,91 @@ def seed_fixture(output_dir: Path) -> dict[str, str]:
                 (123456789012345678, "twitch", "lokilive", 888888888888888888, None, 1, 1711000000),
                 (123456789012345678, "youtube", "lokiclips", 999999999999999999, 121212121212121212, 0, 1711001000),
             ],
+        )
+        now = int(time.time())
+        conn.executemany(
+            """
+            INSERT INTO loki_memory_entries(guild_id, channel_id, user_id, redacted_content, confidence, created_at)
+            VALUES(?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    123456789012345678,
+                    444444444444444444,
+                    424242424242424242,
+                    "Solar DJ likes queue experiments and keeps tokens [secret].",
+                    0.7,
+                    now,
+                ),
+                (
+                    123456789012345678,
+                    555555555555555555,
+                    424242424242424242,
+                    "Solar DJ prefers redacted public memory exports.",
+                    0.6,
+                    now - 60,
+                ),
+            ],
+        )
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
+        camelot_payload = {
+            "id": "user-123456789012345678-424242424242424242",
+            "name": "Solar DJ",
+            "entity_type": "user",
+            "summary": "Deterministic public-memory profile for Solar DJ.",
+            "details": "Uses redacted public memory snippets only.",
+            "sources": ["loki_memory_entries:redacted_public_messages"],
+            "related_entities": ["guild:123456789012345678", "discord_user:424242424242424242"],
+            "tags": ["public-memory", "user"],
+            "retrieval_keywords": ["solar", "dj", "memory"],
+            "sector_links": ["Camelot Memory Palace", "Knowledge Management and Retrieval"],
+            "upgrade_relevance": 5,
+            "priority_score": 5,
+            "confidence_score": 7,
+            "risk_score": 2,
+            "status": "active",
+            "action_items": [],
+            "test_links": [],
+            "commit_links": [],
+            "created_at": timestamp,
+            "updated_at": timestamp,
+            "last_reviewed_at": timestamp,
+        }
+        conn.execute(
+            """
+            INSERT INTO loki_camelot_records(
+                id, name, entity_type, summary, details, sources_json, related_entities_json,
+                tags_json, retrieval_keywords_json, sector_links_json, upgrade_relevance,
+                priority_score, confidence_score, risk_score, status, action_items_json,
+                test_links_json, commit_links_json, created_at, updated_at, last_reviewed_at,
+                actor_id, payload_json
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                camelot_payload["id"],
+                camelot_payload["name"],
+                camelot_payload["entity_type"],
+                camelot_payload["summary"],
+                camelot_payload["details"],
+                json.dumps(camelot_payload["sources"], sort_keys=True),
+                json.dumps(camelot_payload["related_entities"], sort_keys=True),
+                json.dumps(camelot_payload["tags"], sort_keys=True),
+                json.dumps(camelot_payload["retrieval_keywords"], sort_keys=True),
+                json.dumps(camelot_payload["sector_links"], sort_keys=True),
+                camelot_payload["upgrade_relevance"],
+                camelot_payload["priority_score"],
+                camelot_payload["confidence_score"],
+                camelot_payload["risk_score"],
+                camelot_payload["status"],
+                json.dumps(camelot_payload["action_items"], sort_keys=True),
+                json.dumps(camelot_payload["test_links"], sort_keys=True),
+                json.dumps(camelot_payload["commit_links"], sort_keys=True),
+                camelot_payload["created_at"],
+                camelot_payload["updated_at"],
+                camelot_payload["last_reviewed_at"],
+                None,
+                json.dumps(camelot_payload, sort_keys=True),
+            ),
         )
         conn.commit()
     finally:
