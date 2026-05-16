@@ -4,11 +4,11 @@
 
 Railway production was redeployed and verified from this workspace on
 2026-05-16 from master commit
-`368aa9b178ca82d6a0a90388f332c50f68fd5cc6`. The active production services are:
+`daeaeba3c1dd02304591d9fb10999e2ea2a3fda5`. The active production services are:
 
 - Dashboard: `dashboard`, deployment `1121a8bc-1dcf-4004-a2ec-348a55be522d`,
   at `https://dashboard-production-9290.up.railway.app`
-- Worker: `worker`, deployment `17e7dd94-b490-4d89-a3a6-e1675326e099`
+- Worker: `worker`, deployment `ab099a75-c2e1-45e4-98fe-5fb93b98b723`
 - Activity Bridge: `activity-bridge`, deployment
   `6d43943e-87c0-4837-8d5d-64bf1f5e0a59`, at
   `https://activity-bridge-production.up.railway.app`
@@ -18,8 +18,10 @@ Railway production was redeployed and verified from this workspace on
 The hosted dashboard health check returned `ok: true`,
 `database_backend: postgres`, `database_ok: true`, and `oauth_ready: true`.
 The hosted Activity Bridge health check returned `ok: true` and
-`apiAuthConfigured: true`. GitHub CI completed successfully for the published
-commit.
+commit. The worker now rejects Spotify metadata links and unplayable Lavalink
+queries without phantom queueing; use a song/artist search, YouTube URL, or
+SoundCloud URL for live playback. GitHub CI completed successfully for the
+published runtime commit.
 
 Current highest-priority remaining item:
 
