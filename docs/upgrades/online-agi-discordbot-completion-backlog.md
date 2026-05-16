@@ -51,6 +51,10 @@ LOKI THE SUN GOD should operate as an online Discord-first AGI-style system with
   - `recent_public_memory_for_user(...)`
   - `member_memory_snapshot(...)`
 - Tests now cover dashboard-setting runtime enforcement, reset persistence, user-scoped memory snapshots, redaction, and bounds.
+- Audio intake and codec guardrail policy now exists for the first P3 media slice:
+  - `loki_music.audio_intake` classifies Lavalink, Spotify metadata, local files, Discord attachments, generated audio, DCA assets, and voice captures.
+  - `loki_music.codec_policy` distinguishes Discord Audio DCA from DTS/DCA and defines the Discord-safe Opus voice target.
+  - Tests cover every audio input kind and codec vocabulary guardrail.
 
 ## Remaining programming goals
 
@@ -102,14 +106,12 @@ Acceptance:
 
 ### P3 — Music/media high-fidelity package
 
-Status: Lavalink/Wavelink music is active; DCA/high-fidelity intake package is not implemented.
+Status: Lavalink/Wavelink music is active; first intake/codec policy guardrails now exist; optional capability probes and DCA asset tooling remain.
 
 Next slices:
-1. Add `loki_music/audio_intake.py` and tests for source classification.
-2. Add `loki_music/codec_policy.py` and tests distinguishing Discord DCA from DTS/DCA.
-3. Add `loki_music/audio_capabilities.py` and tests for optional FFmpeg/DCA availability.
-4. Add `loki_music/ffmpeg_tools.py` as optional probe/transcode wrapper.
-5. Add optional DCA asset helpers for pre-encoded short alert/soundboard clips.
+1. Add `loki_music/audio_capabilities.py` and tests for optional FFmpeg/DCA availability.
+2. Add `loki_music/ffmpeg_tools.py` as optional probe/transcode wrapper.
+3. Add optional DCA asset helpers for pre-encoded short alert/soundboard clips.
 
 Acceptance:
 - Lavalink remains the primary production streaming path.
