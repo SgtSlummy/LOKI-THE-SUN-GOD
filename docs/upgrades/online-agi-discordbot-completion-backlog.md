@@ -51,6 +51,7 @@ LOKI THE SUN GOD should operate as an online Discord-first AGI-style system with
 - Activity Bridge Discord integration now has a first safe command slice:
   - `/activity status` reads bridge health and room counts through `ActivityBridgeClient`.
   - `/activity room [room_id]` reads the current guild/channel room snapshot; explicit arbitrary room IDs require activity-management permissions.
+  - `/activity queue [media_url] [title]` reads the current room queue for non-admin users and lets authorized operators enqueue media through the bridge.
   - `/activity set-media`, `/activity pause`, `/activity play`, and `/activity next` route bridge controls through the shared client without blocking the bot event loop.
   - Mutating room controls are permission-gated through the existing create/manage-events/admin policy before any bridge write.
 
@@ -115,9 +116,9 @@ Status: hosted bridge exists; Discord cog integration is partial.
 
 Next slices:
 1. Wire `cogs/loki_activities.py` to `loki_activity_bridge.client.ActivityBridgeClient`. (partial: status, room snapshot, set-media, pause/play/next now use the shared client.)
-2. Add Discord commands for bridge health, room status, queue, set media, pause/play/next. (partial: queue inspection remains.)
-3. Keep mutating controls behind Manage Guild / Manage Events / Create Events permission gates. (complete for set-media/pause/play/next.)
-4. Add tests for missing bridge URL, wrong token, bridge health, room snapshots, and control failures. (partial: bridge client and cog tests cover missing URL, health/room reads, permission denial, request exception, and authorized controls.)
+2. Add Discord commands for bridge health, room status, queue, set media, pause/play/next. (complete for safe current-room queue read/add and basic controls.)
+3. Keep mutating controls behind Manage Guild / Manage Events / Create Events permission gates. (complete for queue-add/set-media/pause/play/next.)
+4. Add tests for missing bridge URL, wrong token, bridge health, room snapshots, and control failures. (partial: bridge client and cog tests cover missing URL, health/room/queue reads, permission denial, request exception, and authorized controls.)
 5. Add room heartbeat/stale cleanup and persistence adapter contract.
 
 Acceptance:

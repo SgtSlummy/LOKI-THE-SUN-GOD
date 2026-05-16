@@ -26,11 +26,28 @@ class FakeBridgeClient:
 
     def get_room(self, room_id):
         self.room_requests.append(room_id)
-        return {"ok": True, "room": {"id": room_id, "participants": [{"id": "u1"}], "state": {"playing": False}}}
+        return {
+            "ok": True,
+            "room": {
+                "id": room_id,
+                "participants": [{"id": "u1"}],
+                "state": {"playing": False},
+                "queue": [
+                    {"id": "q1", "title": "Opening Clip", "url": "https://media.example/opening.mp4"},
+                    {"id": "q2", "url": "https://media.example/second.mp4"},
+                ],
+            },
+        }
 
     def control(self, room_id, action, **payload):
         self.controls.append((room_id, action, payload))
         return {"ok": True, "message": "accepted", "room": {"id": room_id}}
+
+
+class FailingRoomBridgeClient(FakeBridgeClient):
+    def get_room(self, room_id):
+        self.room_requests.append(room_id)
+        return {"ok": False, "message": "token leaked details should not be shown"}
 
 
 class FakeCtx:
@@ -133,3 +150,76 @@ def test_activity_control_calls_bridge_for_authorized_operator():
             {"url": "https://media.example/video.mp4", "title": "Solar Room"},
         )
     ]
+
+
+def test_activity_queue_read_is_scoped_to_current_room_without_manage_permission():
+    bridge = FakeBridgeClient()
+    cog = LokiActivities(bot=object(), bridge_client=bridge)
+    ctx = FakeCtx(permissions=0)
+
+    asyncio.run(cog._send_room_queue(ctx))
+
+    content, kwargs = ctx.sent[-1]
+    assert kwargs.get("ephemeral") is True
+    assert "Queue for `123:456`" in content
+    assert "1. Opening Clip" in content
+    assert "2. https://media.example/second.mp4" in content
+    assert bridge.room_requests == ["123:456"]
+
+
+def test_activity_queue_add_requires_manage_permission_before_bridge_write():
+    bridge = FakeBridgeClient()
+    cog = LokiActivities(bot=object(), bridge_client=bridge)
+    ctx = FakeCtx(permissions=0)
+
+    asyncio.run(cog._send_room_queue(ctx, media_url="https://media.example/new.mp4", title="New Clip"))
+
+    content, kwargs = ctx.sent[-1]
+    assert kwargs.get("ephemeral") is True
+    assert "requires create-events, manage-events, or admin" in content
+    assert bridge.controls == []
+
+
+def test_activity_queue_add_calls_bridge_for_authorized_operator():
+    bridge = FakeBridgeClient()
+    cog = LokiActivities(bot=object(), bridge_client=bridge)
+    ctx = FakeCtx(permissions=MANAGE_EVENTS)
+
+    asyncio.run(cog._send_room_queue(ctx, media_url="https://media.example/new.mp4", title="New Clip"))
+
+    content, kwargs = ctx.sent[-1]
+    assert kwargs.get("ephemeral") is True
+    assert "Activity queue accepted" in content
+    assert bridge.controls == [
+        (
+            "123:456",
+            "queue",
+            {"url": "https://media.example/new.mp4", "title": "New Clip"},
+        )
+    ]
+
+
+def test_activity_queue_rejects_explicit_room_id_without_manage_permission():
+    bridge = FakeBridgeClient()
+    cog = LokiActivities(bot=object(), bridge_client=bridge)
+    ctx = FakeCtx(permissions=0)
+
+    asyncio.run(cog._send_room_queue(ctx, room_id="999:dashboard"))
+
+    content, kwargs = ctx.sent[-1]
+    assert kwargs.get("ephemeral") is True
+    assert "requires create-events, manage-events, or admin" in content
+    assert bridge.room_requests == []
+
+
+def test_activity_queue_reports_bridge_failure_without_internal_details():
+    bridge = FailingRoomBridgeClient()
+    cog = LokiActivities(bot=object(), bridge_client=bridge)
+    ctx = FakeCtx(permissions=0)
+
+    asyncio.run(cog._send_room_queue(ctx))
+
+    content, kwargs = ctx.sent[-1]
+    assert kwargs.get("ephemeral") is True
+    assert "Activity queue unavailable" in content
+    assert "token leaked" not in content

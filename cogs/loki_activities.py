@@ -114,10 +114,55 @@ class LokiActivities(commands.Cog):
         )
         await self._safe_reply(ctx, f"Activity control {status} for `{selected_room_id}`: {detail}")
 
+    async def _send_room_queue(
+        self,
+        ctx: commands.Context,
+        *,
+        media_url: str | None = None,
+        title: str | None = None,
+        room_id: str | None = None,
+    ) -> None:
+        selected_room_id = room_id or self._room_id_for_context(ctx)
+        if room_id:
+            decision = can_manage_activity(self._permission_context(ctx))
+            if not decision.allowed:
+                return await self._safe_reply(ctx, decision.reason)
+        if not selected_room_id:
+            return await self._safe_reply(ctx, "Activity queues require a server context.")
+        if media_url:
+            decision = can_manage_activity(self._permission_context(ctx))
+            if not decision.allowed:
+                return await self._safe_reply(ctx, decision.reason)
+            payload = await self._bridge_call("control", selected_room_id, "queue", url=media_url, title=title)
+            status = "accepted" if payload.get("ok") else "failed"
+            detail = (
+                "Bridge accepted the queue request."
+                if payload.get("ok")
+                else "Bridge rejected or failed the queue request."
+            )
+            return await self._safe_reply(ctx, f"Activity queue {status} for `{selected_room_id}`: {detail}")
+
+        payload = await self._bridge_call("get_room", selected_room_id)
+        if not payload.get("ok", False):
+            return await self._safe_reply(ctx, f"Activity queue unavailable for `{selected_room_id}`.")
+        room = payload.get("room") or {}
+        queue = room.get("queue") or []
+        if not queue:
+            return await self._safe_reply(ctx, f"Queue for `{selected_room_id}` is empty.")
+        lines = [f"Queue for `{selected_room_id}` ({len(queue)} item(s)):"]
+        for index, item in enumerate(queue[:10], start=1):
+            label = item.get("title") or item.get("url") or item.get("id") or "untitled item"
+            lines.append(f"{index}. {label}")
+        if len(queue) > 10:
+            lines.append(f"...and {len(queue) - 10} more item(s).")
+        return await self._safe_reply(ctx, "\n".join(lines))
+
     @commands.hybrid_group(name="activity", description="Manage LOKI activities and scheduled events")
     async def activity(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
-            await ctx.send("Use a subcommand: status, room, set-media, pause, play, next, create-event, or end-event.")
+            await ctx.send(
+                "Use a subcommand: status, room, queue, set-media, pause, play, next, create-event, or end-event."
+            )
 
     @activity.command(name="status", description="Show LOKI activity control status")
     async def activity_status(self, ctx: commands.Context):
@@ -128,6 +173,11 @@ class LokiActivities(commands.Cog):
     async def activity_room(self, ctx: commands.Context, room_id: str | None = None):
         await self._defer_if_possible(ctx)
         await self._send_room_status(ctx, room_id=room_id)
+
+    @activity.command(name="queue", description="Show or add to the current Activity Bridge queue")
+    async def activity_queue(self, ctx: commands.Context, media_url: str | None = None, *, title: str | None = None):
+        await self._defer_if_possible(ctx)
+        await self._send_room_queue(ctx, media_url=media_url, title=title)
 
     @activity.command(name="set-media", description="Set Activity Bridge room media")
     async def activity_set_media(self, ctx: commands.Context, media_url: str, *, title: str | None = None):
