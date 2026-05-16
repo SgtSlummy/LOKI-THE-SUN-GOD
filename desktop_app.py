@@ -800,6 +800,46 @@ def make_app(mgr: ServiceManager, cfg: dict) -> Flask:
     def loki_guild_channels(guild_id):
         return jsonify(operator_surface.channel_cluster_snapshot(guild_id))
 
+    @app.get("/api/loki/<int:guild_id>/memory/search")
+    def loki_guild_memory_search(guild_id):
+        return jsonify(
+            operator_surface.loki_memory_search(
+                guild_id=guild_id,
+                query=(request.args.get("q") or "").strip(),
+                user_id=_i(request.args.get("user_id")),
+                limit=_i(request.args.get("limit")) or 10,
+            )
+        )
+
+    @app.get("/api/loki/<int:guild_id>/memory/export-preview")
+    def loki_guild_memory_export_preview(guild_id):
+        return jsonify(
+            operator_surface.loki_memory_export_preview(
+                guild_id=guild_id,
+                user_id=_i(request.args.get("user_id")),
+                limit=_i(request.args.get("limit")) or 10,
+            )
+        )
+
+    @app.get("/api/loki/<int:guild_id>/memory/delete-preview")
+    def loki_guild_memory_delete_preview(guild_id):
+        return jsonify(
+            operator_surface.loki_memory_delete_preview(
+                guild_id=guild_id,
+                user_id=_i(request.args.get("user_id")),
+            )
+        )
+
+    @app.get("/api/loki/camelot/export")
+    def loki_camelot_export():
+        return jsonify(
+            operator_surface.loki_camelot_export(
+                entity_type=(request.args.get("entity_type") or "").strip(),
+                status=(request.args.get("status") or "").strip(),
+                limit=_i(request.args.get("limit")) or 10,
+            )
+        )
+
     @app.get("/api/loki/options")
     def loki_options():
         return jsonify(operator_surface.option_library())
@@ -1106,6 +1146,7 @@ iframe{border:0;background:#0c0d10}
           <button @click="jumpTo('loki-commands')" class="jump-btn"><i class="bi bi-terminal"></i> Command library</button>
           <button @click="jumpTo('loki-slash')" class="jump-btn"><i class="bi bi-slash-circle"></i> Slash commands</button>
           <button @click="jumpTo('loki-channels')" class="jump-btn"><i class="bi bi-diagram-3"></i> Channel explorer</button>
+          <button @click="jumpTo('loki-memory')" class="jump-btn"><i class="bi bi-shield-lock"></i> Memory previews</button>
           <button @click="jumpTo('loki-ai')" class="jump-btn"><i class="bi bi-cpu"></i> AI ops</button>
         </div>
       </div>
@@ -1350,6 +1391,99 @@ iframe{border:0;background:#0c0d10}
       </ul>
       <div class="card-actions">
         <button class="btn btn-ghost btn-sm" @click="openGuildPage('forms')"><i class="bi bi-box-arrow-up-right"></i> Edit forms</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="loki-memory" class="library-shell">
+    <div class="library-card">
+      <div class="library-head">
+        <div>
+          <div class="section-kicker">Memory previews</div>
+          <h3 class="section-heading mt-1">Read-only member memory inspector</h3>
+          <p class="mini-note mt-1">Search public NPC memory and preview member export/delete scopes without source URLs, raw secrets, audit receipts, or destructive writes.</p>
+        </div>
+        <span class="pill"><i class="bi bi-eye"></i> read-only</span>
+      </div>
+      <div class="px-4 pb-3 grid gap-3 md:grid-cols-[1fr_180px_auto] md:items-end">
+        <div>
+          <label class="field-label">Search query</label>
+          <input x-model="memoryQuery" type="text" class="in" placeholder="Search redacted public memory">
+        </div>
+        <div>
+          <label class="field-label">Member user ID</label>
+          <input x-model="memoryUserId" type="number" class="in" placeholder="optional">
+        </div>
+        <button class="btn btn-primary justify-center" @click="loadMemoryPreviews"><i class="bi bi-search"></i> Preview</button>
+      </div>
+      <div class="library-scroll space-y-3">
+        <div class="diagnostic-grid">
+          <div class="diagnostic-tile">
+            <div class="section-kicker">Search matches</div>
+            <div class="text-2xl font-semibold text-white mt-1" x-text="memorySearch.total || 0"></div>
+          </div>
+          <div class="diagnostic-tile">
+            <div class="section-kicker">Export entries</div>
+            <div class="text-2xl font-semibold text-mint mt-1" x-text="memoryExport.entry_count || 0"></div>
+          </div>
+          <div class="diagnostic-tile">
+            <div class="section-kicker">Would delete</div>
+            <div class="text-2xl font-semibold text-amber mt-1" x-text="memoryDelete.would_delete_count || 0"></div>
+          </div>
+        </div>
+        <template x-if="memoryStatus">
+          <div class="option-row text-sm text-slate-300" x-text="memoryStatus"></div>
+        </template>
+        <template x-if="!(memorySearch.entries || []).length">
+          <div class="empty-state">No redacted memory matches loaded yet.</div>
+        </template>
+        <template x-for="entry in (memorySearch.entries || [])" :key="entry.id">
+          <div class="option-row">
+            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span class="pill">User <span x-text="entry.user_id"></span></span>
+              <span class="pill">Channel <span x-text="entry.channel_id"></span></span>
+              <span class="pill">Confidence <span x-text="entry.confidence"></span></span>
+            </div>
+            <p class="text-sm text-slate-200 mt-3 whitespace-pre-wrap" x-text="entry.redacted_content"></p>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <div class="library-card">
+      <div class="library-head">
+        <div>
+          <div class="section-kicker">Camelot</div>
+          <h3 class="section-heading mt-1">Memory palace record export</h3>
+          <p class="mini-note mt-1">Browse Camelot-compatible wing records using the dashboard adapter for /api/loki/camelot/export.</p>
+        </div>
+        <span class="pill" x-text="camelotExport.schema_path || 'schema pending'"></span>
+      </div>
+      <div class="px-4 pb-3 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <div>
+          <label class="field-label">Entity type</label>
+          <input x-model="camelotEntityType" type="text" class="in" placeholder="user, bot, concept">
+        </div>
+        <div>
+          <label class="field-label">Status</label>
+          <input x-model="camelotStatus" type="text" class="in" placeholder="active">
+        </div>
+        <button class="btn btn-ghost justify-center" @click="loadCamelotExport"><i class="bi bi-archive"></i> Load Camelot</button>
+      </div>
+      <div class="library-scroll space-y-3">
+        <template x-if="!(camelotExport.records || []).length">
+          <div class="empty-state">No Camelot records match the current filter.</div>
+        </template>
+        <template x-for="record in (camelotExport.records || [])" :key="record.id">
+          <div class="option-row">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-white font-semibold" x-text="record.name || record.id"></span>
+              <span class="pill" x-text="record.entity_type"></span>
+              <span class="pill" x-text="record.status"></span>
+            </div>
+            <p class="text-sm text-slate-300 mt-2" x-text="record.summary"></p>
+          </div>
+        </template>
       </div>
     </div>
   </section>
@@ -1911,6 +2045,15 @@ function app() {
     channelLibrary: { clusters: [], total: 0, error: '' },
     channelSearch: '',
     expandedClusters: {},
+    memoryQuery: '',
+    memoryUserId: '',
+    memoryStatus: '',
+    memorySearch: { entries: [], total: 0 },
+    memoryExport: { entries: [], entry_count: 0 },
+    memoryDelete: { would_delete_count: 0 },
+    camelotEntityType: '',
+    camelotStatus: 'active',
+    camelotExport: { records: [], record_count: 0, schema_path: '' },
     aiDocs: [],
     aiDocSearch: '',
     ollama: { ollama_models: [], router_models: [], codex_settings: {} },
@@ -1945,6 +2088,7 @@ function app() {
       this.loadOptionLibrary();
       this.loadAiDocs();
       this.loadOllama();
+      this.loadCamelotExport();
       this.refreshDiagnostics();
       try { this.defaultOpen = localStorage.getItem('cc.defaultOpen') || 'window'; } catch(_){}
       this.$watch('defaultOpen', v => { try { localStorage.setItem('cc.defaultOpen', v); } catch(_){} });
@@ -2074,6 +2218,7 @@ function app() {
       };
       this.channelNames = d.channel_names || {};
       this.loadChannels();
+      this.memoryStatus = 'Choose a query or member user ID, then press Preview to load read-only memory data.';
     },
     async saveGuild() {
       this.saveStatus = 'Saving…';
@@ -2101,6 +2246,40 @@ function app() {
       const r = await fetch(`/api/loki/${this.guildId}/channels`); const d = await r.json();
       this.channelLibrary = d || { clusters: [], total: 0, error: '' };
       this.expandedClusters = Object.fromEntries((this.channelLibrary.clusters || []).map(c => [c.id, true]));
+    },
+    async loadMemoryPreviews() {
+      if (!this.guildId) return;
+      const userId = String(this.memoryUserId || '').trim();
+      const searchParams = new URLSearchParams({ q: this.memoryQuery || '', limit: '10' });
+      if (userId) searchParams.set('user_id', userId);
+      this.memoryStatus = 'Loading read-only previews…';
+      try {
+        const searchResponse = await fetch(`/api/loki/${this.guildId}/memory/search?${searchParams.toString()}`);
+        this.memorySearch = await searchResponse.json();
+        if (userId) {
+          const previewParams = new URLSearchParams({ user_id: userId, limit: '10' });
+          const [exportResponse, deleteResponse] = await Promise.all([
+            fetch(`/api/loki/${this.guildId}/memory/export-preview?${previewParams.toString()}`),
+            fetch(`/api/loki/${this.guildId}/memory/delete-preview?user_id=${encodeURIComponent(userId)}`),
+          ]);
+          this.memoryExport = await exportResponse.json();
+          this.memoryDelete = await deleteResponse.json();
+          this.memoryStatus = 'Preview loaded; no audit receipt created and no rows mutated.';
+        } else {
+          this.memoryExport = { entries: [], entry_count: 0 };
+          this.memoryDelete = { would_delete_count: 0 };
+          this.memoryStatus = 'Search loaded. Add a member user ID to preview export/delete scopes.';
+        }
+      } catch (e) {
+        this.memoryStatus = `Memory preview failed: ${e}`;
+      }
+    },
+    async loadCamelotExport() {
+      const params = new URLSearchParams({ limit: '10' });
+      if (this.camelotEntityType) params.set('entity_type', this.camelotEntityType);
+      if (this.camelotStatus) params.set('status', this.camelotStatus);
+      const r = await fetch(`/api/loki/camelot/export?${params.toString()}`);
+      this.camelotExport = await r.json();
     },
     async loadAiDocs() {
       const r = await fetch('/api/loki/ai-docs'); const d = await r.json();
