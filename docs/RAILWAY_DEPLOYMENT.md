@@ -17,7 +17,7 @@ Clean target services:
 | `Postgres` | Railway plugin | Postgres | managed by Railway |
 | `lavalink` | `lavalink/` | Dockerfile | image default |
 | `activity-bridge` | `services/activity-bridge` | Node | `npm run start` |
-| `activity-client` | `services/activity-bridge/client/dist` | static | static publish |
+| `activity-client` | `services/activity-bridge` | Node static | `npm run start:client` |
 
 Production AI should use OpenAI directly:
 
@@ -92,7 +92,7 @@ Discord Activity client:
 
 ```text
 npm run build
-# publish services/activity-bridge/client/dist as the static site
+npm run start:client
 ```
 
 The repo includes a `Procfile` with both process names for hosts that read Procfiles, but Railway should be configured as two services so the bot worker and dashboard can restart independently.

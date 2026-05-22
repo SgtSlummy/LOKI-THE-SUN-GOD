@@ -33,7 +33,7 @@ independently.
 | `Postgres` | Railway plugin | Postgres | managed by Railway |
 | `lavalink` | `lavalink/` | Dockerfile | image default |
 | `activity-bridge` | `services/activity-bridge` | Node | `npm run start` |
-| `activity-client` | `services/activity-bridge/client/dist` | static | static publish |
+| `activity-client` | `services/activity-bridge` | Node static | `npm run start:client` |
 
 Use `LOKI_START_COMMAND` per Python service so the same root config can run both
 the dashboard and worker:

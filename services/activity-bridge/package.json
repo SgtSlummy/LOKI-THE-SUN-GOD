@@ -16,7 +16,8 @@
     "typecheck": "node node_modules/typescript/bin/tsc -p shared/tsconfig.json && node node_modules/typescript/bin/tsc -p client/tsconfig.json --noEmit && node node_modules/typescript/bin/tsc -p server/tsconfig.json --noEmit",
     "test:rooms": "npm --workspace server run test:rooms",
     "register:commands": "npm --workspace server run register:commands",
-    "start": "node server/dist/index.js"
+    "start": "node server/dist/index.js",
+    "start:client": "node client-static-server.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
