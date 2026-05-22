@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 log = logging.getLogger("loki.wreckingball_cleanup")
 
 TRUTHY = {"1", "true", "yes", "on"}
-DEFAULT_ENABLED = True
+DEFAULT_ENABLED = False
 DEFAULT_CHANNEL_ID = 1499435617971343491
 DEFAULT_AUTHOR_ID = 983091121569804359
 DEFAULT_MAX_AGE_SECONDS = 180

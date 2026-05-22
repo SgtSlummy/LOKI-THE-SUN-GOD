@@ -28,6 +28,14 @@ def test_slash_command_sync_can_be_disabled_by_operator(monkeypatch, tmp_path):
     assert bot_module.should_sync_slash_commands() is False
 
 
+def test_appcmd_polish_respects_slash_sync_operator_gate(monkeypatch):
+    from cogs.appcmd_polish import slash_sync_enabled
+
+    monkeypatch.setenv("LOKI_ENABLE_SLASH_SYNC", "false")
+
+    assert slash_sync_enabled() is False
+
+
 def test_presence_prompts_members_to_talk_or_use_slash_commands(monkeypatch, tmp_path):
     bot_module = reload_bot(monkeypatch, tmp_path, PREFIX="!")
 

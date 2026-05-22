@@ -32,8 +32,37 @@ independently.
 | `worker` | repo root | Python/Nixpacks | `python -m bot` |
 | `Postgres` | Railway plugin | Postgres | managed by Railway |
 | `lavalink` | `lavalink/` | Dockerfile | image default |
-| `activity-bridge` | `services/activity-bridge` | Node | `npm run start` |
-| `activity-client` | `services/activity-bridge` | Node static | `npm run start:client` |
+| `activity-bridge` | `services/activity-bridge` | Node | `LOKI_ACTIVITY_SERVICE_ROLE=bridge` |
+| `activity-client` | `services/activity-bridge` | Node static | `LOKI_ACTIVITY_SERVICE_ROLE=client` |
+
+## Current Railway Deployment
+
+As of May 22, 2026, the clean revival deployment is:
+
+```text
+Project: LOKI THE SUN GOD REVIVAL
+Project ID: 5b5a664a-926e-4971-b90b-73bd6187127a
+dashboard: https://dashboard-production-3d2a.up.railway.app
+activity-bridge: https://activity-bridge-production.up.railway.app
+activity-client: https://activity-client-production.up.railway.app
+lavalink: https://lavalink-production-5b27.up.railway.app
+```
+
+The production services were verified `SUCCESS/RUNNING` with:
+
+- Dashboard `GET /healthz`: `ok=true`, `database_backend=postgres`,
+  `database_ok=true`, `oauth_ready=true`.
+- Activity Bridge `GET /healthz`: `ok=true`, API auth configured, bridge-side
+  controls disabled.
+- Activity client `GET /healthz`: `ok=true`, serving `client/dist`; `/` returns
+  the Discord Activity Stream Control page.
+- Lavalink logs: version 4.2.2 ready on Railway `PORT`.
+- Worker logs: logged in as `LOKI THE SUN GOD`, natural-language slash sync
+  disabled, song mirror and Wreckingball cleanup disabled until live review.
+
+Direct OpenAI is configured by base URL/model, but `OPENAI_API_KEY` is not set
+in Railway yet. Set the real secret on both `dashboard` and `worker`, then
+redeploy or restart those services before accepting `/ask`.
 
 Use `LOKI_START_COMMAND` per Python service so the same root config can run both
 the dashboard and worker:
@@ -42,6 +71,10 @@ the dashboard and worker:
 dashboard LOKI_START_COMMAND=gunicorn dashboard_app:app --bind 0.0.0.0:${PORT:-8080}
 worker    LOKI_START_COMMAND=python -m bot
 ```
+
+The root `nixpacks.toml` evaluates `LOKI_START_COMMAND` inside the startup
+shell so Railway's `PORT` expands at runtime. Keep this variable restricted to
+trusted operators.
 
 ## Production Variables
 
@@ -95,6 +128,7 @@ LAVALINK_SERVER_PASSWORD=<shared Lavalink password>
 Set these on `activity-bridge`:
 
 ```text
+LOKI_ACTIVITY_SERVICE_ROLE=bridge
 ACTIVITY_BRIDGE_TOKEN=<same shared bridge secret>
 DISCORD_CLIENT_ID
 DISCORD_CLIENT_SECRET
@@ -114,6 +148,7 @@ TWITCH_ACCESS_TOKEN
 Set only public build-time values on `activity-client`:
 
 ```text
+LOKI_ACTIVITY_SERVICE_ROLE=client
 VITE_DISCORD_CLIENT_ID=<discord application/client id>
 VITE_SERVER_ORIGIN=https://<activity-bridge-domain>
 VITE_WS_ORIGIN=wss://<activity-bridge-domain>

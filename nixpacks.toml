@@ -9,4 +9,4 @@ cmds = ["echo 'Skipping Nixpacks auto-detected build phase for Python services'"
 
 [start]
 # LOKI_START_COMMAND is an operator-only Railway variable; see docs/PROCESS_AND_CONNECTIONS.md.
-cmd = "sh -c '. /opt/venv/bin/activate && ${LOKI_START_COMMAND:-gunicorn dashboard_app:app --bind 0.0.0.0:${PORT:-8080}}'"
+cmd = "sh -c '. /opt/venv/bin/activate && eval \"${LOKI_START_COMMAND:-gunicorn dashboard_app:app --bind 0.0.0.0:${PORT:-8080}}\"'"

@@ -12,6 +12,7 @@ Reference: https://docs.discord.com/developers/interactions/application-commands
 from __future__ import annotations
 
 import logging
+import os
 
 import discord
 from discord import app_commands
@@ -20,6 +21,11 @@ from discord.ext import commands
 from utils.embeds import warn
 
 log = logging.getLogger("loki.appcmd_polish")
+TRUTHY = {"1", "true", "yes", "on"}
+
+
+def slash_sync_enabled() -> bool:
+    return os.getenv("LOKI_ENABLE_SLASH_SYNC", "true").lower() in TRUTHY
 
 
 # ─── Localization tables ─────────────────────────────────────────────────
@@ -134,6 +140,10 @@ class AppCmdPolish(commands.Cog):
 
     async def _apply(self):
         log.info("appcmd_polish: running _apply()…")
+        if not slash_sync_enabled():
+            log.info("appcmd_polish: slash sync disabled; skipping command polish")
+            return
+
         tree = self.bot.tree
         patched = 0
         for cmd in list(tree.walk_commands()):
@@ -164,11 +174,9 @@ class AppCmdPolish(commands.Cog):
                     pass
             patched += 1
 
-        # Re-sync to push the new attrs to Discord
+        # Re-sync to push the new attrs to Discord.
         try:
-            from os import getenv
-
-            tg = getenv("TEST_GUILD_ID")
+            tg = os.getenv("TEST_GUILD_ID")
             if tg and tg.isdigit():
                 guild = discord.Object(id=int(tg))
                 synced = await tree.sync(guild=guild)

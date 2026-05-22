@@ -16,8 +16,8 @@ Clean target services:
 | `worker` | repo root | Python/Nixpacks | `python -m bot` |
 | `Postgres` | Railway plugin | Postgres | managed by Railway |
 | `lavalink` | `lavalink/` | Dockerfile | image default |
-| `activity-bridge` | `services/activity-bridge` | Node | `npm run start` |
-| `activity-client` | `services/activity-bridge` | Node static | `npm run start:client` |
+| `activity-bridge` | `services/activity-bridge` | Node | `LOKI_ACTIVITY_SERVICE_ROLE=bridge` |
+| `activity-client` | `services/activity-bridge` | Node static | `LOKI_ACTIVITY_SERVICE_ROLE=client` |
 
 Production AI should use OpenAI directly:
 
@@ -182,6 +182,7 @@ in `VITE_*` variables or client-side Activity bundles.
 Set these on the Activity bridge service:
 
 ```text
+LOKI_ACTIVITY_SERVICE_ROLE=bridge
 ACTIVITY_BRIDGE_TOKEN=<shared secret>
 DISCORD_CLIENT_ID
 DISCORD_CLIENT_SECRET
@@ -203,6 +204,7 @@ safe public client values and must not include bot tokens, bridge tokens,
 client secrets, Twitch tokens, or OBS passwords:
 
 ```text
+LOKI_ACTIVITY_SERVICE_ROLE=client
 VITE_DISCORD_CLIENT_ID=<discord application/client id>
 VITE_SERVER_ORIGIN=https://<activity-bridge-domain>
 VITE_WS_ORIGIN=wss://<activity-bridge-domain>
