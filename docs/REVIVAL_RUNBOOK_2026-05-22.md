@@ -58,7 +58,8 @@ The production services were verified `SUCCESS/RUNNING` with:
   the Discord Activity Stream Control page.
 - Lavalink logs: version 4.2.2 ready on Railway `PORT`.
 - Worker logs: logged in as `LOKI THE SUN GOD`, natural-language slash sync
-  disabled, song mirror and Wreckingball cleanup disabled until live review.
+  disabled, song mirror and Diva/Wreckingball cleanup disabled until live
+  review.
 
 Direct OpenAI is configured by base URL/model, but `OPENAI_API_KEY` is not set
 in Railway yet. Set the real secret on both `dashboard` and `worker`, then
@@ -116,8 +117,8 @@ LOKI_ENABLE_SLASH_SYNC=false
 LOKI_NPC_ENABLED=false
 ```
 
-Enable `LOKI_NPC_ENABLED`, relay, song mirror, jukebox, and Wreckingball cleanup
-only after live Discord channel IDs and permissions have been verified.
+Enable `LOKI_NPC_ENABLED`, relay, song mirror, jukebox, and Diva/Wreckingball
+cleanup only after live Discord channel IDs and permissions have been verified.
 
 Set these on `lavalink`:
 
@@ -245,8 +246,8 @@ Run these manually in the production Discord server:
 5. NPC memory respects channel allowlist and opt-out settings.
 6. Music queues and plays through Lavalink from a voice channel.
 7. Dashboard Activity Control can reach Activity Bridge and update a room.
-8. Relay, song mirror, and Wreckingball cleanup are enabled only after channel
-   IDs and bot permissions are verified.
+8. Relay, song mirror, and Diva/Wreckingball cleanup are enabled only after
+   channel IDs and bot permissions are verified.
 
 ## Rollback
 

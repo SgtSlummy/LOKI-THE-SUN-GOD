@@ -287,7 +287,7 @@ def select_wreckingball_cleanup_messages(
 
 
 class WreckingballCleanup(commands.Cog):
-    """Keep Wreckingball app output from piling up in the configured channel."""
+    """Keep Diva/Wreckingball app output from piling up in the configured channel."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
