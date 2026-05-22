@@ -13,6 +13,7 @@ __pycache__/
 build/
 dist/
 _tmp/
+_tools/
 awesome-codex-skills/
 winui/**/bin/
 winui/**/obj/
