@@ -195,6 +195,9 @@ start only. The shared worker lease and outbound post guard still run.
 
 - Live Discord channel inspection requires `DISCORD_TOKEN`.
 - Local-model status reads `OLLAMA_HOST` and defaults to `http://127.0.0.1:11434`.
+- Start local music playback support with `start_lavalink_local.bat`; it downloads a
+  portable Java 17 runtime and Lavalink jar under ignored `_tools/` if needed, then
+  starts Lavalink on `http://127.0.0.1:2333` using `LAVALINK_PASSWORD` from `.env`.
 - The dashboard prefers `qwen2.5-coder:7b`, then `llama3.1:8b`, then `llama3.2:3b`, then the first installed Ollama model.
 - Save "Local-first model routing" from AI and Router Settings to write `local-default -> ollama-local/<model>` into 9router.
 - Save `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `LOKI_LLM_MODEL` in AI and Router Settings to enable the admin-gated Discord `/ask` command.

@@ -22,6 +22,8 @@ data/*.db
 data/*.db-*
 data/*.log
 data/*.md
+lavalink/logs/
+lavalink/plugins/
 desktop_runtime.log
 dashboard-dev.log
 desktop_config.json
