@@ -1,5 +1,28 @@
 # LOKI Process and Connections
 
+## 2026-05-22 Revival Update
+
+The active implementation target is a clean Railway recreation with full stack
+services: dashboard, worker, Postgres, Lavalink, Activity Bridge, and static
+Activity client. The May 13 production state below is retained as historical
+handoff evidence, not as the target service inventory.
+
+Use these current docs first:
+
+- [REVIVAL_RUNBOOK_2026-05-22.md](REVIVAL_RUNBOOK_2026-05-22.md)
+- [PROJECT_INVENTORY_2026-05-22.md](PROJECT_INVENTORY_2026-05-22.md)
+- [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)
+
+Production AI routing is direct OpenAI by default:
+
+```text
+OPENAI_BASE_URL=https://api.openai.com/v1
+LOKI_LLM_MODEL=gpt-5.5
+```
+
+The local 9router/Ollama route remains a fallback/operator mode and should not
+be required for Railway startup.
+
 This is the operator handoff for the 2026-05-13 review and Railway production
 deployment pass.
 

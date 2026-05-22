@@ -545,6 +545,20 @@ def connect_loki():
     return redirect(url_for("guilds"))
 
 
+@app.route("/dev/connect-loki-ai")
+def connect_loki_ai():
+    if not is_local_request():
+        flash("Local LOKI THE SUN GOD bridge is only available from this machine.", "danger")
+        return redirect(url_for("index"))
+    guilds = local_loki_guilds()
+    if not guilds:
+        flash("No LOKI THE SUN GOD guild data found in the local database.", "danger")
+        return redirect(url_for("index"))
+    _store_dashboard_session({"id": "local-loki-admin", "username": "Local LOKI THE SUN GOD Admin"}, guilds)
+    flash("Connected dashboard to local AI/router operations.", "success")
+    return redirect(url_for("ai_ops"))
+
+
 @app.route("/guilds")
 @login_required
 def guilds():
@@ -707,6 +721,26 @@ def ai_ops_save_router():
             updates[field] = secret_value
     operator_surface.save_router_runtime_env(updates)
     flash("9router runtime settings saved.", "success")
+    return redirect(url_for("ai_ops"))
+
+
+@app.route("/ops/ai/router/action", methods=["POST"])
+@login_required
+@ops_admin_required
+def ai_ops_router_action():
+    action = (request.form.get("action") or "").strip().lower()
+    if action == "start":
+        result = operator_surface.start_9router_service()
+    elif action == "stop":
+        result = operator_surface.stop_9router_service()
+    elif action == "restart":
+        result = operator_surface.restart_9router_service()
+    elif action == "reset-password":
+        result = operator_surface.reset_9router_password()
+    else:
+        result = {"ok": False, "message": "Unknown 9Router action."}
+
+    flash(result["message"], "success" if result["ok"] else "danger")
     return redirect(url_for("ai_ops"))
 
 

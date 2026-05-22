@@ -11,6 +11,7 @@ EXCLUDED_DIRS = {
     "__pycache__",
     ".pytest_cache",
     ".ruff_cache",
+    "_tmp",
     "node_modules",
     "dist",
     "build",

@@ -1115,6 +1115,7 @@ class Relay(commands.Cog):
             if not content:
                 continue
             filename = self._preview_filename(preview.image_url, preview.title)
+            preview_embeds[index] = discord.Embed(color=0x5865F2, url=preview.url)
             preview_embeds[index].set_image(url=f"attachment://{filename}")
             return PreviewFileSpec(source_url=preview.image_url, filename=filename, content=content)
         return None

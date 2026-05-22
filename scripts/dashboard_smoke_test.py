@@ -194,6 +194,9 @@ def main() -> int:
             if not dashboard_session_id:
                 raise AssertionError("Dashboard local connect did not create a server-side session id.")
         _assert_server_side_dashboard_session(client, str(dashboard_session_id))
+        ai_connect = client.get("/dev/connect-loki-ai", follow_redirects=False)
+        if ai_connect.status_code not in (302, 303):
+            raise AssertionError(f"Local AI connect returned {ai_connect.status_code}")
         _login(client)
 
         for path in (
@@ -270,6 +273,7 @@ def main() -> int:
                 "OBSERVABILITY_ENABLED": "on",
             },
         )
+        _post_ok(client, "/ops/ai/router/action", {"action": "unknown"})
         _post_ok(
             client,
             "/ops/ai/memory/save",

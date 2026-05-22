@@ -15,11 +15,19 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 
+from utils.link_previews import (
+    LinkPreview,
+    extract_music_artists,
+    extract_urls,
+    is_safe_preview_url,
+    resolve_link_previews,
+)
+
 log = logging.getLogger("loki.song_requests_pin_mirror")
 
 TRUTHY = {"1", "true", "yes", "on"}
 IS_COMPONENTS_V2 = 1 << 15
-DEFAULT_ENABLED = False
+DEFAULT_ENABLED = True
 DEFAULT_GUILD_ID = 1463393482306486387
 DEFAULT_SOURCE_CHANNEL_ID = 1503116743793574009
 DEFAULT_SOURCE_MESSAGE_ID = 0
@@ -30,8 +38,12 @@ DEFAULT_TARGET_HISTORY_LIMIT = 50
 DEFAULT_COMMAND_CLEANUP_AGE_SECONDS = 60
 DEFAULT_COMMAND_PREFIXES = ("/", "!", ".", "?", "$", "-")
 DEFAULT_FORWARD_SOURCE_MESSAGE = False
+DEFAULT_FORWARD_ALL_SOURCE_MESSAGES = True
 API_BASE = "https://discord.com/api/v10"
 MESSAGE_REFERENCE_TYPE_FORWARD = 1
+SONG_FORWARD_MARKER_PREFIX = "LOKI song-request source"
+SONG_QUEUE_EMBED_COLOR = 0xF6C244
+MAX_SONG_QUEUE_EMBEDS = 5
 URL_RE = re.compile(r"https?://[^\s<>)\]]+")
 
 
@@ -86,6 +98,7 @@ class SongRequestsPinMirrorConfig:
     target_history_limit: int = DEFAULT_TARGET_HISTORY_LIMIT
     command_cleanup_age_seconds: int = DEFAULT_COMMAND_CLEANUP_AGE_SECONDS
     command_prefixes: tuple[str, ...] = DEFAULT_COMMAND_PREFIXES
+    forward_all_source_messages: bool = DEFAULT_FORWARD_ALL_SOURCE_MESSAGES
 
     @classmethod
     def from_env(cls) -> SongRequestsPinMirrorConfig:
@@ -111,6 +124,10 @@ class SongRequestsPinMirrorConfig:
             forward_source_message=_env_bool(
                 "SONG_REQUESTS_PIN_MIRROR_FORWARD_SOURCE_MESSAGE",
                 DEFAULT_FORWARD_SOURCE_MESSAGE,
+            ),
+            forward_all_source_messages=_env_bool(
+                "SONG_REQUESTS_PIN_MIRROR_FORWARD_ALL_MESSAGES",
+                DEFAULT_FORWARD_ALL_SOURCE_MESSAGES,
             ),
             refresh_seconds=LOOP_INTERVAL_SECONDS,
             source_history_limit=_env_int(
@@ -178,6 +195,30 @@ def message_age_seconds(message: dict[str, Any], now: datetime) -> float:
     else:
         now = now.astimezone(timezone.utc)
     return max(0.0, (now - created_at).total_seconds())
+
+
+def _visible_text(value: str | None, *, fallback: str = "", limit: int = 256) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if not text:
+        text = fallback
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def _dedupe_values(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = value.strip()
+        if not normalized:
+            continue
+        key = normalized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return deduped
 
 
 def _component_id(component: dict[str, Any]) -> dict[str, int]:
@@ -401,11 +442,18 @@ def mirror_payload_from_source(source_message: dict[str, Any], *, include_flags:
 def forward_payload_from_source(
     source_message: dict[str, Any],
     config: SongRequestsPinMirrorConfig,
+    *,
+    embeds: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     source_message_id = _message_id(source_message)
     if source_message_id is None:
         return None
-    return {
+    if embeds:
+        return {
+            "embeds": embeds[:10],
+            "allowed_mentions": {"parse": []},
+        }
+    payload: dict[str, Any] = {
         "message_reference": {
             "type": MESSAGE_REFERENCE_TYPE_FORWARD,
             "guild_id": str(config.guild_id),
@@ -414,6 +462,7 @@ def forward_payload_from_source(
         },
         "allowed_mentions": {"parse": []},
     }
+    return payload
 
 
 def mirror_fingerprint(source_message: dict[str, Any]) -> str:
@@ -452,6 +501,178 @@ def forward_fingerprint(message: dict[str, Any]) -> str:
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def source_forward_marker(source_message: dict[str, Any], config: SongRequestsPinMirrorConfig) -> str:
+    source_message_id = _message_id(source_message)
+    if source_message_id is None:
+        return f"{SONG_FORWARD_MARKER_PREFIX} {config.guild_id}:{config.source_channel_id}:unknown"
+    return f"{SONG_FORWARD_MARKER_PREFIX} {config.guild_id}:{config.source_channel_id}:{source_message_id}"
+
+
+def _payload_contains_text(payload: Any, needle: str) -> bool:
+    if not needle:
+        return False
+    if isinstance(payload, str):
+        return needle in payload
+    if isinstance(payload, dict):
+        return any(_payload_contains_text(value, needle) for value in payload.values())
+    if isinstance(payload, list | tuple):
+        return any(_payload_contains_text(value, needle) for value in payload)
+    return False
+
+
+def source_message_already_forwarded(
+    source_message: dict[str, Any],
+    target_messages: list[dict[str, Any]],
+    config: SongRequestsPinMirrorConfig,
+) -> bool:
+    marker = source_forward_marker(source_message, config)
+    if any(_payload_contains_text(message, marker) for message in target_messages):
+        return True
+
+    source_fingerprint = forward_fingerprint(source_message)
+    return any(
+        bool(message.get("message_snapshots")) and forward_fingerprint(message) == source_fingerprint
+        for message in target_messages
+    )
+
+
+def source_urls_from_message(source_message: dict[str, Any]) -> list[str]:
+    text_values: list[str] = [str(source_message.get("content") or "")]
+    text_values.extend(_iter_component_text_content(source_message.get("components")))
+
+    for embed in source_message.get("embeds") or []:
+        if not isinstance(embed, dict):
+            continue
+        for key in ("title", "description", "url"):
+            if embed.get(key):
+                text_values.append(str(embed[key]))
+        for field in embed.get("fields") or []:
+            if isinstance(field, dict):
+                text_values.append(str(field.get("name") or ""))
+                text_values.append(str(field.get("value") or ""))
+
+    urls: list[str] = []
+    for text in text_values:
+        urls.extend(extract_urls(text))
+    return _dedupe_values(urls)
+
+
+def _safe_preview_url(value: Any) -> str | None:
+    url = str(value or "").strip()
+    return url if url and is_safe_preview_url(url) else None
+
+
+def _embed_media_url(embed: dict[str, Any]) -> str | None:
+    for key in ("image", "thumbnail"):
+        media = embed.get(key)
+        if isinstance(media, dict):
+            media_url = _safe_preview_url(media.get("url"))
+            if media_url:
+                return media_url
+    return None
+
+
+def _source_embed_preview(embed: dict[str, Any]) -> LinkPreview | None:
+    media_url = _embed_media_url(embed)
+    preview_url = _safe_preview_url(embed.get("url")) or media_url
+    title = str(embed.get("title") or "")
+    description = str(embed.get("description") or "")
+    provider = embed.get("provider") if isinstance(embed.get("provider"), dict) else {}
+    author = embed.get("author") if isinstance(embed.get("author"), dict) else {}
+    site_name = str(provider.get("name") or author.get("name") or "")
+
+    if not preview_url or (not title and not description and not media_url):
+        return None
+
+    return LinkPreview(
+        url=preview_url,
+        title=title or site_name or _visible_text(preview_url, limit=256),
+        description=description,
+        image_url=media_url,
+        site_name=site_name or None,
+    )
+
+
+def source_embed_previews(source_message: dict[str, Any]) -> list[LinkPreview]:
+    previews: list[LinkPreview] = []
+    for embed in source_message.get("embeds") or []:
+        if not isinstance(embed, dict):
+            continue
+        preview = _source_embed_preview(embed)
+        if preview is not None:
+            previews.append(preview)
+    return previews
+
+
+def _merge_previews(*preview_groups: list[LinkPreview]) -> list[LinkPreview]:
+    merged: list[LinkPreview] = []
+    seen: set[str] = set()
+    for previews in preview_groups:
+        for preview in previews:
+            key = preview.url.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(preview)
+            if len(merged) >= MAX_SONG_QUEUE_EMBEDS:
+                return merged
+    return merged
+
+
+def song_queue_embed_payloads(
+    previews: list[LinkPreview],
+    *,
+    source_marker: str,
+) -> list[dict[str, Any]]:
+    embeds: list[dict[str, Any]] = []
+    for preview in previews[:MAX_SONG_QUEUE_EMBEDS]:
+        site_name = _visible_text(preview.site_name or preview.display_name, fallback=preview.display_name, limit=256)
+        artist = _visible_text(extract_music_artists(preview), fallback="", limit=1024)
+        description = _visible_text(preview.description, fallback="", limit=4096)
+        embed: dict[str, Any] = {
+            "title": _visible_text(preview.title, fallback=preview.display_name, limit=256),
+            "url": preview.url,
+            "color": SONG_QUEUE_EMBED_COLOR,
+            "footer": {"text": source_marker},
+        }
+        if description:
+            embed["description"] = description
+        if site_name:
+            embed["author"] = {"name": site_name}
+        fields: list[dict[str, Any]] = []
+        if artist:
+            fields.append({"name": "Artist", "value": artist, "inline": True})
+        if site_name:
+            fields.append({"name": "Source", "value": site_name, "inline": True})
+        if fields:
+            embed["fields"] = fields
+        if preview.image_url:
+            embed["thumbnail"] = {"url": preview.image_url}
+        embeds.append(embed)
+    return embeds
+
+
+def fallback_song_queue_embed_payload(
+    source_message: dict[str, Any],
+    *,
+    source_marker: str,
+) -> dict[str, Any]:
+    description_parts: list[str] = []
+    content = str(source_message.get("content") or "").strip()
+    if content:
+        description_parts.append(content)
+    for text in _iter_component_text_content(source_message.get("components")):
+        if text:
+            description_parts.append(text)
+    description = "\n\n".join(description_parts).strip() or "Forwarded dashboard song post."
+    return {
+        "title": "Queued song",
+        "description": description[:4096],
+        "color": SONG_QUEUE_EMBED_COLOR,
+        "footer": {"text": source_marker},
+    }
 
 
 def is_command_cleanup_candidate(
@@ -532,8 +753,8 @@ class SongRequestsPinMirror(commands.Cog):
         if not self.config.enabled or self._sync_lock.locked():
             return
         async with self._sync_lock:
-            source_message = await self._latest_source_message()
-            if source_message is None:
+            source_messages = await self._source_messages()
+            if not source_messages:
                 log.info(
                     "No source song-request message found in channel %s during %s",
                     self.config.source_channel_id,
@@ -542,6 +763,8 @@ class SongRequestsPinMirror(commands.Cog):
                 await self._cleanup_target_commands(reason=reason)
                 return
 
+            await self._forward_missing_source_messages(source_messages, reason=reason)
+            source_message = source_messages[-1]
             managed_message = await self._find_managed_message()
             if managed_message is None:
                 managed_message = await self._create_managed_message(source_message, reason=reason)
@@ -606,7 +829,17 @@ class SongRequestsPinMirror(commands.Cog):
             self._bot_user_id = None
         return self._bot_user_id
 
+    def _forward_all_source_messages_enabled(self) -> bool:
+        return bool(getattr(self.config, "forward_all_source_messages", DEFAULT_FORWARD_ALL_SOURCE_MESSAGES))
+
+    def _pin_should_forward_source_message(self) -> bool:
+        return bool(self.config.forward_source_message and not self._forward_all_source_messages_enabled())
+
     async def _latest_source_message(self) -> dict[str, Any] | None:
+        messages = await self._source_messages()
+        return messages[-1] if messages else None
+
+    async def _source_messages(self) -> list[dict[str, Any]]:
         if self.config.source_message_id:
             try:
                 message = await self._api_request(
@@ -620,21 +853,94 @@ class SongRequestsPinMirror(commands.Cog):
                     self.config.source_channel_id,
                     exc,
                 )
-                return None
-            return message if isinstance(message, dict) else None
+                return []
+            return [message] if isinstance(message, dict) else []
 
         messages = await self._api_request(
             "GET",
             f"/channels/{self.config.source_channel_id}/messages?limit={self.config.source_history_limit}",
         )
         if not isinstance(messages, list):
-            return None
+            return []
+        source_messages: list[dict[str, Any]] = []
         for message in messages:
             if isinstance(message, dict) and (
                 message.get("components") or message.get("content") or message.get("embeds")
             ):
-                return message
-        return None
+                source_messages.append(message)
+        return list(reversed(source_messages))
+
+    async def _target_history_messages(self) -> list[dict[str, Any]]:
+        try:
+            messages = await self._api_request(
+                "GET",
+                f"/channels/{self.config.target_channel_id}/messages?limit={self.config.target_history_limit}",
+            )
+        except DiscordAPIError as exc:
+            log.warning("Could not read target channel history for song-request forwards: %s", exc)
+            return []
+        return [message for message in messages if isinstance(message, dict)] if isinstance(messages, list) else []
+
+    async def _forward_missing_source_messages(
+        self,
+        source_messages: list[dict[str, Any]],
+        *,
+        reason: str,
+    ) -> None:
+        if not self._forward_all_source_messages_enabled():
+            return
+        target_messages = await self._target_history_messages()
+        for source_message in source_messages:
+            if _message_id(source_message) is None:
+                continue
+            if source_message_already_forwarded(source_message, target_messages, self.config):
+                continue
+            forwarded = await self._create_forwarded_source_message(source_message, reason=reason)
+            if forwarded is not None:
+                target_messages.insert(0, forwarded)
+
+    async def _song_queue_embeds_for_source_message(self, source_message: dict[str, Any]) -> list[dict[str, Any]]:
+        marker = source_forward_marker(source_message, self.config)
+        source_previews = source_embed_previews(source_message)
+        preview_urls = {preview.url.casefold() for preview in source_previews}
+        urls = [url for url in source_urls_from_message(source_message) if url.casefold() not in preview_urls]
+        resolved_previews = await resolve_link_previews(urls)
+        embeds = song_queue_embed_payloads(
+            _merge_previews(source_previews, resolved_previews),
+            source_marker=marker,
+        )
+        return embeds or [fallback_song_queue_embed_payload(source_message, source_marker=marker)]
+
+    async def _create_forwarded_source_message(
+        self,
+        source_message: dict[str, Any],
+        *,
+        reason: str,
+    ) -> dict[str, Any] | None:
+        payload = forward_payload_from_source(
+            source_message,
+            self.config,
+            embeds=await self._song_queue_embeds_for_source_message(source_message),
+        )
+        if payload is None:
+            return None
+        try:
+            message = await self._api_request(
+                "POST",
+                f"/channels/{self.config.target_channel_id}/messages",
+                payload=payload,
+                audit_reason=f"LOKI THE SUN GOD song request forward: {reason}",
+            )
+        except DiscordAPIError as exc:
+            log.warning(
+                "Could not forward dashboard song-request source %s into %s: %s",
+                _message_id(source_message),
+                self.config.target_channel_id,
+                exc,
+            )
+            return None
+        log.info("Forwarded dashboard song-request source %s via %s", _message_id(source_message), reason)
+        return message if isinstance(message, dict) else None
 
     async def _find_managed_message(self) -> dict[str, Any] | None:
         bot_user_id = await self._bot_id()
@@ -664,7 +970,7 @@ class SongRequestsPinMirror(commands.Cog):
         return None
 
     async def _create_managed_message(self, source_message: dict[str, Any], *, reason: str) -> dict[str, Any] | None:
-        if self.config.forward_source_message:
+        if self._pin_should_forward_source_message():
             forward_payload = forward_payload_from_source(source_message, self.config)
             if forward_payload is not None:
                 try:
@@ -709,7 +1015,7 @@ class SongRequestsPinMirror(commands.Cog):
         if managed_id is None:
             return None
 
-        if self.config.forward_source_message:
+        if self._pin_should_forward_source_message():
             if forward_fingerprint(managed_message) == forward_fingerprint(source_message):
                 return managed_message
             replacement = await self._create_managed_message(source_message, reason=reason)

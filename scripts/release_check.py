@@ -359,7 +359,15 @@ def llm_report() -> tuple[bool, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run LOKI THE SUN GOD release preflight checks.")
     parser.add_argument("--strict-env", action="store_true", help="Fail if required environment values are missing.")
+    parser.add_argument(
+        "--local-db",
+        action="store_true",
+        help="Ignore any DATABASE_URL loaded from .env and run checks against local SQLite.",
+    )
     args = parser.parse_args()
+    if args.local_db:
+        os.environ["LOKI_IGNORE_ENV_DATABASE_URL"] = "true"
+        os.environ.pop("DATABASE_URL", None)
 
     checks = [
         ("Compile", compile_sources),

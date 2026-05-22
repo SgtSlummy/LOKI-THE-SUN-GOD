@@ -1,5 +1,34 @@
 # LOKI THE SUN GOD Railway Deployment
 
+## 2026-05-22 Clean Recreation Notice
+
+The current revival target is a clean Railway recreation, not reuse of the May
+13 service IDs below. Keep the older service table as historical evidence only.
+Use [REVIVAL_RUNBOOK_2026-05-22.md](REVIVAL_RUNBOOK_2026-05-22.md) as the
+operator source of truth for new service layout, variables, checks, and live
+Discord acceptance.
+
+Clean target services:
+
+| Service | Root | Runtime | Start command |
+| --- | --- | --- | --- |
+| `dashboard` | repo root | Python/Nixpacks | `gunicorn dashboard_app:app --bind 0.0.0.0:${PORT:-8080}` |
+| `worker` | repo root | Python/Nixpacks | `python -m bot` |
+| `Postgres` | Railway plugin | Postgres | managed by Railway |
+| `lavalink` | `lavalink/` | Dockerfile | image default |
+| `activity-bridge` | `services/activity-bridge` | Node | `npm run start` |
+| `activity-client` | `services/activity-bridge/client/dist` | static | static publish |
+
+Production AI should use OpenAI directly:
+
+```text
+OPENAI_BASE_URL=https://api.openai.com/v1
+LOKI_LLM_MODEL=gpt-5.5
+```
+
+Keep 9router/Ollama as a local fallback/operator route, not as the default
+Railway runtime dependency.
+
 ## Railway Compatibility Status
 
 The repo includes Railway-compatible process, runtime, and environment
@@ -90,6 +119,15 @@ DISCORD_CLIENT_ID
 DISCORD_CLIENT_SECRET
 DASHBOARD_SECRET_KEY
 DATABASE_URL
+OPENAI_API_KEY
+OPENAI_BASE_URL=https://api.openai.com/v1
+LOKI_LLM_MODEL=gpt-5.5
+```
+
+Enable relay only after live Discord channel IDs and permissions are confirmed.
+When relay is enabled, set these on the worker and any relay-capable service:
+
+```text
 RELAY_ENABLED=true
 RELAY_GUILD_ID
 RELAY_FRIENDS_ROLE_NAME=Friends

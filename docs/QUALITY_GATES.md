@@ -1,5 +1,26 @@
 # LOKI THE SUN GOD 50-Gate Release Checklist
 
+## 2026-05-22 Revival Gate Addendum
+
+For the clean full-stack Railway recreation, complete these gates before live
+Discord acceptance:
+
+- Rebuild local Python 3.12 `.venv`; the audit found the existing environment
+  pointed at a missing interpreter.
+- Run Python gates from the rebuilt venv: `ruff check .`,
+  `python scripts/secret_scan.py`, `python scripts/release_check.py --local-db`, and
+  `pytest -q`.
+- Reinstall Activity Bridge dependencies with `npm ci` from
+  `services/activity-bridge`; direct checks found unresolved workspace links
+  until dependencies are relinked.
+- Run Activity Bridge gates: `npm run test:rooms`, `npm run typecheck`, and
+  `npm run build`.
+- Use direct OpenAI for Railway (`OPENAI_BASE_URL=https://api.openai.com/v1`,
+  `LOKI_LLM_MODEL=gpt-5.5`) and keep 9router/Ollama as local fallback only.
+- Create fresh Railway services for dashboard, worker, Postgres, Lavalink,
+  Activity Bridge, and static Activity client; do not target the May 13 service
+  IDs unless an operator explicitly changes the revival target.
+
 ## Highest Priority Release Gap
 
 The rebuilt source tree passes local automated gates. Railway production web,

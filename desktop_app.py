@@ -177,7 +177,8 @@ DEFAULT_CONFIG = {
 }
 
 MANAGED_SERVICE_DEFAULTS = {svc["id"]: svc for svc in DEFAULT_CONFIG["services"] if svc["id"] in {"loki", "dash"}}
-REMOVED_DASHBOARD_IDS = {"loki_cr"}
+REMOVED_SERVICE_IDS = {"millhouse", "ralph"}
+REMOVED_DASHBOARD_IDS = {"loki_cr", "ralph_web"}
 
 
 def is_removed_dashboard(dashboard: dict) -> bool:
@@ -226,7 +227,7 @@ def load_config() -> dict:
             seen_ids = set()
             for svc in existing.get("services", []):
                 svc_id = svc.get("id")
-                if svc_id == "millhouse":
+                if svc_id in REMOVED_SERVICE_IDS:
                     continue
                 if svc_id in MANAGED_SERVICE_DEFAULTS:
                     merged = {
@@ -329,6 +330,8 @@ class Service:
         return self._attached_process() is not None
 
     def status(self) -> dict:
+        if self.proc is None and self._attached_process() is None:
+            self.attached_pid = self.find_existing_pid()
         attached = self._attached_process()
         d = {
             "id": self.id,

@@ -17,7 +17,7 @@ from cogs.wreckingball_cleanup import (
 )
 
 NOW = datetime(2026, 5, 8, 12, 0, tzinfo=timezone.utc)
-MUSIC_LIST_CHANNEL_ID = 1499435617971343491
+SECOND_WRECKINGBALL_CHANNEL_ID = 1471988991879549110
 
 
 def make_message(
@@ -116,7 +116,7 @@ class WreckingballCleanupSelectionTests(unittest.TestCase):
                     scan_limit=50,
                 ),
                 WreckingballCleanupRule(
-                    channel_id=MUSIC_LIST_CHANNEL_ID,
+                    channel_id=SECOND_WRECKINGBALL_CHANNEL_ID,
                     max_age_seconds=0,
                     max_visible=3,
                     scan_limit=50,
@@ -124,10 +124,10 @@ class WreckingballCleanupSelectionTests(unittest.TestCase):
             ),
         )
         messages = [
-            make_message(1, seconds_old=1000, channel_id=MUSIC_LIST_CHANNEL_ID),
-            make_message(2, seconds_old=1010, channel_id=MUSIC_LIST_CHANNEL_ID),
-            make_message(3, seconds_old=1020, channel_id=MUSIC_LIST_CHANNEL_ID),
-            make_message(4, seconds_old=1030, channel_id=MUSIC_LIST_CHANNEL_ID),
+            make_message(1, seconds_old=1000, channel_id=SECOND_WRECKINGBALL_CHANNEL_ID),
+            make_message(2, seconds_old=1010, channel_id=SECOND_WRECKINGBALL_CHANNEL_ID),
+            make_message(3, seconds_old=1020, channel_id=SECOND_WRECKINGBALL_CHANNEL_ID),
+            make_message(4, seconds_old=1030, channel_id=SECOND_WRECKINGBALL_CHANNEL_ID),
         ]
 
         selected = select_wreckingball_cleanup_messages(messages, now=NOW, config=config)
@@ -141,7 +141,7 @@ class WreckingballCleanupSelectionTests(unittest.TestCase):
             channel_rules=(
                 WreckingballCleanupRule(channel_id=DEFAULT_CHANNEL_ID),
                 WreckingballCleanupRule(
-                    channel_id=MUSIC_LIST_CHANNEL_ID,
+                    channel_id=SECOND_WRECKINGBALL_CHANNEL_ID,
                     max_age_seconds=0,
                     max_visible=3,
                     scan_limit=50,
@@ -151,7 +151,7 @@ class WreckingballCleanupSelectionTests(unittest.TestCase):
         message = make_message(
             1,
             seconds_old=10,
-            channel_id=MUSIC_LIST_CHANNEL_ID,
+            channel_id=SECOND_WRECKINGBALL_CHANNEL_ID,
             author_id=111,
             application_id=DEFAULT_AUTHOR_ID,
         )
@@ -159,20 +159,20 @@ class WreckingballCleanupSelectionTests(unittest.TestCase):
         rule = matching_wreckingball_cleanup_rule(message, config)
 
         self.assertIsNotNone(rule)
-        self.assertEqual(rule.channel_id, MUSIC_LIST_CHANNEL_ID)
+        self.assertEqual(rule.channel_id, SECOND_WRECKINGBALL_CHANNEL_ID)
 
     def test_from_env_builds_per_channel_overrides(self):
         with patch.dict(
             "os.environ",
             {
                 "WRECKINGBALL_CLEANUP_CHANNEL_IDS": (
-                    f"{DEFAULT_CHANNEL_ID},{MUSIC_LIST_CHANNEL_ID}"
+                    f"{DEFAULT_CHANNEL_ID},{SECOND_WRECKINGBALL_CHANNEL_ID}"
                 ),
                 "WRECKINGBALL_CLEANUP_MAX_VISIBLE_BY_CHANNEL": (
-                    f"{MUSIC_LIST_CHANNEL_ID}:3"
+                    f"{SECOND_WRECKINGBALL_CHANNEL_ID}:3"
                 ),
                 "WRECKINGBALL_CLEANUP_MAX_AGE_SECONDS_BY_CHANNEL": (
-                    f"{MUSIC_LIST_CHANNEL_ID}:0"
+                    f"{SECOND_WRECKINGBALL_CHANNEL_ID}:0"
                 ),
             },
         ):
@@ -182,8 +182,8 @@ class WreckingballCleanupSelectionTests(unittest.TestCase):
 
         self.assertEqual(rules[DEFAULT_CHANNEL_ID].max_visible, 2)
         self.assertEqual(rules[DEFAULT_CHANNEL_ID].max_age_seconds, 180)
-        self.assertEqual(rules[MUSIC_LIST_CHANNEL_ID].max_visible, 3)
-        self.assertEqual(rules[MUSIC_LIST_CHANNEL_ID].max_age_seconds, 0)
+        self.assertEqual(rules[SECOND_WRECKINGBALL_CHANNEL_ID].max_visible, 3)
+        self.assertEqual(rules[SECOND_WRECKINGBALL_CHANNEL_ID].max_age_seconds, 0)
 
 
 class WreckingballCleanupDeleteTests(unittest.IsolatedAsyncioTestCase):

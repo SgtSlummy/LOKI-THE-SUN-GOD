@@ -12,6 +12,9 @@ from loki_music.service import MusicSession, Track
 from loki_music.wavelink_backend import MusicBackendUnavailable, VoiceChannelRequired, WavelinkBackend
 from utils import db
 
+DEFAULT_JUKEBOX_CHANNEL_ID = 1499435617971343491
+JUKEBOX_EMBED_TITLE = "LOKI Jukebox"
+
 
 class JukeboxControls(discord.ui.View):
     """Persistent-ish controls for the public LOKI jukebox panel."""
@@ -33,6 +36,21 @@ class JukeboxControls(discord.ui.View):
             ephemeral=True,
         )
 
+    @discord.ui.button(label="Skip", style=discord.ButtonStyle.primary, custom_id="loki:juke:skip")
+    async def skip_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if interaction.guild is None:
+            return await interaction.response.send_message("Use LOKI music controls inside a server.", ephemeral=True)
+        ctx = self.cog._context_from_interaction(interaction)
+        if await self.cog.backend.skip(ctx):
+            await self.cog._update_jukebox(interaction.guild, reason="skip button")
+            return await interaction.response.send_message("Skipped the current Lavalink track.", ephemeral=True)
+        next_track = self.cog.session_for(interaction.guild.id).dequeue_next()
+        await self.cog._update_jukebox(interaction.guild, reason="skip button")
+        if next_track is None:
+            return await interaction.response.send_message("Skipped. Queue is empty.", ephemeral=True)
+        title = discord.utils.escape_markdown(next_track.title)
+        return await interaction.response.send_message(f"Skipped. Now playing **{title}**.", ephemeral=True)
+
     @discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, custom_id="loki:juke:stop")
     async def stop_button(self, interaction: discord.Interaction, _button: discord.ui.Button):
         if interaction.guild is None:
@@ -52,11 +70,12 @@ class LokiMusic(commands.Cog):
         self.sessions: dict[int, MusicSession] = {}
         self.backend = WavelinkBackend()
         self.jukebox_messages: dict[int, discord.Message] = {}
+        self._ready_jukebox_guilds: set[int] = set()
         self.bot.add_view(JukeboxControls(self))
 
     def _configured_jukebox_channel_id(self) -> int | None:
         raw = (os.getenv("LOKI_JUKEBOX_CHANNEL_ID") or os.getenv("JUKEBOX_CHANNEL_ID") or "").strip()
-        return int(raw) if raw.isdigit() else None
+        return int(raw) if raw.isdigit() else DEFAULT_JUKEBOX_CHANNEL_ID
 
     def _configured_jukebox_message_id(self) -> int | None:
         raw = (os.getenv("LOKI_JUKEBOX_MESSAGE_ID") or "").strip()
@@ -70,9 +89,26 @@ class LokiMusic(commands.Cog):
             voice_client=getattr(interaction.guild, "voice_client", None) if interaction.guild else None,
         )
 
+    @commands.Cog.listener()
+    async def on_ready(self):
+        channel_id = self._configured_jukebox_channel_id()
+        if channel_id is None:
+            return
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except (discord.HTTPException, discord.Forbidden, discord.NotFound):
+                return
+        guild = getattr(channel, "guild", None)
+        if guild is None or guild.id in self._ready_jukebox_guilds:
+            return
+        self._ready_jukebox_guilds.add(guild.id)
+        await self._update_jukebox(guild, fallback_channel=channel, reason="startup")
+
     def jukebox_embed_for(self, session: MusicSession) -> discord.Embed:
         embed = discord.Embed(
-            title="LOKI Jukebox",
+            title=JUKEBOX_EMBED_TITLE,
             description="Use `/play`, talk to LOKI, or press the controls below.",
             color=discord.Color.gold(),
         )
@@ -123,6 +159,10 @@ class LokiMusic(commands.Cog):
             if fetched is not None:
                 existing = fetched
                 self.jukebox_messages[guild.id] = fetched
+        if existing is None:
+            existing = await self._find_existing_jukebox_message(channel)
+            if existing is not None:
+                self.jukebox_messages[guild.id] = existing
         if existing is not None:
             try:
                 await existing.edit(embed=embed, view=view)
@@ -135,6 +175,28 @@ class LokiMusic(commands.Cog):
             return None
         self.jukebox_messages[guild.id] = message
         return message
+
+    async def _find_existing_jukebox_message(self, channel: discord.abc.Messageable) -> discord.Message | None:
+        if not hasattr(channel, "history"):
+            return None
+        bot_user_id = getattr(getattr(self.bot, "user", None), "id", None)
+        try:
+            async for message in channel.history(limit=25):
+                author_id = getattr(getattr(message, "author", None), "id", None)
+                if bot_user_id is not None and author_id != bot_user_id:
+                    continue
+                if self._is_jukebox_message(message):
+                    return message
+        except (discord.HTTPException, discord.Forbidden):
+            return None
+        return None
+
+    @staticmethod
+    def _is_jukebox_message(message: discord.Message) -> bool:
+        for embed in getattr(message, "embeds", None) or []:
+            if getattr(embed, "title", None) == JUKEBOX_EMBED_TITLE:
+                return True
+        return False
 
     def session_for(self, guild_id: int) -> MusicSession:
         session = self.sessions.setdefault(guild_id, MusicSession(guild_id=guild_id))
@@ -223,9 +285,14 @@ class LokiMusic(commands.Cog):
         if not ctx.guild:
             return await ctx.send("Use skip inside a server.")
         if await self.backend.skip(ctx):
-            return await ctx.send("Skipped the current Lavalink track.")
+            await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="skip command")
+            return await ctx.send("Skipped the current Lavalink track.", view=JukeboxControls(self))
         next_track = self.session_for(ctx.guild.id).dequeue_next()
-        await ctx.send(f"Skipped. Now playing **{next_track.title}**." if next_track else "Skipped. Queue is empty.")
+        await self._update_jukebox(ctx.guild, fallback_channel=ctx.channel, reason="skip command")
+        await ctx.send(
+            f"Skipped. Now playing **{next_track.title}**." if next_track else "Skipped. Queue is empty.",
+            view=JukeboxControls(self),
+        )
 
     @commands.hybrid_command(name="pause", description="Pause LOKI playback")
     async def pause(self, ctx: commands.Context):

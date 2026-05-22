@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 SOURCE_ROOT = Path(__file__).resolve().parents[1]
+TRUTHY = {"1", "true", "yes", "on"}
 
 
 def bundle_root() -> Path:
@@ -54,6 +55,10 @@ def load_app_dotenv(*, override: bool = False) -> Path | None:
     for candidate in env_candidates():
         if candidate.exists():
             load_dotenv(candidate, override=override)
+            if os.getenv("LOKI_IGNORE_ENV_DATABASE_URL", "").strip().lower() in TRUTHY:
+                os.environ.pop("DATABASE_URL", None)
             return candidate
     load_dotenv(override=override)
+    if os.getenv("LOKI_IGNORE_ENV_DATABASE_URL", "").strip().lower() in TRUTHY:
+        os.environ.pop("DATABASE_URL", None)
     return None

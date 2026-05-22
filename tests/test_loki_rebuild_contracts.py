@@ -109,6 +109,31 @@ def test_loki_jukebox_embed_lists_current_track_and_queue():
     assert "2. Temple Bass" in fields["Song list"]
 
 
+def test_loki_jukebox_defaults_to_smuggler_jukebox_channel(monkeypatch):
+    pytest.importorskip("discord")
+    from cogs.loki_music import DEFAULT_JUKEBOX_CHANNEL_ID, LokiMusic
+
+    monkeypatch.delenv("LOKI_JUKEBOX_CHANNEL_ID", raising=False)
+    monkeypatch.delenv("JUKEBOX_CHANNEL_ID", raising=False)
+
+    cog = LokiMusic.__new__(LokiMusic)
+
+    assert DEFAULT_JUKEBOX_CHANNEL_ID == 1499435617971343491
+    assert cog._configured_jukebox_channel_id() == 1499435617971343491
+
+
+def test_loki_jukebox_controls_include_play_and_skip_buttons():
+    pytest.importorskip("discord")
+    from cogs.loki_music import JukeboxControls
+
+    view = JukeboxControls(cog=object())
+    labels = {item.label for item in view.children}
+    custom_ids = {item.custom_id for item in view.children}
+
+    assert {"Play", "Skip"} <= labels
+    assert {"loki:juke:play", "loki:juke:skip"} <= custom_ids
+
+
 def test_wavelink_play_queues_requested_track_before_fallbacks_when_already_playing():
     class FakePlayable:
         def __init__(self, title):

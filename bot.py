@@ -52,6 +52,10 @@ def allow_local_sqlite_relay() -> bool:
     return os.getenv("ALLOW_LOCAL_SQLITE_RELAY", "false").lower() in TRUTHY
 
 
+def skip_local_duplicate_worker_stop() -> bool:
+    return os.getenv("LOKI_SKIP_LOCAL_DUPLICATE_WORKER_STOP", "false").lower() in TRUTHY
+
+
 def validate_startup_config() -> None:
     if relay_enabled_from_env() and not db.database_url():
         if allow_local_sqlite_relay():
@@ -183,7 +187,9 @@ async def main():
     if not TOKEN:
         raise SystemExit("DISCORD_TOKEN missing in .env")
     validate_startup_config()
-    killed = worker_singleton.stop_local_duplicate_workers(Path(__file__).resolve().parent)
+    killed = []
+    if not skip_local_duplicate_worker_stop():
+        killed = worker_singleton.stop_local_duplicate_workers(Path(__file__).resolve().parent)
     if killed:
         log.warning(
             "Stopped duplicate local LOKI THE SUN GOD worker process(es): %s",

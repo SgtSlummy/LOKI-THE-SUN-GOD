@@ -108,6 +108,18 @@ If OAuth is not configured, the dashboard still supports the local LOKI THE SUN 
 
 For local MCP usage and registration details, see [docs/MCP.md](/C:/LOKI%20THE%20SUN%20GOD/docs/MCP.md).
 
+## Full-Stack Revival
+
+The current clean Railway recreation path is documented in:
+
+- [docs/REVIVAL_RUNBOOK_2026-05-22.md](/C:/LOKI%20THE%20SUN%20GOD/docs/REVIVAL_RUNBOOK_2026-05-22.md)
+- [docs/PROJECT_INVENTORY_2026-05-22.md](/C:/LOKI%20THE%20SUN%20GOD/docs/PROJECT_INVENTORY_2026-05-22.md)
+
+Production AI routing should use OpenAI directly with
+`OPENAI_BASE_URL=https://api.openai.com/v1` and `LOKI_LLM_MODEL=gpt-5.5`.
+Local 9router/Ollama routing remains available as an operator fallback through
+`OPENAI_BASE_URL=http://127.0.0.1:20128/v1` and `LOKI_LLM_MODEL=local-default`.
+
 ## Release Workflow
 
 For a deployable local validation pass:

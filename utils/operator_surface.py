@@ -38,8 +38,10 @@ ROUTER_REPO_PATH = (
 ROUTER_ENV_PATH = ROUTER_REPO_PATH / ".env"
 ROUTER_ENV_EXAMPLE_PATH = ROUTER_REPO_PATH / ".env.example"
 OLLAMA_HOST_DEFAULT = "http://127.0.0.1:11434"
-LOCAL_MODEL_PREFERENCES = ("qwen2.5-coder:7b", "llama3.1:8b", "llama3.2:3b")
+LOCAL_MODEL_PREFERENCES = ("dolphin3:8b", "qwen2.5-coder:7b", "qwen3:8b", "llama3.1:8b", "llama3.2:3b")
 LOCAL_MODEL_ALIAS = "local-default"
+DOLPHIN_MODEL_ALIAS = "dolphin-local"
+DEFAULT_ROUTER_PASSWORD = "*123456"
 MEMPALACE_ROOT = Path.home() / ".mempalace"
 MEMPALACE_CONFIG_PATH = MEMPALACE_ROOT / "config.json"
 MEMPALACE_FALLBACK_MEMORY_PATH = (
@@ -368,6 +370,172 @@ def router_db_path(router_env: Optional[dict[str, str]] = None) -> Path:
     return _default_9router_data_dir(router_env) / "db.json"
 
 
+def _router_port(router_env: Optional[dict[str, str]] = None) -> int:
+    env = router_env if router_env is not None else read_env_file_at(router_env_path())
+    try:
+        port = int(str(env.get("PORT") or "20128").strip())
+    except ValueError:
+        port = 20128
+    if not 1 <= port <= 65535:
+        return 20128
+    return port
+
+
+def _windows_path(path: Path) -> str:
+    if os.name == "nt":
+        return str(path)
+    resolved = path.resolve()
+    parts = resolved.parts
+    if len(parts) >= 3 and parts[0] == "/" and parts[1] == "mnt" and len(parts[2]) == 1:
+        drive = parts[2].upper()
+        return f"{drive}:\\" + "\\".join(parts[3:])
+    return str(resolved)
+
+
+def _run_windows_command(args: list[str], timeout: int = 20, cwd: Optional[Path] = None) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            args,
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        return {"ok": False, "message": f"{args[0]} was not found: {exc}"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "message": f"Command timed out after {timeout} seconds."}
+    output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part and part.strip())
+    return {"ok": result.returncode == 0, "message": output or f"Command exited with {result.returncode}."}
+
+
+def _router_listening_pids(port: Optional[int] = None) -> list[int]:
+    router_port = port or _router_port()
+    result = _run_windows_command(["cmd.exe", "/c", "netstat -ano"], timeout=10)
+    if not result["ok"]:
+        return []
+    pids: list[int] = []
+    marker = f":{router_port}"
+    for line in result["message"].splitlines():
+        if marker not in line or "LISTENING" not in line.upper():
+            continue
+        fields = line.split()
+        if not fields:
+            continue
+        try:
+            pid = int(fields[-1])
+        except ValueError:
+            continue
+        if pid not in pids:
+            pids.append(pid)
+    return pids
+
+
+def router_password_state(router_env: Optional[dict[str, str]] = None) -> dict[str, Any]:
+    env = router_env if router_env is not None else read_env_file_at(router_env_path())
+    initial_password = env.get("INITIAL_PASSWORD") or "123456"
+    db_file = router_db_path(env)
+    stored_hash_present = False
+    if db_file.exists():
+        try:
+            data = json.loads(db_file.read_text(encoding="utf-8"))
+            settings = data.get("settings") if isinstance(data, dict) else {}
+            stored_hash_present = bool(settings.get("password")) if isinstance(settings, dict) else False
+        except Exception:
+            stored_hash_present = False
+    return {
+        "initial_password": initial_password,
+        "stored_hash_present": stored_hash_present,
+        "effective_password": "" if stored_hash_present else initial_password,
+        "reset_password": DEFAULT_ROUTER_PASSWORD,
+    }
+
+
+def start_9router_service() -> dict[str, Any]:
+    router_env = read_env_file_at(router_env_path())
+    port = _router_port(router_env)
+    if _router_listening_pids(port):
+        return {"ok": True, "message": f"9Router is already running on port {port}."}
+
+    repo_path = router_repo_path()
+    package_path = repo_path / "package.json"
+    if not package_path.exists():
+        return {"ok": False, "message": f"9Router source was not found at {repo_path}."}
+
+    log_path = repo_path / "9router-dev.log"
+    if os.name == "nt":
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+        try:
+            with log_path.open("a", encoding="utf-8") as log_file:
+                subprocess.Popen(
+                    ["cmd.exe", "/d", "/c", "npm run dev"],
+                    cwd=str(repo_path),
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=creationflags,
+                    close_fds=True,
+                )
+        except Exception as exc:
+            return {"ok": False, "message": f"Failed to start 9Router: {exc}"}
+    else:
+        repo_win = _windows_path(repo_path)
+        log_win = _windows_path(log_path)
+        command = f'start "9Router" /min cmd.exe /d /c "cd /d ""{repo_win}"" && npm run dev > ""{log_win}"" 2>&1"'
+        result = _run_windows_command(["cmd.exe", "/c", command], timeout=10)
+        if not result["ok"]:
+            return {"ok": False, "message": result["message"]}
+
+    return {"ok": True, "message": f"Starting 9Router on http://localhost:{port}. Log: {log_path}"}
+
+
+def stop_9router_service() -> dict[str, Any]:
+    pids = _router_listening_pids()
+    if not pids:
+        return {"ok": True, "message": "9Router is not currently listening."}
+
+    messages: list[str] = []
+    ok = True
+    for pid in pids:
+        result = _run_windows_command(["taskkill.exe", "/PID", str(pid), "/T", "/F"], timeout=10)
+        ok = ok and result["ok"]
+        messages.append(result["message"])
+    return {"ok": ok, "message": "\n".join(messages) or "9Router stopped."}
+
+
+def restart_9router_service() -> dict[str, Any]:
+    stop_result = stop_9router_service()
+    start_result = start_9router_service()
+    return {
+        "ok": stop_result["ok"] and start_result["ok"],
+        "message": f"{stop_result['message']}\n{start_result['message']}".strip(),
+    }
+
+
+def reset_9router_password(new_password: str = DEFAULT_ROUTER_PASSWORD) -> dict[str, Any]:
+    password = (new_password or DEFAULT_ROUTER_PASSWORD).strip() or DEFAULT_ROUTER_PASSWORD
+    save_router_runtime_env({"INITIAL_PASSWORD": password})
+
+    router_env = read_env_file_at(router_env_path())
+    db_file = router_db_path(router_env)
+    if db_file.exists():
+        try:
+            data = json.loads(db_file.read_text(encoding="utf-8"))
+            settings = data.setdefault("settings", {})
+            if isinstance(settings, dict):
+                settings.pop("password", None)
+            db_file.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        except Exception as exc:
+            return {"ok": False, "message": f"Password env was saved, but db reset failed: {exc}"}
+
+    restart_result = restart_9router_service()
+    return {
+        "ok": restart_result["ok"],
+        "message": f"9Router password reset to {password}. {restart_result['message']}",
+    }
+
+
 def configure_9router_local_model(ollama_host: str, model: str) -> dict[str, str]:
     routed_model = f"ollama-local/{model}"
     db_path = router_db_path()
@@ -416,6 +584,8 @@ def configure_9router_local_model(ollama_host: str, model: str) -> dict[str, str
         connection.update(connection_data)
 
     data["modelAliases"][LOCAL_MODEL_ALIAS] = routed_model
+    if model.lower().startswith("dolphin"):
+        data["modelAliases"][DOLPHIN_MODEL_ALIAS] = routed_model
     if not any(
         item.get("providerAlias") == "ollama-local" and item.get("id") == model and item.get("type", "llm") == "llm"
         for item in data["customModels"]
@@ -909,10 +1079,10 @@ def ai_doc_library(include_content: bool = False) -> list[dict[str, Any]]:
         seen.add(resolved)
         text = path.read_text(encoding="utf-8", errors="replace")
         try:
-            relative_file = str(path.relative_to(command_root()))
+            relative_file = str(path.relative_to(external_library_root()))
         except ValueError:
             try:
-                relative_file = str(path.relative_to(external_library_root()))
+                relative_file = str(path.relative_to(command_root()))
             except ValueError:
                 relative_file = str(path)
         relative_file = relative_file.replace("\\", "/")
@@ -1050,6 +1220,10 @@ def ai_router_snapshot() -> dict[str, Any]:
     codex_env = dict(codex_settings.get("env") or {})
     status = ollama_router_status(app_env.get("OLLAMA_HOST"))
     memory = mempalace_status_snapshot()
+    router_port = _router_port(router_env)
+    router_base = router_env.get("BASE_URL") or router_env.get("NEXT_PUBLIC_BASE_URL") or f"http://localhost:{router_port}"
+    router_base = router_base.rstrip("/")
+    password_state = router_password_state(router_env)
     return {
         "app_env_path": str(env_path()),
         "router_env_path": str(router_env_path()),
@@ -1064,6 +1238,18 @@ def ai_router_snapshot() -> dict[str, Any]:
         "local_model_alias": LOCAL_MODEL_ALIAS,
         "local_model_setup_hint": status["local_model_setup_hint"],
         "router_db_path": str(router_db_path(router_env)),
+        "router_control": {
+            "port": router_port,
+            "base_url": router_base,
+            "dashboard_url": f"{router_base}/dashboard",
+            "api_url": f"{router_base}/v1",
+            "models_url": f"{router_base}/v1/models",
+            "log_path": str(router_repo_path() / "9router-dev.log"),
+            "repo_path": str(router_repo_path()),
+            "stored_password_hash": password_state["stored_hash_present"],
+            "effective_password": password_state["effective_password"],
+            "reset_password": password_state["reset_password"],
+        },
         "app_env": {
             "OPENAI_API_KEY_present": bool(app_env.get("OPENAI_API_KEY")),
             "OPENAI_BASE_URL": app_env.get("OPENAI_BASE_URL", ""),

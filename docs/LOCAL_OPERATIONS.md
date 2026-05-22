@@ -186,6 +186,11 @@ If `RELAY_ENABLED=true` is set without `DATABASE_URL`, LOKI THE SUN GOD fails st
 
 If you explicitly set `ALLOW_LOCAL_SQLITE_RELAY=true`, LOKI THE SUN GOD will allow local relay startup without `DATABASE_URL`. Use that only when the local machine is the single active relay worker.
 
+If a supervised Windows launcher includes `-m bot` in its own command line and
+the worker singleton mistakes the launcher wrapper for another local bot
+process, set `LOKI_SKIP_LOCAL_DUPLICATE_WORKER_STOP=true` for that supervised
+start only. The shared worker lease and outbound post guard still run.
+
 ## Notes
 
 - Live Discord channel inspection requires `DISCORD_TOKEN`.
@@ -193,5 +198,7 @@ If you explicitly set `ALLOW_LOCAL_SQLITE_RELAY=true`, LOKI THE SUN GOD will all
 - The dashboard prefers `qwen2.5-coder:7b`, then `llama3.1:8b`, then `llama3.2:3b`, then the first installed Ollama model.
 - Save "Local-first model routing" from AI and Router Settings to write `local-default -> ollama-local/<model>` into 9router.
 - Save `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `LOKI_LLM_MODEL` in AI and Router Settings to enable the admin-gated Discord `/ask` command.
+- Use `OPENAI_BASE_URL=https://api.openai.com/v1` and `LOKI_LLM_MODEL=gpt-5.5` for the production-style OpenAI path.
+- Use `OPENAI_BASE_URL=http://127.0.0.1:20128/v1` and `LOKI_LLM_MODEL=local-default` only for the local 9router/Ollama fallback path.
 - Use the Desktop Dashboards tab "Back up now" button for an immediate local SQLite backup under `data/backups/`.
 - Discord OAuth sign-in requires `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `REDIRECT_URI`, and `DASHBOARD_SECRET_KEY`.

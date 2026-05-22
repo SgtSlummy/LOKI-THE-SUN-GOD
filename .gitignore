@@ -8,6 +8,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.hermes/
 
 build/
 dist/
@@ -21,6 +22,7 @@ data/*.db-*
 data/*.log
 data/*.md
 desktop_runtime.log
+dashboard-dev.log
 desktop_config.json
 tests/fixtures/mcp/generated/
 

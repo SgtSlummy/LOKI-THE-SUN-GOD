@@ -375,6 +375,9 @@ class RelayPreviewSendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sent_kwargs[0].get("content"), None)
         self.assertEqual(len(sent_kwargs[0]["embeds"]), 2)
         self.assertEqual(sent_kwargs[0]["embeds"][0].description, None)
+        self.assertEqual(sent_kwargs[0]["embeds"][1].title, None)
+        self.assertEqual(sent_kwargs[0]["embeds"][1].description, None)
+        self.assertEqual(sent_kwargs[0]["embeds"][1].author.name, None)
         self.assertEqual(sent_kwargs[0]["embeds"][1].image.url, "attachment://happy-cat.gif")
         self.assertEqual(sent_kwargs[0]["file"].filename, "happy-cat.gif")
 

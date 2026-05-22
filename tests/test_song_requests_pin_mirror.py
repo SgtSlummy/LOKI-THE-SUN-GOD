@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import cogs.song_requests_pin_mirror as pin_mirror_module
 from cogs import COG_MODULES
 from cogs.song_requests_pin_mirror import (
     IS_COMPONENTS_V2,
     MESSAGE_REFERENCE_TYPE_FORWARD,
+    SongRequestsPinMirror,
     SongRequestsPinMirrorConfig,
     control_url_from_source,
     forward_fingerprint,
@@ -17,6 +21,7 @@ from cogs.song_requests_pin_mirror import (
     mirror_payload_from_source,
     sanitize_components_for_mirror,
 )
+from utils.link_previews import LinkPreview
 
 NOW = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
 WEBPLAYER_URL = "https://divabot.xyz/dashboard/1463393482306486387/webplayer?botId=983091121569804359"
@@ -157,6 +162,18 @@ class SongRequestsPinMirrorPayloadTests(unittest.TestCase):
             },
         )
 
+    def test_enriched_forward_payload_omits_discord_forward_reference(self):
+        config = SongRequestsPinMirrorConfig(
+            guild_id=1463393482306486387,
+            source_channel_id=1503116743793574009,
+        )
+        source = {"id": "1503116745106391131"}
+        embeds = [{"title": "Battles"}]
+
+        payload = forward_payload_from_source(source, config, embeds=embeds)
+
+        self.assertEqual(payload, {"embeds": embeds, "allowed_mentions": {"parse": []}})
+
     def test_forward_fingerprint_matches_snapshot_message(self):
         source = {
             "content": "",
@@ -219,6 +236,32 @@ class SongRequestsPinMirrorPayloadTests(unittest.TestCase):
         mirror = {"components": [{"type": 12, "id": 4, "items": [{"media": {"url": "https://i.scdn.co/image/cover"}}]}]}
 
         self.assertEqual(mirror_fingerprint(source), mirror_fingerprint(mirror))
+
+    def test_song_queue_embed_payloads_show_artist_cover_and_source_marker(self):
+        builder = getattr(pin_mirror_module, "song_queue_embed_payloads", None)
+        self.assertIsNotNone(builder)
+
+        embeds = builder(
+            [
+                LinkPreview(
+                    url="https://open.spotify.com/track/abc",
+                    title="Battles",
+                    description="Alpine Universe · Album · Song · 2026",
+                    image_url="https://i.scdn.co/image/cover.jpg",
+                    site_name="Spotify",
+                )
+            ],
+            source_marker="LOKI song-request source 1463393482306486387:1503116743793574009:222",
+        )
+
+        self.assertEqual(embeds[0]["title"], "Battles")
+        self.assertEqual(embeds[0]["url"], "https://open.spotify.com/track/abc")
+        self.assertEqual(embeds[0]["thumbnail"], {"url": "https://i.scdn.co/image/cover.jpg"})
+        self.assertIn({"name": "Artist", "value": "Alpine Universe", "inline": True}, embeds[0]["fields"])
+        self.assertEqual(
+            embeds[0]["footer"],
+            {"text": "LOKI song-request source 1463393482306486387:1503116743793574009:222"},
+        )
 
 
 class SongRequestsCommandCleanupTests(unittest.TestCase):
@@ -300,6 +343,104 @@ class SongRequestsCommandCleanupTests(unittest.TestCase):
                 now=NOW,
             )
         )
+
+
+class SongRequestsPinMirrorForwardingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sync_forwards_every_dashboard_post_with_song_embeds_before_pin_mirror(self):
+        source_messages = [
+            {
+                "id": "222",
+                "content": "queue https://open.spotify.com/track/two",
+                "author": {"id": "77", "bot": True},
+                "timestamp": NOW.isoformat(),
+                "embeds": [],
+                "components": [{"type": 10, "content": "Queued second song"}],
+            },
+            {
+                "id": "111",
+                "content": "queue https://open.spotify.com/track/one",
+                "author": {"id": "77", "bot": True},
+                "timestamp": (NOW - timedelta(seconds=30)).isoformat(),
+                "embeds": [],
+                "components": [{"type": 10, "content": "Queued first song"}],
+            },
+        ]
+        posted_payloads: list[dict] = []
+
+        async def fake_resolve(urls):
+            return [
+                LinkPreview(
+                    url=url,
+                    title="Song " + url.rsplit("/", 1)[-1],
+                    description="Alpine Universe · Album · Song · 2026",
+                    image_url=f"https://i.scdn.co/image/{url.rsplit('/', 1)[-1]}.jpg",
+                    site_name="Spotify",
+                )
+                for url in urls
+            ]
+
+        async def fake_api(method, path, *, payload=None, audit_reason=None):
+            if method == "GET" and path == "/channels/1503116743793574009/messages?limit=10":
+                return list(source_messages)
+            if method == "GET" and path == "/channels/1499435617971343491/messages?limit=50":
+                return []
+            if method == "GET" and path == "/channels/1499435617971343491/pins?limit=50":
+                return []
+            if method == "POST" and path == "/channels/1499435617971343491/messages":
+                posted_payloads.append(payload)
+                return {
+                    "id": str(9000 + len(posted_payloads)),
+                    "author": {"id": "42", "bot": True},
+                    "pinned": False,
+                    **(payload or {}),
+                }
+            if method == "PUT" and path.startswith("/channels/1499435617971343491/messages/pins/"):
+                return None
+            self.fail(f"unexpected API call: {method} {path}")
+
+        mirror = SongRequestsPinMirror.__new__(SongRequestsPinMirror)
+        mirror.bot = SimpleNamespace(user=SimpleNamespace(id=42))
+        mirror.config = SimpleNamespace(
+            enabled=True,
+            guild_id=1463393482306486387,
+            source_channel_id=1503116743793574009,
+            source_message_id=0,
+            target_channel_id=1499435617971343491,
+            managed_message_id=0,
+            forward_source_message=False,
+            forward_all_source_messages=True,
+            refresh_seconds=30,
+            source_history_limit=10,
+            target_history_limit=50,
+            command_cleanup_age_seconds=0,
+            command_prefixes=("/", "!", ".", "?", "$", "-"),
+        )
+        mirror._managed_message_id = None
+        mirror._sync_lock = __import__("asyncio").Lock()
+        mirror._bot_user_id = 42
+        mirror._api_request = fake_api
+
+        with patch.object(pin_mirror_module, "resolve_link_previews", fake_resolve, create=True):
+            await mirror._sync_once(reason="test")
+
+        forward_posts = [
+            payload
+            for payload in posted_payloads
+            if payload.get("embeds") and not payload.get("components")
+        ]
+        self.assertEqual(
+            [payload["embeds"][0]["footer"]["text"].rsplit(":", 1)[-1] for payload in forward_posts],
+            ["111", "222"],
+        )
+        for payload in forward_posts:
+            self.assertNotIn("message_reference", payload)
+            self.assertEqual(payload["allowed_mentions"], {"parse": []})
+            self.assertEqual(payload["embeds"][0]["author"], {"name": "Spotify"})
+            self.assertIn("Artist", {field["name"] for field in payload["embeds"][0]["fields"]})
+
+        pinned_mirrors = [payload for payload in posted_payloads if payload.get("components")]
+        self.assertEqual(len(pinned_mirrors), 1)
+        self.assertEqual(pinned_mirrors[0]["components"][0]["content"], "Queued second song")
 
 
 if __name__ == "__main__":
