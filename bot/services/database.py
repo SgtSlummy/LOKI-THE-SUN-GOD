@@ -11,8 +11,18 @@ import asyncpg
 from bot.models.relay import RelayRoute
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _sqlite_timestamp(value: datetime) -> str:
+    return value.isoformat()
+
+
+def _postgres_timestamp(value: datetime | str | None) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 class Database:
@@ -67,7 +77,7 @@ class Database:
         created_by: int | None,
     ) -> RelayRoute:
         self._validate_direction(direction)
-        created_at = _now_iso()
+        created_at = _now_utc()
         if self.kind == "postgres":
             row = await self._pg.fetchrow(
                 """
@@ -86,6 +96,7 @@ class Database:
                 created_at,
             )
         else:
+            sqlite_created_at = _sqlite_timestamp(created_at)
             cursor = await self._sqlite.execute(
                 """
                 INSERT INTO relay_routes (
@@ -94,7 +105,7 @@ class Database:
                 )
                 VALUES (?, ?, ?, ?, 1, ?, ?)
                 """,
-                (guild_id, source_channel_id, destination_channel_id, direction, created_by, created_at),
+                (guild_id, source_channel_id, destination_channel_id, direction, created_by, sqlite_created_at),
             )
             await self._sqlite.commit()
             row = await self._fetch_route_by_id(cursor.lastrowid)
@@ -189,7 +200,7 @@ class Database:
         destination_channel_id: int,
         route_id: int,
     ) -> None:
-        created_at = _now_iso()
+        created_at = _now_utc()
         if self.kind == "postgres":
             await self._pg.execute(
                 """
@@ -208,6 +219,7 @@ class Database:
                 created_at,
             )
         else:
+            sqlite_created_at = _sqlite_timestamp(created_at)
             await self._sqlite.execute(
                 """
                 INSERT OR IGNORE INTO relay_message_map (
@@ -222,7 +234,7 @@ class Database:
                     destination_message_id,
                     destination_channel_id,
                     route_id,
-                    created_at,
+                    sqlite_created_at,
                 ),
             )
             await self._sqlite.commit()
@@ -287,6 +299,7 @@ class Database:
     ) -> None:
         payload = json.dumps(resolved_payload)
         if self.kind == "postgres":
+            postgres_expires_at = _postgres_timestamp(expires_at)
             await self._pg.execute(
                 """
                 INSERT INTO media_cache (
@@ -308,7 +321,7 @@ class Database:
                 thumbnail_url,
                 media_type,
                 payload,
-                expires_at,
+                postgres_expires_at,
             )
         else:
             await self._sqlite.execute(
@@ -341,7 +354,7 @@ class Database:
         details: dict[str, Any] | None = None,
     ) -> None:
         details_json = json.dumps(details or {})
-        created_at = _now_iso()
+        created_at = _now_utc()
         if self.kind == "postgres":
             await self._pg.execute(
                 """
@@ -360,6 +373,7 @@ class Database:
                 created_at,
             )
         else:
+            sqlite_created_at = _sqlite_timestamp(created_at)
             await self._sqlite.execute(
                 """
                 INSERT INTO audit_log (
@@ -368,7 +382,7 @@ class Database:
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (event_type, actor_id, guild_id, channel_id, message_id, details_json, created_at),
+                (event_type, actor_id, guild_id, channel_id, message_id, details_json, sqlite_created_at),
             )
             await self._sqlite.commit()
 
@@ -380,7 +394,7 @@ class Database:
         enabled: bool,
         config: dict[str, Any] | None = None,
     ) -> None:
-        updated_at = _now_iso()
+        updated_at = _now_utc()
         config_json = json.dumps(config or {})
         if self.kind == "postgres":
             await self._pg.execute(
@@ -400,6 +414,7 @@ class Database:
                 updated_at,
             )
         else:
+            sqlite_updated_at = _sqlite_timestamp(updated_at)
             await self._sqlite.execute(
                 """
                 INSERT INTO plugin_state (plugin_name, slot, enabled, config_json, updated_at)
@@ -410,7 +425,7 @@ class Database:
                     config_json = excluded.config_json,
                     updated_at = excluded.updated_at
                 """,
-                (plugin_name, slot, int(enabled), config_json, updated_at),
+                (plugin_name, slot, int(enabled), config_json, sqlite_updated_at),
             )
             await self._sqlite.commit()
 
@@ -617,4 +632,3 @@ class Database:
         if self._conn is None or self.kind != "postgres":
             raise RuntimeError("PostgreSQL database is not connected.")
         return self._conn
-

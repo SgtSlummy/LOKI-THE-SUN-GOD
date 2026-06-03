@@ -36,6 +36,50 @@ function Require-Value {
     return [string]$Values[$Key]
 }
 
+function Get-RailwayDatabaseUrlReference {
+    param(
+        [hashtable]$Values,
+        [string]$ProjectId,
+        [string]$Environment
+    )
+
+    if ($Values["RAILWAY_DATABASE_URL_REFERENCE"]) {
+        return [string]$Values["RAILWAY_DATABASE_URL_REFERENCE"]
+    }
+
+    $postgresServiceName = [string]$Values["RAILWAY_POSTGRES_SERVICE_NAME"]
+    if ([string]::IsNullOrWhiteSpace($postgresServiceName)) {
+        $listArgs = @(
+            "service",
+            "list",
+            "--project",
+            $ProjectId,
+            "--environment",
+            $Environment,
+            "--json"
+        )
+
+        $rawServices = & (Join-Path $PSScriptRoot "railway-run.ps1") @listArgs
+        if ($LASTEXITCODE -eq 0 -and $rawServices) {
+            $services = $rawServices | ConvertFrom-Json
+            $postgres = @(
+                $services |
+                    Where-Object { $_.name -eq "Postgres" -or $_.name -like "Postgres*" } |
+                    Select-Object -First 1
+            )
+            if ($postgres.Count -gt 0) {
+                $postgresServiceName = [string]$postgres[0].name
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($postgresServiceName)) {
+        $postgresServiceName = "Postgres"
+    }
+
+    return '${{' + $postgresServiceName + '.DATABASE_URL}}'
+}
+
 if ($Check) {
     Write-Host "railway-push-vars.ps1 syntax and path check passed."
     exit 0
@@ -49,13 +93,14 @@ $values = Read-DotEnv $EnvPath
 $projectId = Require-Value -Values $values -Key "RAILWAY_PROJECT_ID"
 $environment = if ($values["RAILWAY_ENVIRONMENT"]) { $values["RAILWAY_ENVIRONMENT"] } else { "production" }
 $service = if ($values["RAILWAY_SERVICE_NAME"]) { $values["RAILWAY_SERVICE_NAME"] } else { "loki-discord-relay" }
+$databaseUrlReference = Get-RailwayDatabaseUrlReference -Values $values -ProjectId $projectId -Environment $environment
 
 $vars = [ordered]@{
     DISCORD_TOKEN = Require-Value -Values $values -Key "DISCORD_TOKEN"
     DISCORD_CLIENT_ID = Require-Value -Values $values -Key "DISCORD_CLIENT_ID"
     DISCORD_GUILD_ID = Require-Value -Values $values -Key "DISCORD_GUILD_ID"
     BOT_ADMIN_USER_IDS = Require-Value -Values $values -Key "BOT_ADMIN_USER_IDS"
-    DATABASE_URL = '${{Postgres.DATABASE_URL}}'
+    DATABASE_URL = $databaseUrlReference
     OPENAI_API_KEY = if ($values["OPENAI_API_KEY"]) { $values["OPENAI_API_KEY"] } else { "" }
     OPENAI_MODEL = if ($values["OPENAI_MODEL"]) { $values["OPENAI_MODEL"] } else { "gpt-5-mini" }
     BOT_ENV = "production"
@@ -111,4 +156,3 @@ foreach ($key in $vars.Keys) {
         Write-Host "Set $key"
     }
 }
-

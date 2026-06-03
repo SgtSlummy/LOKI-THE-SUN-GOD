@@ -31,6 +31,29 @@ from bot.services.search_index import SearchIndex
 from bot.settings import Settings
 
 
+async def sync_application_commands(*, tree: Any, settings: Settings, logger: logging.Logger) -> list[Any]:
+    if settings.discord_guild_id is not None:
+        guild = discord.Object(id=settings.discord_guild_id)
+        tree.copy_global_to(guild=guild)
+        try:
+            synced = await tree.sync(guild=guild)
+        except discord.Forbidden:
+            logger.error(
+                "Could not sync guild-scoped slash commands to %s. "
+                "Check that the bot is installed in that guild; falling back to global command sync.",
+                settings.discord_guild_id,
+            )
+            synced = await tree.sync()
+            logger.info("Synced %s global slash commands after guild sync fallback", len(synced))
+        else:
+            logger.info("Synced %s guild-scoped slash commands to %s", len(synced), settings.discord_guild_id)
+        return synced
+
+    synced = await tree.sync()
+    logger.info("Synced %s global slash commands", len(synced))
+    return synced
+
+
 class LokiBot(commands.Bot):
     def __init__(self, *, settings: Settings, services: dict[str, Any], registry: PluginRegistry):
         intents = discord.Intents.default()
@@ -49,14 +72,7 @@ class LokiBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         await self.registry.setup_plugins(self)
-        if self.settings.discord_guild_id is not None:
-            guild = discord.Object(id=self.settings.discord_guild_id)
-            self.tree.copy_global_to(guild=guild)
-            synced = await self.tree.sync(guild=guild)
-            self.logger.info("Synced %s guild-scoped slash commands to %s", len(synced), self.settings.discord_guild_id)
-        else:
-            synced = await self.tree.sync()
-            self.logger.info("Synced %s global slash commands", len(synced))
+        await sync_application_commands(tree=self.tree, settings=self.settings, logger=self.logger)
 
     async def on_ready(self) -> None:
         self.logger.info("Discord connected as %s in %s guild(s)", self.user, len(self.guilds))
@@ -185,4 +201,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

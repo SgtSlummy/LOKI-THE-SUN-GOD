@@ -31,7 +31,7 @@ foreach ($line in Get-Content -LiteralPath $EnvPath) {
     }
 }
 
-function Test-RailwayToken {
+function Test-RailwayApiToken {
     param([string]$Token)
 
     if ([string]::IsNullOrWhiteSpace($Token)) {
@@ -39,9 +39,11 @@ function Test-RailwayToken {
     }
 
     $oldToken = $env:RAILWAY_TOKEN
+    $oldApiToken = $env:RAILWAY_API_TOKEN
     $oldErrorActionPreference = $ErrorActionPreference
     try {
-        $env:RAILWAY_TOKEN = $Token
+        Remove-Item Env:RAILWAY_TOKEN -ErrorAction SilentlyContinue
+        $env:RAILWAY_API_TOKEN = $Token
         $ErrorActionPreference = "Continue"
         $null = & npx -y '@railway/cli' whoami 2>&1
         return $LASTEXITCODE -eq 0
@@ -51,7 +53,18 @@ function Test-RailwayToken {
     }
     finally {
         $ErrorActionPreference = $oldErrorActionPreference
-        $env:RAILWAY_TOKEN = $oldToken
+        if ($null -ne $oldToken) {
+            $env:RAILWAY_TOKEN = $oldToken
+        }
+        else {
+            Remove-Item Env:RAILWAY_TOKEN -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $oldApiToken) {
+            $env:RAILWAY_API_TOKEN = $oldApiToken
+        }
+        else {
+            Remove-Item Env:RAILWAY_API_TOKEN -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -80,19 +93,35 @@ function Test-RailwayBrowserLogin {
     }
 }
 
+$commandName = if ($RailwayArgs.Count -gt 0) { $RailwayArgs[0] } else { "" }
+$preferApiToken = $commandName -in @("whoami", "login", "logout", "link", "project", "add")
+$selectedTokenName = $null
 $selectedToken = $null
-if (Test-RailwayToken ([string]$rawValues["RAILWAY_TOKEN"])) {
+if ($preferApiToken -and (Test-RailwayApiToken ([string]$rawValues["RAILWAY_API_TOKEN"]))) {
+    $selectedTokenName = "RAILWAY_API_TOKEN"
+    $selectedToken = [string]$rawValues["RAILWAY_API_TOKEN"]
+}
+elseif (-not [string]::IsNullOrWhiteSpace([string]$rawValues["RAILWAY_TOKEN"])) {
+    $selectedTokenName = "RAILWAY_TOKEN"
     $selectedToken = [string]$rawValues["RAILWAY_TOKEN"]
 }
-elseif (Test-RailwayToken ([string]$rawValues["RAILWAY_API_TOKEN"])) {
+elseif (Test-RailwayApiToken ([string]$rawValues["RAILWAY_API_TOKEN"])) {
+    $selectedTokenName = "RAILWAY_API_TOKEN"
     $selectedToken = [string]$rawValues["RAILWAY_API_TOKEN"]
 }
 elseif (-not (Test-RailwayBrowserLogin)) {
-    throw "Railway is not authenticated. Run the Railway browser login, or set a valid RAILWAY_TOKEN in .env."
+    throw "Railway is not authenticated. Run the Railway browser login, or set a valid RAILWAY_TOKEN or RAILWAY_API_TOKEN in .env."
 }
 
 if ($selectedToken) {
-    $env:RAILWAY_TOKEN = $selectedToken
+    if ($selectedTokenName -eq "RAILWAY_API_TOKEN") {
+        Remove-Item Env:RAILWAY_TOKEN -ErrorAction SilentlyContinue
+        $env:RAILWAY_API_TOKEN = $selectedToken
+    }
+    else {
+        $env:RAILWAY_TOKEN = $selectedToken
+        Remove-Item Env:RAILWAY_API_TOKEN -ErrorAction SilentlyContinue
+    }
 }
 else {
     Remove-Item Env:RAILWAY_TOKEN -ErrorAction SilentlyContinue

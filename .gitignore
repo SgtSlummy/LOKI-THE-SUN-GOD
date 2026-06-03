@@ -1,4 +1,5 @@
 .env
+Loki.env
 .venv/
 __pycache__/
 *.py[cod]
@@ -8,4 +9,3 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-

@@ -46,12 +46,18 @@ function Format-DotEnvValue {
 $values = Import-DotEnv $EnvPath
 
 Write-Host "Railway setup for Loki 2.0"
-Write-Host "Paste a valid Railway token. It will not be printed."
-$secureToken = Read-Host -AsSecureString "RAILWAY_TOKEN"
-$token = ConvertFrom-SecretInput $secureToken
-if ($token) {
-    $values["RAILWAY_TOKEN"] = $token
-    $values["RAILWAY_API_TOKEN"] = $token
+Write-Host "Tokens are optional if you already used Railway browser login. Secret input is hidden."
+Write-Host "Use RAILWAY_API_TOKEN for account/workspace CLI access, or RAILWAY_TOKEN for a project token."
+$secureApiToken = Read-Host -AsSecureString "RAILWAY_API_TOKEN"
+$apiToken = ConvertFrom-SecretInput $secureApiToken
+if ($apiToken) {
+    $values["RAILWAY_API_TOKEN"] = $apiToken
+}
+
+$secureProjectToken = Read-Host -AsSecureString "RAILWAY_TOKEN"
+$projectToken = ConvertFrom-SecretInput $secureProjectToken
+if ($projectToken) {
+    $values["RAILWAY_TOKEN"] = $projectToken
 }
 
 $projectId = Read-Host "RAILWAY_PROJECT_ID [$($values['RAILWAY_PROJECT_ID'])]"
