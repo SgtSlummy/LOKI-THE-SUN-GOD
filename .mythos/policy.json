@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "block": [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    ".git/**"
+  ],
+  "confirm": [
+    "Dockerfile",
+    "railway.json",
+    "requirements.txt",
+    "pyproject.toml",
+    "bot/migrations/**"
+  ],
+  "limits": {
+    "allowDeletes": true,
+    "maxActionContentBytes": 200000
+  },
+  "checks": {
+    "tests": "python -m pytest",
+    "compile": "python -m compileall bot"
+  }
+}

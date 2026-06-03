@@ -1,0 +1,24 @@
+# .mythosignore — Paths excluded from mythos scanning
+# One pattern per line. Supports exact names and simple *.ext ignores.
+# Regenerate defaults: mythos init --force
+
+node_modules
+.git
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+dist
+build
+.next
+coverage
+__pycache__
+.pytest_cache
+*.pyc
+*.db
+*.sqlite
+*.lock
+package-lock.json
+MEMORY.md
