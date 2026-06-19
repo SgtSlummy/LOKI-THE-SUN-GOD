@@ -1,19 +1,106 @@
 from __future__ import annotations
 
+import logging
+from typing import Any
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 from bot.models.plugin import ToolDefinition
 from bot.plugins.base import BasePlugin, PluginSlot
+from bot.plugins.relay_core.formatting import safe_allowed_mentions
+from bot.services.faust_agi import FaustAGIError
+
+DISCORD_MESSAGE_LIMIT = 2000
+DEFAULT_CHUNK_LIMIT = 1900
+
+
+def chunk_discord_text(text: str, *, limit: int = DEFAULT_CHUNK_LIMIT) -> list[str]:
+    if not text:
+        return [""]
+    return [text[index : index + limit] for index in range(0, len(text), limit)]
+
+
+def _format_council_header(result: dict[str, Any]) -> str:
+    details: list[str] = []
+    if result.get("run_id"):
+        details.append(f"run {result['run_id']}")
+    if result.get("fallback_used"):
+        details.append("fallback used")
+    return f"Faust AGI council ({', '.join(details)}):" if details else "Faust AGI council:"
+
+
+class LLMChatCog(commands.Cog):
+    agent_group = app_commands.Group(name="agent", description="Agent commands")
+
+    def __init__(self, bot: commands.Bot, *, services: dict[str, Any], logger: logging.Logger | None = None):
+        self.bot = bot
+        self.services = services
+        self.logger = logger or logging.getLogger("loki.llm_chat")
+
+    @agent_group.command(name="council", description="Ask Faust AGI council for help.")
+    @app_commands.describe(prompt="Question or task for the Faust AGI council")
+    async def council(self, interaction: discord.Interaction, prompt: str) -> None:
+        await self.handle_council(interaction, prompt=prompt)
+
+    async def handle_council(self, interaction: discord.Interaction, *, prompt: str) -> None:
+        await interaction.response.defer(thinking=True)
+        faust_client = self.services.get("faust_agi_client")
+        if faust_client is None or not getattr(faust_client, "available", False):
+            await interaction.followup.send(
+                "Faust AGI is not configured. Set FAUST_AGI_BASE_URL and enable FAUST_AGI_ENABLED=true.",
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        try:
+            result = await faust_client.run_council(
+                prompt=prompt,
+                user_id=getattr(interaction.user, "id", None),
+                guild_id=interaction.guild_id,
+                channel_id=interaction.channel_id,
+            )
+        except FaustAGIError as exc:
+            self.logger.warning("Faust AGI council failed: %s", exc)
+            await interaction.followup.send(
+                "Faust AGI council failed. Check the bot logs for details.",
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        header = _format_council_header(result)
+        text = str(result.get("text") or "Faust AGI completed without text output.")
+        chunks = chunk_discord_text(f"{header}\n{text}")
+        for chunk in chunks:
+            await interaction.followup.send(chunk, allowed_mentions=safe_allowed_mentions())
 
 
 class LLMChatPlugin(BasePlugin):
     name = "llm_chat"
     slot = PluginSlot.LLM_CHAT
-    version = "0.1.0"
+    version = "0.2.0"
     enabled_by_default = False
     dependencies: list[str] = []
     config_schema = {
-        "commands": ["/ask", "/talk", "/summarize"],
+        "commands": ["/agent council", "/ask", "/talk", "/summarize"],
         "openai_responses_api": True,
+        "faust_agi": True,
     }
+
+    def __init__(self):
+        self.cog: LLMChatCog | None = None
+
+    async def setup(self, bot: commands.Bot, services: dict[str, Any]) -> None:
+        settings = services.get("settings")
+        if settings is not None and not getattr(settings, "faust_agi_enabled", False):
+            self.cog = None
+            return
+        self.cog = LLMChatCog(bot, services=services)
+        await bot.add_cog(self.cog)
+
+    async def teardown(self) -> None:
+        self.cog = None
 
     def tools(self) -> list[ToolDefinition]:
         return [
@@ -25,5 +112,7 @@ class LLMChatPlugin(BasePlugin):
         ]
 
     async def healthcheck(self) -> dict[str, object]:
-        return {"ok": True, "plugin": self.name, "slot": self.slot.value, "stub": True}
+        return {"ok": True, "plugin": self.name, "slot": self.slot.value, "commands": self.commands()}
 
+    def commands(self) -> list[str]:
+        return ["/agent council"]

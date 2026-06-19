@@ -15,6 +15,7 @@ Loki is a Railway-ready Python backend for a Discord relay bot. It relays messag
   - `/relay add source_channel destination_channel direction`
   - `/relay remove route_id`
   - `/relay test route_id`
+  - `/agent council prompt` when `FAUST_AGI_ENABLED=true`
 - One-way and bidirectional relay routes.
 - Loop prevention through `relay_message_map`.
 - Clean relay format:
@@ -84,6 +85,11 @@ Key variables:
 - `BOT_ADMIN_USER_IDS`: comma-separated Discord user IDs allowed to use admin commands.
 - `DATABASE_URL`: PostgreSQL URL on Railway, or `sqlite:///loki-relay.db` locally.
 - `OPENAI_API_KEY`: optional, reserved for future LLM plugins.
+- `FAUST_AGI_ENABLED`: enables the existing `llm_chat` slot and registers `/agent council`.
+- `FAUST_AGI_BASE_URL`: Faust AGI Butter Board Web API base URL, for example `http://localhost:8000`.
+- `FAUST_AGI_API_KEY`: optional bearer token if the Faust API is protected by a gateway/proxy.
+- `FAUST_AGI_TIMEOUT_SECONDS`: default `300` for slow local/provider runs.
+- `FAUST_AGI_ROUTE_MODE`, `FAUST_AGI_PROVIDER`, `FAUST_AGI_EXECUTE`: forwarded to `POST /api/faust/run`.
 - `MEDIA_MODE`: `clean`, `button`, or `native_unfurl`.
 - `MEDIA_LINK_BUTTONS`: adds an `Open media` button for clean cards when true.
 - `WEBHOOK_RELAY_MODE`: sends relays through a per-channel webhook when possible.
@@ -119,7 +125,49 @@ Windows helpers:
 - `Setup-Loki-Env.bat`: prompts for Discord, bot, database, plugin, and Railway values.
 - `Setup-Loki-Railway-Env.bat`: refreshes only Railway token/project/service values.
 - `Start-Loki-Local.bat`: starts the bot locally with SQLite fallback, useful when Railway private Postgres is not reachable from Windows.
+- `Start-Loki-Guardian.bat`: starts the watchdog/guardian process, which starts Loki with local SQLite fallback and restarts it if the process exits or the `/healthz` endpoint stays unhealthy.
 - `Start-Mythos-Loki-Chat.bat`: starts Mythos with the project-local `loki-relay` skill and provider keys loaded from `.env`.
+
+## 24/7 Guardian Watchdog
+
+For a local always-on Windows run, prefer the guardian instead of launching `python -m bot.main` directly:
+
+```powershell
+python -m scripts.loki_guardian
+```
+
+or double-click `Start-Loki-Guardian.bat`.
+
+The guardian is intentionally a process supervisor, not a second Discord client. Loki still uses `discord.py` for the Discord Gateway lifecycle, including heartbeats, reconnects, Resume/Identify behavior, and REST rate-limit handling. The guardian only restarts the child process when it exits or when Loki's own `GET /healthz` stays unhealthy beyond the configured threshold.
+
+Discord compliance safeguards built into the guardian:
+
+- Does not open a custom Gateway connection or send Discord REST requests, avoiding duplicate clients and manual rate-limit handling.
+- Uses Loki's existing `discord.py` client, a community-listed Discord library with built-in Gateway and rate-limit support.
+- Requires repeated health failures before restart, so normal transient Gateway disconnects are left for `discord.py` to resume.
+- Uses exponential backoff and jitter between restarts to avoid tight reconnect loops.
+- Caps restarts to `LOKI_GUARDIAN_MAX_RESTARTS_PER_24H` (default `20`), far below Discord's documented 1000 Identify/day limit.
+- Terminates Loki gracefully before force-killing so the bot can close resources cleanly.
+- Uses a lock file to avoid two guardian instances starting two bot processes with the same token.
+- Redacts token-like command arguments in guardian logs.
+
+Guardian environment variables:
+
+- `LOKI_GUARDIAN_HEALTH_URL`: default `http://127.0.0.1:<HEALTH_PORT>/healthz` when `HEALTH_PORT`/`PORT` is set, otherwise `http://127.0.0.1:8080/healthz`.
+- `LOKI_GUARDIAN_CHECK_INTERVAL`: seconds between checks, default `30`.
+- `LOKI_GUARDIAN_STARTUP_GRACE`: startup seconds before health checks can trigger restarts, default `90`.
+- `LOKI_GUARDIAN_FAILURE_THRESHOLD`: consecutive failed checks before restart, default `6`.
+- `LOKI_GUARDIAN_MAX_RESTARTS_PER_24H`: restart cap, default `20`.
+- `LOKI_GUARDIAN_BASE_RESTART_DELAY`: first restart delay in seconds, default `30`.
+- `LOKI_GUARDIAN_MAX_RESTART_DELAY`: maximum exponential-backoff delay, default `900`.
+
+Logs are written to `logs/loki-guardian.log`. The guardian can also run any explicit command after `--`, for example:
+
+```powershell
+python -m scripts.loki_guardian -- python -m bot.main
+```
+
+For production hosting, Railway should remain the primary process manager: use its deploy/runtime restart policy and health check (`GET /healthz`). The guardian is for local Windows or a simple VM-style run where there is no platform supervisor.
 
 ## Railway Deployment
 

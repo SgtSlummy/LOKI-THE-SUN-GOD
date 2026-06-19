@@ -9,6 +9,7 @@ dependencies = [
   "asyncpg>=0.30,<1",
   "discord.py>=2.6,<3",
   "openai>=2.0,<3",
+  "psutil>=5.9,<8",
   "python-dotenv>=1.1,<2",
 ]
 
@@ -18,7 +19,14 @@ dev = [
   "pytest-asyncio>=1.2,<2",
 ]
 
+[project.scripts]
+loki-guardian = "scripts.loki_guardian:main"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["bot*", "scripts*"]
+exclude = ["agents*", "tests*"]
 

@@ -54,6 +54,15 @@ class Settings:
     server_search_enabled: bool = False
     llm_chat_enabled: bool = False
     music_enabled: bool = False
+    faust_agi_enabled: bool = False
+    faust_agi_base_url: str = ""
+    faust_agi_api_key: str | None = None
+    faust_agi_timeout_seconds: int = 300
+    faust_agi_run_path: str = "/api/faust/run"
+    faust_agi_route_mode: str = "local_first"
+    faust_agi_provider: str = ""
+    faust_agi_execute: bool = True
+    faust_agi_target_component: str = "discord"
     bot_admin_user_ids: set[int] = field(default_factory=set)
     allow_bot_relay: bool = False
     relay_error_threshold: int = 5
@@ -96,6 +105,15 @@ class Settings:
             server_search_enabled=_bool(os.getenv("SERVER_SEARCH_ENABLED"), False),
             llm_chat_enabled=_bool(os.getenv("LLM_CHAT_ENABLED"), False),
             music_enabled=_bool(os.getenv("MUSIC_ENABLED"), False),
+            faust_agi_enabled=_bool(os.getenv("FAUST_AGI_ENABLED"), False),
+            faust_agi_base_url=os.getenv("FAUST_AGI_BASE_URL", os.getenv("FAUST_API_BASE_URL", "")),
+            faust_agi_api_key=os.getenv("FAUST_AGI_API_KEY") or os.getenv("FAUST_API_TOKEN"),
+            faust_agi_timeout_seconds=_int(os.getenv("FAUST_AGI_TIMEOUT_SECONDS") or os.getenv("FAUST_API_TIMEOUT_SECONDS"), 300),
+            faust_agi_run_path=os.getenv("FAUST_AGI_RUN_PATH", "/api/faust/run"),
+            faust_agi_route_mode=os.getenv("FAUST_AGI_ROUTE_MODE", "local_first"),
+            faust_agi_provider=os.getenv("FAUST_AGI_PROVIDER", ""),
+            faust_agi_execute=_bool(os.getenv("FAUST_AGI_EXECUTE"), True),
+            faust_agi_target_component=os.getenv("FAUST_AGI_TARGET_COMPONENT", "discord"),
             bot_admin_user_ids=owner_ids,
             allow_bot_relay=_bool(os.getenv("ALLOW_BOT_RELAY"), False),
             relay_error_threshold=_int(os.getenv("RELAY_ERROR_THRESHOLD"), 5),
@@ -118,7 +136,7 @@ class Settings:
         if self.enabled_plugins_override is not None:
             return self.enabled_plugins_override
         names = set(self.required_default_plugins)
-        if self.llm_chat_enabled:
+        if self.llm_chat_enabled or self.faust_agi_enabled:
             names.add("llm_chat")
         if self.server_search_enabled:
             names.add("server_search")
@@ -162,5 +180,12 @@ class Settings:
                 "server_search": self.server_search_enabled,
                 "autonomous_curator": self.autocurator_enabled,
                 "music": self.music_enabled,
+            },
+            "faust_agi": {
+                "enabled": self.faust_agi_enabled,
+                "configured": bool(self.faust_agi_base_url),
+                "route_mode": self.faust_agi_route_mode,
+                "provider": self.faust_agi_provider,
+                "execute": self.faust_agi_execute,
             },
         }

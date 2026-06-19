@@ -22,6 +22,7 @@ from bot.plugins.server_search import ServerSearchPlugin
 from bot.plugins.relay_core.formatting import safe_allowed_mentions
 from bot.services.cache import MemoryCache
 from bot.services.database import Database
+from bot.services.faust_agi import FaustAGIClient
 from bot.services.llm import LLMClient
 from bot.services.logging import configure_logging, log_safe_startup_config
 from bot.services.media_resolver import MediaResolver
@@ -105,6 +106,7 @@ async def create_services(settings: Settings) -> dict[str, Any]:
         "database": database,
         "media_resolver": media_resolver,
         "llm_client": LLMClient(settings),
+        "faust_agi_client": FaustAGIClient(settings),
         "search_index": SearchIndex(enabled=settings.server_search_enabled),
         "permission_manager": PermissionManager(admin_user_ids=settings.bot_admin_user_ids),
         "scheduler": Scheduler(),
@@ -139,6 +141,39 @@ async def apply_bootstrap_routes(settings: Settings, database: Database, logger:
         logger.info("Bootstrapped relay route for guild %s from %s to %s", guild_id, source_channel_id, destination_channel_id)
 
 
+async def build_health_payload(
+    *,
+    bot: LokiBot,
+    services: dict[str, Any],
+    registry: PluginRegistry,
+    settings: Settings,
+) -> dict[str, Any]:
+    database = services["database"]
+    llm_client = services["llm_client"]
+    faust_agi_client = services.get("faust_agi_client")
+    db_connected = await database.healthcheck()
+    active_plugins = registry.active_plugin_names()
+    plugin_health = await registry.healthcheck()
+    return {
+        "ok": db_connected and not bot.is_closed(),
+        "discord_connected": bot.is_ready(),
+        "db_connected": db_connected,
+        "active_plugins": active_plugins,
+        "plugin_health": plugin_health,
+        "llm": {
+            "provider": "openai",
+            "configured": llm_client.available,
+            "model": settings.openai_model,
+        },
+        "faust_agi": {
+            "configured": bool(getattr(faust_agi_client, "available", False)),
+            "enabled": settings.faust_agi_enabled,
+            "route_mode": settings.faust_agi_route_mode,
+            "provider": settings.faust_agi_provider,
+        },
+    }
+
+
 async def start_health_server(
     *,
     bot: LokiBot,
@@ -147,18 +182,12 @@ async def start_health_server(
     settings: Settings,
 ) -> web.AppRunner:
     async def healthz(request: web.Request) -> web.Response:
-        database = services["database"]
-        db_connected = await database.healthcheck()
-        active_plugins = registry.active_plugin_names()
-        plugin_health = await registry.healthcheck()
-        payload = {
-            "ok": db_connected and not bot.is_closed(),
-            "discord_connected": bot.is_ready(),
-            "db_connected": db_connected,
-            "active_plugins": active_plugins,
-            "plugin_health": plugin_health,
-        }
-        return web.json_response(payload, status=200 if payload["ok"] else 503)
+        payload = await build_health_payload(bot=bot, services=services, registry=registry, settings=settings)
+        return web.json_response(
+            payload,
+            status=200 if payload["ok"] else 503,
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
 
     app = web.Application()
     app.router.add_get("/healthz", healthz)
