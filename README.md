@@ -16,6 +16,7 @@ Loki is a Railway-ready Python backend for a Discord relay bot. It relays messag
   - `/relay remove route_id`
   - `/relay test route_id`
   - `/agent council prompt` when `FAUST_AGI_ENABLED=true`
+  - `/agent maintain prompt` admin-only self-maintenance when `FAUST_AGI_ADMIN_EXECUTE_ENABLED=true`
 - LLM chat messaging when `FAUST_AGI_ENABLED=true`:
   - Mention Loki in a server channel: `@Loki your question`
   - DM Loki directly: `your question`

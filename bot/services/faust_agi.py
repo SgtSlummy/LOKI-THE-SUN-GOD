@@ -70,7 +70,36 @@ class FaustAGIClient:
             execute=False,
         )
 
-    async def _post_run(self, *, prompt: str, context: dict[str, Any], execute: bool) -> dict[str, Any]:
+    async def run_maintenance(
+        self,
+        *,
+        prompt: str,
+        user_id: int | None,
+        guild_id: int | None,
+        channel_id: int | None,
+    ) -> dict[str, Any]:
+        return await self._post_run(
+            prompt=prompt,
+            context={
+                "source": "discord_admin_maintenance",
+                "user_id": user_id,
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+            },
+            execute=True,
+            target_component=self.settings.faust_agi_admin_target_component,
+            active_workspace=self.settings.faust_agi_admin_workspace,
+        )
+
+    async def _post_run(
+        self,
+        *,
+        prompt: str,
+        context: dict[str, Any],
+        execute: bool,
+        target_component: str | None = None,
+        active_workspace: str | None = None,
+    ) -> dict[str, Any]:
         if not self.available:
             raise FaustAGIError("FAUST_AGI_BASE_URL is not configured.")
 
@@ -81,8 +110,8 @@ class FaustAGIClient:
             "prompt": prompt,
             "context": context,
             "selected_mode": "chat",
-            "active_workspace": "",
-            "target_component": self.settings.faust_agi_target_component,
+            "active_workspace": active_workspace if active_workspace is not None else "",
+            "target_component": target_component if target_component is not None else self.settings.faust_agi_target_component,
             "provider": self.settings.faust_agi_provider,
             "route_mode": self.settings.faust_agi_route_mode,
             "execute": execute,

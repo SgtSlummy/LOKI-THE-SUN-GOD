@@ -64,6 +64,9 @@ class Settings:
     faust_agi_provider: str = ""
     faust_agi_execute: bool = True
     faust_agi_target_component: str = "discord"
+    faust_agi_admin_execute_enabled: bool = False
+    faust_agi_admin_target_component: str = "loki_self"
+    faust_agi_admin_workspace: str = "."
     faust_agi_unprompted_continuations_enabled: bool = False
     faust_agi_unprompted_max_turns: int = 1
     faust_agi_unprompted_max_delay_seconds: int = 30
@@ -72,6 +75,7 @@ class Settings:
     relay_error_threshold: int = 5
     relay_error_window_seconds: int = 60
     enabled_plugins_override: set[str] | None = None
+
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -119,6 +123,9 @@ class Settings:
             faust_agi_provider=os.getenv("FAUST_AGI_PROVIDER", ""),
             faust_agi_execute=_bool(os.getenv("FAUST_AGI_EXECUTE"), True),
             faust_agi_target_component=os.getenv("FAUST_AGI_TARGET_COMPONENT", "discord"),
+            faust_agi_admin_execute_enabled=_bool(os.getenv("FAUST_AGI_ADMIN_EXECUTE_ENABLED"), False),
+            faust_agi_admin_target_component=os.getenv("FAUST_AGI_ADMIN_TARGET_COMPONENT", "loki_self"),
+            faust_agi_admin_workspace=os.getenv("FAUST_AGI_ADMIN_WORKSPACE", "."),
             faust_agi_unprompted_continuations_enabled=_bool(
                 os.getenv("FAUST_AGI_UNPROMPTED_CONTINUATIONS_ENABLED"), False
             ),
@@ -214,6 +221,9 @@ class Settings:
                 "route_mode": self.faust_agi_route_mode,
                 "provider": self.faust_agi_provider,
                 "execute": self.faust_agi_execute,
+                "admin_execute_enabled": self.faust_agi_admin_execute_enabled,
+                "admin_target_component": self.faust_agi_admin_target_component,
+                "admin_workspace": self.faust_agi_admin_workspace,
                 "unprompted_continuations_enabled": self.faust_agi_unprompted_continuations_enabled,
                 "unprompted_max_turns": self.faust_agi_unprompted_max_turns,
                 "unprompted_max_delay_seconds": self.faust_agi_unprompted_max_delay_seconds,

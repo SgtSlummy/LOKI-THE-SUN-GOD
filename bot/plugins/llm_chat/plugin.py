@@ -53,6 +53,15 @@ def _format_continuation_header(result: dict[str, Any]) -> str:
     return f"Faust AGI continuation ({', '.join(details)}):" if details else "Faust AGI continuation:"
 
 
+def _format_maintenance_header(result: dict[str, Any]) -> str:
+    details: list[str] = []
+    if result.get("run_id"):
+        details.append(f"run {result['run_id']}")
+    if result.get("fallback_used"):
+        details.append("fallback used")
+    return f"Faust AGI maintenance ({', '.join(details)}):" if details else "Faust AGI maintenance:"
+
+
 class LLMChatCog(commands.Cog):
     agent_group = app_commands.Group(name="agent", description="Agent commands")
 
@@ -65,6 +74,11 @@ class LLMChatCog(commands.Cog):
     @app_commands.describe(prompt="Question or task for the Faust AGI council")
     async def council(self, interaction: discord.Interaction, prompt: str) -> None:
         await self.handle_council(interaction, prompt=prompt)
+
+    @agent_group.command(name="maintain", description="Admin-only: ask Faust AGI to alter Loki code/config.")
+    @app_commands.describe(prompt="Code/config change for Loki to execute through Faust AGI")
+    async def maintain(self, interaction: discord.Interaction, prompt: str) -> None:
+        await self.handle_maintain(interaction, prompt=prompt)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -126,7 +140,6 @@ class LLMChatCog(commands.Cog):
                 allowed_mentions=safe_allowed_mentions(),
             )
             return
-
         try:
             result = await faust_client.run_council(
                 prompt=prompt,
@@ -146,7 +159,61 @@ class LLMChatCog(commands.Cog):
             return
         await self._run_unprompted_continuations(interaction, faust_client, result)
 
-    async def _send_result_chunks(self, interaction: discord.Interaction, header: str, result: dict[str, Any]) -> bool:
+    async def handle_maintain(self, interaction: discord.Interaction, *, prompt: str) -> None:
+        permission_manager = self.services.get("permission_manager")
+        if permission_manager is None or not permission_manager.is_admin_interaction(interaction):
+            await interaction.response.send_message(
+                "You do not have permission to use this admin LLM command.",
+                ephemeral=True,
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        settings = self.services.get("settings")
+        if not getattr(settings, "faust_agi_admin_execute_enabled", False):
+            await interaction.response.send_message(
+                "Admin LLM execution is disabled. Set FAUST_AGI_ADMIN_EXECUTE_ENABLED=true to allow Loki self-maintenance.",
+                ephemeral=True,
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        faust_client = self.services.get("faust_agi_client")
+        if faust_client is None or not getattr(faust_client, "available", False):
+            await interaction.followup.send(
+                "Faust AGI is not configured. Set FAUST_AGI_BASE_URL and enable FAUST_AGI_ENABLED=true.",
+                ephemeral=True,
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        try:
+            result = await faust_client.run_maintenance(
+                prompt=prompt,
+                user_id=getattr(interaction.user, "id", None),
+                guild_id=interaction.guild_id,
+                channel_id=interaction.channel_id,
+            )
+        except FaustAGIError as exc:
+            self.logger.warning("Faust AGI maintenance failed: %s", exc)
+            await interaction.followup.send(
+                "Faust AGI maintenance failed. Check the bot logs for details.",
+                ephemeral=True,
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        await self._send_result_chunks(interaction, _format_maintenance_header(result), result, ephemeral=True)
+
+    async def _send_result_chunks(
+        self,
+        interaction: discord.Interaction,
+        header: str,
+        result: dict[str, Any],
+        *,
+        ephemeral: bool = False,
+    ) -> bool:
         text = str(result.get("text") or "Faust AGI completed without text output.")
         chunks = chunk_discord_text(f"{header}\n{text}")
         if len(chunks) > DEFAULT_MAX_RESULT_CHUNKS:
@@ -154,7 +221,7 @@ class LLMChatCog(commands.Cog):
             chunks[-1] = chunks[-1][: DEFAULT_CHUNK_LIMIT - 36] + "\n[truncated: output too long]"
         for chunk in chunks:
             try:
-                await interaction.followup.send(chunk, allowed_mentions=safe_allowed_mentions())
+                await interaction.followup.send(chunk, ephemeral=ephemeral, allowed_mentions=safe_allowed_mentions())
             except discord.HTTPException as exc:
                 self.logger.warning("Could not send Faust AGI followup: %s", exc)
                 return False
@@ -221,7 +288,15 @@ class LLMChatPlugin(BasePlugin):
     enabled_by_default = False
     dependencies: list[str] = []
     config_schema = {
-        "commands": ["/agent council", "mention Loki in a server channel", "DM Loki", "/ask", "/talk", "/summarize"],
+        "commands": [
+            "/agent council",
+            "/agent maintain",
+            "mention Loki in a server channel",
+            "DM Loki",
+            "/ask",
+            "/talk",
+            "/summarize",
+        ],
         "openai_responses_api": True,
         "faust_agi": True,
     }
@@ -253,4 +328,4 @@ class LLMChatPlugin(BasePlugin):
         return {"ok": True, "plugin": self.name, "slot": self.slot.value, "commands": self.commands()}
 
     def commands(self) -> list[str]:
-        return ["/agent council", "@Loki <message>", "DM Loki <message>"]
+        return ["/agent council", "/agent maintain", "@Loki <message>", "DM Loki <message>"]

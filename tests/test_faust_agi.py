@@ -28,9 +28,13 @@ class FailingFollowup:
 class FakeResponse:
     def __init__(self):
         self.deferred = []
+        self.messages = []
 
     async def defer(self, **kwargs):
         self.deferred.append(kwargs)
+
+    async def send_message(self, content, **kwargs):
+        self.messages.append((content, kwargs))
 
 
 class FakeUser:
@@ -38,12 +42,20 @@ class FakeUser:
 
 
 class FakeInteraction:
-    def __init__(self):
+    def __init__(self, *, user_id: int = 123):
         self.guild_id = 456
         self.channel_id = 789
-        self.user = FakeUser()
+        self.user = type("FakeUser", (), {"id": user_id})()
         self.response = FakeResponse()
         self.followup = FakeFollowup()
+
+
+class FakePermissionManager:
+    def __init__(self, admin_user_ids: set[int]):
+        self.admin_user_ids = admin_user_ids
+
+    def is_admin_interaction(self, interaction):
+        return getattr(interaction.user, "id", None) in self.admin_user_ids
 
 
 class FakeBotUser:
@@ -89,6 +101,10 @@ class FakeFaustClient:
     async def run_council(self, **kwargs):
         self.kwargs = kwargs
         return {"text": "Council answer", "run_id": "run-1", "fallback_used": True}
+
+    async def run_maintenance(self, **kwargs):
+        self.maintenance_kwargs = kwargs
+        return {"text": "Maintenance complete", "run_id": "maint-1", "fallback_used": False}
 
 
 class FakeUnavailableFaustClient:
@@ -337,12 +353,71 @@ def test_faust_client_is_available_only_when_enabled_and_configured():
     assert FaustAGIClient(Settings(faust_agi_enabled=True, faust_agi_base_url="http://faust")).available
 
 
+@pytest.mark.asyncio
+async def test_faust_client_posts_admin_maintenance_request_with_execute_enabled(unused_tcp_port):
+    captured = {}
+
+    async def handle_run(request):
+        captured["body"] = await request.json()
+        return web.json_response({"run_id": "maint-123", "output": "Changed Loki config"})
+
+    app = web.Application()
+    app.router.add_post("/api/faust/run", handle_run)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = unused_tcp_port
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        settings = Settings(
+            faust_agi_enabled=True,
+            faust_agi_base_url=f"http://127.0.0.1:{port}",
+            faust_agi_admin_target_component="loki_self",
+            faust_agi_admin_workspace=".",
+        )
+        client = FaustAGIClient(settings)
+        result = await client.run_maintenance(
+            prompt="Update Loki config",
+            user_id=1,
+            guild_id=2,
+            channel_id=3,
+        )
+    finally:
+        await runner.cleanup()
+
+    assert captured["body"] == {
+        "prompt": "Update Loki config",
+        "context": {"source": "discord_admin_maintenance", "user_id": 1, "guild_id": 2, "channel_id": 3},
+        "selected_mode": "chat",
+        "active_workspace": ".",
+        "target_component": "loki_self",
+        "provider": "",
+        "route_mode": "local_first",
+        "execute": True,
+    }
+    assert result["text"] == "Changed Loki config"
+
+
+def test_settings_reads_admin_maintenance_config(monkeypatch):
+    monkeypatch.setenv("FAUST_AGI_ADMIN_EXECUTE_ENABLED", "true")
+    monkeypatch.setenv("FAUST_AGI_ADMIN_TARGET_COMPONENT", "loki_self")
+    monkeypatch.setenv("FAUST_AGI_ADMIN_WORKSPACE", ".")
+
+    settings = Settings.from_env()
+
+    assert settings.faust_agi_admin_execute_enabled is True
+    assert settings.faust_agi_admin_target_component == "loki_self"
+    assert settings.faust_agi_admin_workspace == "."
+    assert settings.safe_log_dict()["faust_agi"]["admin_execute_enabled"] is True
+
+
 def test_settings_enables_llm_chat_when_faust_enabled(monkeypatch):
     monkeypatch.setenv("FAUST_AGI_ENABLED", "true")
     monkeypatch.setenv("FAUST_AGI_BASE_URL", "http://faust.local")
     monkeypatch.setenv("FAUST_AGI_API_KEY", "do-not-log")
     monkeypatch.setenv("FAUST_AGI_PROVIDER", "")
     monkeypatch.setenv("FAUST_AGI_EXECUTE", "true")
+    monkeypatch.setenv("FAUST_AGI_ADMIN_EXECUTE_ENABLED", "false")
 
     settings = Settings.from_env()
 
@@ -354,6 +429,9 @@ def test_settings_enables_llm_chat_when_faust_enabled(monkeypatch):
         "route_mode": "local_first",
         "provider": "",
         "execute": True,
+        "admin_execute_enabled": False,
+        "admin_target_component": "loki_self",
+        "admin_workspace": ".",
         "unprompted_continuations_enabled": False,
         "unprompted_max_turns": 1,
         "unprompted_max_delay_seconds": 30,
@@ -445,6 +523,73 @@ async def test_faust_client_clamps_continuation_delay(unused_tcp_port):
         await runner.cleanup()
 
     assert result["continuation_delay_seconds"] == 30
+
+
+@pytest.mark.asyncio
+async def test_agent_maintain_requires_admin_permission():
+    faust_client = FakeFaustClient()
+    settings = Settings(faust_agi_enabled=True, faust_agi_admin_execute_enabled=True)
+    cog = LLMChatCog(
+        bot=object(),
+        services={
+            "settings": settings,
+            "faust_agi_client": faust_client,
+            "permission_manager": FakePermissionManager({123}),
+        },
+    )
+    interaction = FakeInteraction(user_id=999)
+
+    await cog.handle_maintain(interaction, prompt="change Loki config")
+
+    assert interaction.response.messages[0][0] == "You do not have permission to use this admin LLM command."
+    assert not hasattr(faust_client, "maintenance_kwargs")
+
+
+@pytest.mark.asyncio
+async def test_agent_maintain_requires_admin_execute_enabled():
+    faust_client = FakeFaustClient()
+    settings = Settings(faust_agi_enabled=True, faust_agi_admin_execute_enabled=False)
+    cog = LLMChatCog(
+        bot=object(),
+        services={
+            "settings": settings,
+            "faust_agi_client": faust_client,
+            "permission_manager": FakePermissionManager({123}),
+        },
+    )
+    interaction = FakeInteraction(user_id=123)
+
+    await cog.handle_maintain(interaction, prompt="change Loki config")
+
+    assert interaction.response.messages[0][0] == "Admin LLM execution is disabled. Set FAUST_AGI_ADMIN_EXECUTE_ENABLED=true to allow Loki self-maintenance."
+    assert not hasattr(faust_client, "maintenance_kwargs")
+
+
+@pytest.mark.asyncio
+async def test_agent_maintain_admin_runs_faust_maintenance_with_execute_enabled():
+    faust_client = FakeFaustClient()
+    settings = Settings(faust_agi_enabled=True, faust_agi_admin_execute_enabled=True)
+    cog = LLMChatCog(
+        bot=object(),
+        services={
+            "settings": settings,
+            "faust_agi_client": faust_client,
+            "permission_manager": FakePermissionManager({123}),
+        },
+    )
+    interaction = FakeInteraction(user_id=123)
+
+    await cog.handle_maintain(interaction, prompt="change Loki config")
+
+    assert interaction.response.deferred == [{"ephemeral": True, "thinking": True}]
+    assert faust_client.maintenance_kwargs == {
+        "prompt": "change Loki config",
+        "user_id": 123,
+        "guild_id": 456,
+        "channel_id": 789,
+    }
+    assert interaction.followup.messages[0][0] == "Faust AGI maintenance (run maint-1):\nMaintenance complete"
+    assert interaction.followup.messages[0][1]["ephemeral"] is True
 
 
 @pytest.mark.asyncio
