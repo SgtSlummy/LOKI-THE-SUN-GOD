@@ -29,7 +29,13 @@ The installer intelligently verifies or installs:
 
 ## After install
 
-Point Loki at the node:
+The installer now writes a pairing bundle under `%LOCALAPPDATA%\LokiHermesNode`:
+
+- `PAIR_WITH_LOKI.env` — copy/apply this on the PC that runs Loki.
+- `PAIR_WITH_THIS_PC.cmd` — prompts for the local Loki repo path and applies the pairing file.
+- `scripts\Apply-LokiHermesNodePairing.ps1` — safe updater that changes only Loki/Faust pairing keys in `.env` and `Loki.env`; it does not print or alter Discord/OpenAI secrets.
+
+Point Loki at the node manually or by applying `PAIR_WITH_LOKI.env`:
 
 ```text
 FAUST_AGI_BASE_URL=http://127.0.0.1:8765

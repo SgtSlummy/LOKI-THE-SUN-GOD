@@ -85,6 +85,7 @@ try {
 
   Copy-Item -Force -Path (Join-Path $PackageRoot 'scripts\loki_hermes_bridge.py') -Destination $ScriptsDir
   Copy-Item -Force -Path (Join-Path $PackageRoot 'scripts\Start-LokiHermesNode.cmd') -Destination $InstallRoot
+  Copy-Item -Force -Path (Join-Path $PackageRoot 'scripts\Apply-LokiHermesNodePairing.ps1') -Destination $ScriptsDir
   Copy-Item -Force -Path (Join-Path $PackageRoot 'templates\obsidian-loki-home.md') -Destination (Join-Path $VaultPath 'Loki Hermes Node.md')
   Copy-Item -Force -Path (Join-Path $PackageRoot 'prompts\install-aide-1bit.md') -Destination (Join-Path $ConfigDir 'install-aide-1bit.md')
 
@@ -186,6 +187,37 @@ try {
     LOKI_HERMES_OBSIDIAN_VAULT=$VaultPath
     LOKI_HERMES_TAILSCALE_URL=$FaustBaseTail
   }
+
+  Write-Step "Writing pairing package for this PC and Loki"
+  $PairingPath = Join-Path $InstallRoot 'PAIR_WITH_LOKI.env'
+  $PairCmd = Join-Path $InstallRoot 'PAIR_WITH_THIS_PC.cmd'
+  $PairingLines = @(
+    '# Copy this file to the PC that runs Loki, then run scripts\Apply-LokiHermesNodePairing.ps1 from the Loki repo or this package.',
+    "FAUST_AGI_BASE_URL=$FaustBaseTail",
+    'FAUST_AGI_RUN_PATH=/api/faust/run',
+    'FAUST_AGI_PROVIDER=codex',
+    'FAUST_AGI_ROUTE_MODE=local_first',
+    'FAUST_AGI_EXECUTE=false',
+    'FAUST_AGI_TARGET_COMPONENT=discord',
+    'FAUST_AGI_ADMIN_EXECUTE_ENABLED=true',
+    'FAUST_AGI_ADMIN_TARGET_COMPONENT=loki_self',
+    'FAUST_AGI_ADMIN_WORKSPACE=.',
+    'LLM_CHAT_ENABLED=true',
+    'FAUST_AGI_ENABLED=true',
+    "BOT_ADMIN_USER_IDS=$BotAdmins"
+  )
+  Set-Content -Path $PairingPath -Value $PairingLines -Encoding UTF8
+  Set-Content -Path $PairCmd -Encoding ASCII -Value @"
+@echo off
+setlocal
+cd /d "%~dp0"
+echo This applies PAIR_WITH_LOKI.env to a Loki checkout on this PC.
+echo If this file is still on the remote AI node, copy PAIR_WITH_LOKI.env and scripts\Apply-LokiHermesNodePairing.ps1 to the Loki PC first.
+set /p LOKI_ROOT=Path to local Loki repo [%%USERPROFILE%%\Documents\Loki 2.0]: 
+if "%%LOKI_ROOT%%"=="" set "LOKI_ROOT=%%USERPROFILE%%\Documents\Loki 2.0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Apply-LokiHermesNodePairing.ps1" -PairingFile "%~dp0PAIR_WITH_LOKI.env" -LokiRoot "%%LOKI_ROOT%%"
+pause
+"@
 
   Write-Step "Installing Python bridge dependencies"
   python -m pip install --upgrade pip | Out-Null

@@ -18,6 +18,7 @@ def test_windows_ai_node_package_contains_one_click_entrypoint_and_core_assets()
         "prompts/install-aide-1bit.md",
         "scripts/loki_hermes_bridge.py",
         "scripts/Start-LokiHermesNode.cmd",
+        "scripts/Apply-LokiHermesNodePairing.ps1",
     ]
 
     missing = [relative for relative in required if not (PACKAGE_DIR / relative).exists()]
@@ -44,6 +45,21 @@ def test_windows_ai_node_installer_mentions_required_integrations_and_safe_defau
     assert "--provider openai-codex" in bridge
     assert "ollama" in bridge.lower()
     assert "/api/faust/run" in bridge
+
+
+def test_windows_ai_node_pairing_script_and_installer_create_pairing_env():
+    installer = (PACKAGE_DIR / "Install-LokiHermesNode.ps1").read_text(encoding="utf-8")
+    apply_script = (PACKAGE_DIR / "scripts" / "Apply-LokiHermesNodePairing.ps1").read_text(encoding="utf-8")
+    readme = (PACKAGE_DIR / "README.md").read_text(encoding="utf-8")
+
+    assert "PAIR_WITH_LOKI.env" in installer
+    assert "PAIR_WITH_THIS_PC.cmd" in installer
+    assert "FAUST_AGI_BASE_URL=$FaustBaseTail" in installer
+    assert "Apply-LokiHermesNodePairing.ps1" in apply_script
+    assert "FAUST_AGI_BASE_URL" in apply_script
+    assert "BOT_ADMIN_USER_IDS" in apply_script
+    assert "REPLACE_WITH" not in apply_script
+    assert "PAIR_WITH_LOKI.env" in readme
 
 
 def test_windows_ai_node_templates_do_not_contain_real_secrets():
