@@ -66,6 +66,57 @@ class LLMChatCog(commands.Cog):
     async def council(self, interaction: discord.Interaction, prompt: str) -> None:
         await self.handle_council(interaction, prompt=prompt)
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        prompt = self._prompt_from_message(message)
+        if not prompt:
+            return
+        await self.handle_message_council(message, prompt=prompt)
+
+    def _prompt_from_message(self, message: discord.Message) -> str | None:
+        if getattr(getattr(message, "author", None), "bot", False):
+            return None
+        content = str(getattr(message, "content", "") or "").strip()
+        if not content:
+            return None
+
+        bot_user = getattr(self.bot, "user", None)
+        bot_id = getattr(bot_user, "id", None)
+        if getattr(message, "guild", None) is not None:
+            if bot_id is None or bot_id not in getattr(message, "raw_mentions", []):
+                return None
+            mention_tokens = [f"<@{bot_id}>", f"<@!{bot_id}>"]
+            for token in mention_tokens:
+                content = content.replace(token, "")
+            content = content.strip()
+        return content or None
+
+    async def handle_message_council(self, message: discord.Message, *, prompt: str) -> None:
+        faust_client = self.services.get("faust_agi_client")
+        if faust_client is None or not getattr(faust_client, "available", False):
+            await message.channel.send(
+                "Faust AGI is not configured. Set FAUST_AGI_BASE_URL and enable FAUST_AGI_ENABLED=true.",
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        try:
+            result = await faust_client.run_council(
+                prompt=prompt,
+                user_id=getattr(message.author, "id", None),
+                guild_id=getattr(message, "guild_id", None),
+                channel_id=getattr(getattr(message, "channel", None), "id", None),
+            )
+        except FaustAGIError as exc:
+            self.logger.warning("Faust AGI council failed from message: %s", exc)
+            await message.channel.send(
+                "Faust AGI council failed. Check the bot logs for details.",
+                allowed_mentions=safe_allowed_mentions(),
+            )
+            return
+
+        await self._send_channel_result_chunks(message.channel, _format_council_header(result), result)
+
     async def handle_council(self, interaction: discord.Interaction, *, prompt: str) -> None:
         await interaction.response.defer(thinking=True)
         faust_client = self.services.get("faust_agi_client")
@@ -106,6 +157,20 @@ class LLMChatCog(commands.Cog):
                 await interaction.followup.send(chunk, allowed_mentions=safe_allowed_mentions())
             except discord.HTTPException as exc:
                 self.logger.warning("Could not send Faust AGI followup: %s", exc)
+                return False
+        return True
+
+    async def _send_channel_result_chunks(self, channel: Any, header: str, result: dict[str, Any]) -> bool:
+        text = str(result.get("text") or "Faust AGI completed without text output.")
+        chunks = chunk_discord_text(f"{header}\n{text}")
+        if len(chunks) > DEFAULT_MAX_RESULT_CHUNKS:
+            chunks = chunks[:DEFAULT_MAX_RESULT_CHUNKS]
+            chunks[-1] = chunks[-1][: DEFAULT_CHUNK_LIMIT - 36] + "\n[truncated: output too long]"
+        for chunk in chunks:
+            try:
+                await channel.send(chunk, allowed_mentions=safe_allowed_mentions())
+            except discord.HTTPException as exc:
+                self.logger.warning("Could not send Faust AGI channel message: %s", exc)
                 return False
         return True
 
@@ -156,7 +221,7 @@ class LLMChatPlugin(BasePlugin):
     enabled_by_default = False
     dependencies: list[str] = []
     config_schema = {
-        "commands": ["/agent council", "/ask", "/talk", "/summarize"],
+        "commands": ["/agent council", "mention Loki in a server channel", "DM Loki", "/ask", "/talk", "/summarize"],
         "openai_responses_api": True,
         "faust_agi": True,
     }
@@ -188,4 +253,4 @@ class LLMChatPlugin(BasePlugin):
         return {"ok": True, "plugin": self.name, "slot": self.slot.value, "commands": self.commands()}
 
     def commands(self) -> list[str]:
-        return ["/agent council"]
+        return ["/agent council", "@Loki <message>", "DM Loki <message>"]

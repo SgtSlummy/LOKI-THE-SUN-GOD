@@ -46,12 +46,41 @@ class FakeInteraction:
         self.followup = FakeFollowup()
 
 
+class FakeBotUser:
+    id = 999
+
+
 class FakeBot:
     def __init__(self):
         self.cogs = []
+        self.user = FakeBotUser()
 
     async def add_cog(self, cog):
         self.cogs.append(cog)
+
+
+class FakeChannel:
+    def __init__(self):
+        self.messages = []
+
+    async def send(self, content, **kwargs):
+        self.messages.append((content, kwargs))
+
+
+class FakeAuthor:
+    id = 321
+    bot = False
+
+
+class FakeMessage:
+    def __init__(self, content: str, *, guild_id: int | None = 456, channel_id: int = 789, raw_mentions: list[int] | None = None):
+        self.content = content
+        self.guild = None if guild_id is None else object()
+        self.guild_id = guild_id
+        self.channel = FakeChannel()
+        self.channel.id = channel_id
+        self.author = FakeAuthor()
+        self.raw_mentions = raw_mentions or []
 
 
 class FakeFaustClient:
@@ -562,3 +591,53 @@ async def test_llm_chat_plugin_registers_agent_council_only_when_faust_enabled()
 
     assert len(enabled_bot.cogs) == 1
     assert isinstance(enabled_plugin.cog, LLMChatCog)
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_mention_message_sends_faust_response_to_channel():
+    faust_client = FakeFaustClient()
+    bot = FakeBot()
+    cog = LLMChatCog(bot=bot, services={"faust_agi_client": faust_client})
+    message = FakeMessage("<@999> help me plan this", raw_mentions=[999])
+
+    await cog.on_message(message)
+
+    assert faust_client.kwargs == {
+        "prompt": "help me plan this",
+        "user_id": 321,
+        "guild_id": 456,
+        "channel_id": 789,
+    }
+    assert message.channel.messages[0][0] == "Faust AGI council (run run-1, fallback used):\nCouncil answer"
+    assert message.channel.messages[0][1]["allowed_mentions"].everyone is False
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_dm_message_sends_faust_response_to_channel_without_mention():
+    faust_client = FakeFaustClient()
+    bot = FakeBot()
+    cog = LLMChatCog(bot=bot, services={"faust_agi_client": faust_client})
+    message = FakeMessage("help me from a DM", guild_id=None)
+
+    await cog.on_message(message)
+
+    assert faust_client.kwargs == {
+        "prompt": "help me from a DM",
+        "user_id": 321,
+        "guild_id": None,
+        "channel_id": 789,
+    }
+    assert message.channel.messages[0][0] == "Faust AGI council (run run-1, fallback used):\nCouncil answer"
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_ignores_guild_message_without_loki_mention():
+    faust_client = FakeFaustClient()
+    bot = FakeBot()
+    cog = LLMChatCog(bot=bot, services={"faust_agi_client": faust_client})
+    message = FakeMessage("hello everyone")
+
+    await cog.on_message(message)
+
+    assert not hasattr(faust_client, "kwargs")
+    assert message.channel.messages == []
