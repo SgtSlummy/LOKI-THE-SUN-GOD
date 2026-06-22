@@ -134,6 +134,7 @@ Windows helpers:
 - `Start-Loki-Local.bat`: starts the bot locally with SQLite fallback, useful when Railway private Postgres is not reachable from Windows.
 - `Start-Loki-Guardian.bat`: starts the watchdog/guardian process, which starts Loki with local SQLite fallback and restarts it if the process exits or the `/healthz` endpoint stays unhealthy.
 - `Start-Mythos-Loki-Chat.bat`: starts Mythos with the project-local `loki-relay` skill and provider keys loaded from `.env`.
+- `installer/windows-ai-node/Install-LokiHermesNode.cmd`: one-click package for a separate always-on Windows PC with Loki, Hermes, Ollama backup models, Tailscale, Obsidian vault, dedicated Hermes memory/profile, and the Faust-compatible bridge used by Loki/Hermexj.
 
 ## 24/7 Guardian Watchdog
 

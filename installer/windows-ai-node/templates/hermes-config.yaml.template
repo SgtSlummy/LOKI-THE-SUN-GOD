@@ -1,0 +1,25 @@
+model:
+  provider: openai-codex
+  default: gpt-5.5
+agent:
+  max_turns: 90
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+cron:
+  enabled: true
+gateway:
+  enabled: true
+api_server:
+  host: 127.0.0.1
+  port: {{HERMES_API_PORT}}
+custom_providers:
+  ollama:
+    base_url: http://127.0.0.1:11434/v1
+    api_key: ollama
+delegation:
+  provider: openai-codex
+  model: gpt-5.5
+notes:
+  obsidian_vault: "{{OBSIDIAN_VAULT}}"
+  policy: "Use OpenAI gpt-5.5 for normal Hermes reasoning; use Ollama for backup, offline cron, and installer diagnostics."
