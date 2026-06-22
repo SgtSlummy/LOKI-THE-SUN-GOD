@@ -45,6 +45,7 @@ class Settings:
     log_level: str = "info"
     max_active_plugins: int = 8
     relay_config_json: str | None = None
+    relay_media_channel_ids_json: str | None = None
     media_mode: str = "clean"
     media_link_buttons: bool = False
     webhook_relay_mode: bool = False
@@ -63,6 +64,9 @@ class Settings:
     faust_agi_provider: str = ""
     faust_agi_execute: bool = True
     faust_agi_target_component: str = "discord"
+    faust_agi_unprompted_continuations_enabled: bool = False
+    faust_agi_unprompted_max_turns: int = 1
+    faust_agi_unprompted_max_delay_seconds: int = 30
     bot_admin_user_ids: set[int] = field(default_factory=set)
     allow_bot_relay: bool = False
     relay_error_threshold: int = 5
@@ -96,6 +100,7 @@ class Settings:
             log_level=os.getenv("LOG_LEVEL", "info"),
             max_active_plugins=_int(os.getenv("MAX_ACTIVE_PLUGINS"), 8),
             relay_config_json=os.getenv("RELAY_CONFIG_JSON"),
+            relay_media_channel_ids_json=os.getenv("RELAY_MEDIA_CHANNEL_IDS_JSON"),
             media_mode=os.getenv("MEDIA_MODE", "clean"),
             media_link_buttons=_bool(os.getenv("MEDIA_LINK_BUTTONS"), False),
             webhook_relay_mode=_bool(os.getenv("WEBHOOK_RELAY_MODE"), False),
@@ -114,6 +119,11 @@ class Settings:
             faust_agi_provider=os.getenv("FAUST_AGI_PROVIDER", ""),
             faust_agi_execute=_bool(os.getenv("FAUST_AGI_EXECUTE"), True),
             faust_agi_target_component=os.getenv("FAUST_AGI_TARGET_COMPONENT", "discord"),
+            faust_agi_unprompted_continuations_enabled=_bool(
+                os.getenv("FAUST_AGI_UNPROMPTED_CONTINUATIONS_ENABLED"), False
+            ),
+            faust_agi_unprompted_max_turns=max(0, _int(os.getenv("FAUST_AGI_UNPROMPTED_MAX_TURNS"), 1)),
+            faust_agi_unprompted_max_delay_seconds=max(0, _int(os.getenv("FAUST_AGI_UNPROMPTED_MAX_DELAY_SECONDS"), 30)),
             bot_admin_user_ids=owner_ids,
             allow_bot_relay=_bool(os.getenv("ALLOW_BOT_RELAY"), False),
             relay_error_threshold=_int(os.getenv("RELAY_ERROR_THRESHOLD"), 5),
@@ -161,6 +171,23 @@ class Settings:
             raise RuntimeError("RELAY_CONFIG_JSON must be a list or an object with a routes list.")
         return routes
 
+    @property
+    def relay_media_channel_ids(self) -> dict[str, int]:
+        if not self.relay_media_channel_ids_json:
+            return {}
+        parsed = json.loads(self.relay_media_channel_ids_json)
+        if not isinstance(parsed, dict):
+            raise RuntimeError("RELAY_MEDIA_CHANNEL_IDS_JSON must be an object mapping channel keys to IDs.")
+        allowed = {"messages", "pictures", "gifs", "emotes", "music"}
+        result: dict[str, int] = {}
+        for key, value in parsed.items():
+            if key not in allowed:
+                raise RuntimeError(f"Unsupported relay media channel key: {key}")
+            if value in (None, ""):
+                continue
+            result[key] = int(value)
+        return result
+
     def safe_log_dict(self) -> dict[str, Any]:
         return {
             "bot_env": self.bot_env,
@@ -187,5 +214,8 @@ class Settings:
                 "route_mode": self.faust_agi_route_mode,
                 "provider": self.faust_agi_provider,
                 "execute": self.faust_agi_execute,
+                "unprompted_continuations_enabled": self.faust_agi_unprompted_continuations_enabled,
+                "unprompted_max_turns": self.faust_agi_unprompted_max_turns,
+                "unprompted_max_delay_seconds": self.faust_agi_unprompted_max_delay_seconds,
             },
         }

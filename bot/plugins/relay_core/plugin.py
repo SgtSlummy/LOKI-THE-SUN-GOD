@@ -15,6 +15,7 @@ from bot.models.media import MediaItem, MediaKind
 from bot.models.relay import RelayMessage, RelayRoute
 from bot.plugins.base import BasePlugin, PluginSlot
 from bot.plugins.relay_core.formatting import (
+    build_relay_embeds,
     build_media_link_view,
     build_relay_content,
     image_links_to_embeds,
@@ -23,6 +24,7 @@ from bot.plugins.relay_core.formatting import (
 )
 from bot.services.database import Database
 from bot.services.media_resolver import MAX_DISCORD_UPLOAD_BYTES, MediaResolver
+from bot.services.relay_media import RelayMediaConfig, select_relay_channel_key, should_ignore_source_channel
 from bot.settings import Settings
 
 
@@ -78,8 +80,17 @@ class RelayCoreCog(commands.Cog):
             return
         if await self.database.is_relayed_message(message.id, message.channel.id):
             return
+        media_channel_ids = self.settings.relay_media_channel_ids
+        media_config = RelayMediaConfig(channel_ids=media_channel_ids)
+        if media_channel_ids and should_ignore_source_channel(message.channel.id, media_config):
+            return
         if self.breaker.is_open():
             self.logger.warning("Relay circuit breaker is open; skipping message %s", message.id)
+            return
+
+        if media_channel_ids:
+            relay_message = await self._normalize_message(message)
+            await self._relay_to_media_channel(message, relay_message, media_config)
             return
 
         routes = await self.database.routes_for_source(message.guild.id, message.channel.id)
@@ -91,6 +102,55 @@ class RelayCoreCog(commands.Cog):
             if await self.database.is_source_message_mapped(message.id, message.channel.id, route.id):
                 continue
             await self._relay_to_route(message, relay_message, route)
+
+    async def _relay_to_media_channel(
+        self,
+        source_message: discord.Message,
+        relay_message: RelayMessage,
+        media_config: RelayMediaConfig,
+    ) -> None:
+        channel_key = select_relay_channel_key(relay_message)
+        destination_channel_id = media_config.channel_ids.get(channel_key) or media_config.channel_ids.get("messages")
+        if destination_channel_id is None:
+            return
+        destination = self.bot.get_channel(destination_channel_id)
+        if destination is None:
+            destination = await self.bot.fetch_channel(destination_channel_id)
+        if not isinstance(destination, (discord.TextChannel, discord.Thread, discord.VoiceChannel)):
+            await self.database.audit(
+                event_type="relay_media_destination_invalid",
+                guild_id=relay_message.source_guild_id,
+                channel_id=destination_channel_id,
+                message_id=relay_message.source_message_id,
+                details={"channel_key": channel_key},
+            )
+            return
+        try:
+            sent = await self._send_relay(destination, source_message, relay_message)
+            await self.database.audit(
+                event_type="relay_media_message_sent",
+                actor_id=relay_message.author_user_id,
+                guild_id=relay_message.source_guild_id,
+                channel_id=destination_channel_id,
+                message_id=sent.id,
+                details={
+                    "channel_key": channel_key,
+                    "source_message_id": relay_message.source_message_id,
+                    "source_channel_id": relay_message.source_channel_id,
+                },
+            )
+            self.breaker.record_success()
+        except Exception as exc:
+            self.breaker.record_failure()
+            self.logger.exception("Media relay failed for channel key %s", channel_key)
+            await self.database.audit(
+                event_type="relay_media_message_failed",
+                actor_id=relay_message.author_user_id,
+                guild_id=relay_message.source_guild_id,
+                channel_id=destination_channel_id,
+                message_id=relay_message.source_message_id,
+                details={"channel_key": channel_key, "error": str(exc)},
+            )
 
     async def _normalize_message(self, message: discord.Message) -> RelayMessage:
         resolution = await self.media_resolver.resolve(
@@ -185,8 +245,10 @@ class RelayCoreCog(commands.Cog):
     ) -> discord.Message:
         content = build_relay_content(relay_message, settings=self.settings)
         files = await self._files_from_attachments(source_message.attachments)
-        embeds = media_cards_to_embeds(relay_message.media_items)
+        embeds = build_relay_embeds(relay_message)
+        embeds.extend(media_cards_to_embeds(relay_message.media_items))
         embeds.extend(image_links_to_embeds(relay_message.media_items))
+        embeds = embeds[:10]
         view = build_media_link_view(
             relay_message.media_items,
             enabled=self.settings.media_link_buttons or self.settings.media_mode == "button",
@@ -196,9 +258,8 @@ class RelayCoreCog(commands.Cog):
             webhook = await self._get_or_create_webhook(destination)
             if webhook is not None:
                 return await webhook.send(
-                    content=relay_message.clean_text or None,
-                    username=f"{relay_message.author_display_name} - #{relay_message.source_channel_name}",
-                    avatar_url=relay_message.author_avatar_url,
+                    content=None,
+                    username="Loki Relay",
                     files=files or None,
                     embeds=embeds or None,
                     allowed_mentions=safe_allowed_mentions(),

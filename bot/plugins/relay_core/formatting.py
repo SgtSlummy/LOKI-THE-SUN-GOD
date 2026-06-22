@@ -23,7 +23,7 @@ def build_relay_content(
     body_parts = [relay.clean_text] if relay.clean_text else []
     should_include_links = include_native_links
     if should_include_links is None:
-        should_include_links = settings is not None and settings.media_mode == "native_unfurl"
+        should_include_links = False
     if should_include_links and relay.detected_links:
         body_parts.extend(relay.detected_links)
 
@@ -34,12 +34,40 @@ def build_relay_content(
     return content[: MAX_MESSAGE_CHARS - 1].rstrip() + "…"
 
 
+
+
+def _truncate(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 1].rstrip() + "…"
+
+def build_relay_embeds(relay: RelayMessage) -> list[discord.Embed]:
+    title = f"Message from #{relay.source_channel_name}"
+    if relay.media_items:
+        first_title = relay.media_items[0].title
+        if first_title:
+            title = first_title
+    embed = discord.Embed(
+        title=_truncate(title, 256),
+        description=_truncate(relay.clean_text, 4096) if relay.clean_text else None,
+        timestamp=relay.created_at,
+    )
+    if relay.author_display_name:
+        embed.set_author(name=_truncate(relay.author_display_name, 256), icon_url=relay.author_avatar_url or None)
+    embed.add_field(name="Source", value=f"#{relay.source_channel_name}", inline=True)
+    embed.add_field(name="Original poster", value=_truncate(relay.author_display_name, 1024), inline=True)
+    embed.add_field(name="Original", value=f"[Jump to message]({relay.source_message_url})", inline=False)
+    if relay.attachments:
+        embed.add_field(name="Attachments", value=str(len(relay.attachments)), inline=True)
+    embed.set_footer(text="Relayed by Loki")
+    return [embed]
+
 def media_cards_to_embeds(media_items: list[MediaItem]) -> list[discord.Embed]:
     embeds: list[discord.Embed] = []
     for item in media_items:
         if item.kind not in {MediaKind.VIDEO_CARD, MediaKind.SOCIAL_CARD, MediaKind.GENERIC_CARD}:
             continue
-        embed = discord.Embed(title=item.title or item.provider or "Media")
+        embed = discord.Embed(title=_truncate(item.title or item.provider or "Media", 256), url=item.source_url)
         if item.provider:
             embed.set_author(name=f"Provider: {item.provider}")
         if item.thumbnail_url:
@@ -57,7 +85,7 @@ def image_links_to_embeds(media_items: list[MediaItem]) -> list[discord.Embed]:
             continue
         if not item.source_url:
             continue
-        embed = discord.Embed(title=item.title or item.filename or "Media")
+        embed = discord.Embed(title=_truncate(item.title or item.filename or "Media", 256), url=item.source_url)
         embed.set_image(url=item.source_url)
         embeds.append(embed)
     return embeds[:10]

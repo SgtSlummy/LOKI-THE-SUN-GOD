@@ -13,6 +13,7 @@ class MediaKind(str, Enum):
     VIDEO_CARD = "video_card"
     SOCIAL_CARD = "social_card"
     STICKER = "sticker"
+    EMOTE = "emote"
     GENERIC_CARD = "generic_card"
 
 
@@ -37,4 +38,3 @@ class MediaResolution:
     clean_text: str
     detected_links: list[str]
     media_items: list[MediaItem]
-

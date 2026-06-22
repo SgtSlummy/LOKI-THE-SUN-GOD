@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 from typing import Any, Literal
 
 import discord
@@ -11,6 +12,8 @@ from bot.plugins.base import BasePlugin, PluginSlot
 from bot.plugins.relay_core.formatting import safe_allowed_mentions
 from bot.services.database import Database
 from bot.services.permissions import PermissionManager
+from bot.services.relay_setup import DEFAULT_RELAY_CATEGORY, plan_relay_setup
+from bot.services.wreckingball_cleanup import cleanup_wreckingball_messages
 
 
 class AdminConfigCog(commands.Cog):
@@ -191,6 +194,89 @@ class AdminConfigCog(commands.Cog):
         await interaction.response.send_message("Test message sent.", ephemeral=True)
 
 
+    @relay_group.command(name="setup", description="Create/reuse Loki relay channels and webhooks, dry-run first by default.")
+    async def relay_setup(
+        self,
+        interaction: discord.Interaction,
+        dry_run: bool = True,
+        category_name: str = DEFAULT_RELAY_CATEGORY,
+        confirm: str = "",
+    ) -> None:
+        if not await self._require_admin(interaction):
+            return
+        if interaction.guild is None:
+            await interaction.response.send_message("Relay setup can only run in a guild.", ephemeral=True)
+            return
+        if not dry_run and confirm != "CREATE":
+            await interaction.response.send_message(
+                "Refusing live setup without confirm: CREATE. Run dry_run:true first.",
+                ephemeral=True,
+            )
+            return
+        result = await plan_relay_setup(
+            interaction.guild,
+            dry_run=dry_run,
+            category_name=category_name,
+            reason=f"Loki relay setup requested by {interaction.user.id}",
+        )
+        await self.database.audit(
+            event_type="relay_setup_dry_run" if dry_run else "relay_setup_applied",
+            actor_id=interaction.user.id,
+            guild_id=interaction.guild_id,
+            details={"category_name": category_name, "steps": [asdict(step) for step in result.steps]},
+        )
+        content = "\n".join(result.summary_lines())
+        await interaction.response.send_message(content[:1900], ephemeral=True, allowed_mentions=safe_allowed_mentions())
+
+    @relay_group.command(name="cleanup_wreckingball", description="Keep only the newest Wreckingball/Diva music-bot messages.")
+    async def cleanup_wreckingball(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        dry_run: bool = True,
+        keep: int = 2,
+        limit: int = 100,
+        confirm: str = "",
+    ) -> None:
+        if not await self._require_admin(interaction):
+            return
+        if not dry_run and confirm != "DELETE":
+            await interaction.response.send_message(
+                "Refusing live cleanup without confirm: DELETE. Run dry_run:true first.",
+                ephemeral=True,
+            )
+            return
+        if keep < 0 or limit < 1 or limit > 500:
+            await interaction.response.send_message("Use keep >= 0 and 1 <= limit <= 500.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        messages = [message async for message in channel.history(limit=limit)]
+        result = await cleanup_wreckingball_messages(
+            messages,
+            dry_run=dry_run,
+            keep=keep,
+            reason=f"Loki Wreckingball cleanup requested by {interaction.user.id}",
+        )
+        await self.database.audit(
+            event_type="wreckingball_cleanup_dry_run" if dry_run else "wreckingball_cleanup_applied",
+            actor_id=interaction.user.id,
+            guild_id=interaction.guild_id,
+            channel_id=channel.id,
+            details=asdict(result),
+        )
+        lines = [
+            f"{'DRY RUN' if dry_run else 'APPLIED'} Wreckingball cleanup for #{channel.name}",
+            f"Scanned: {result.scanned_count}",
+            f"Candidates: {result.candidate_count}",
+            f"Keep newest: {result.keep}",
+            f"Planned deletes: {result.planned_delete_ids or 'none'}",
+            f"Deleted: {result.deleted_ids or 'none'}",
+        ]
+        if result.errors:
+            lines.append(f"Errors: {result.errors}")
+        await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True, allowed_mentions=safe_allowed_mentions())
+
+
 class AdminConfigPlugin(BasePlugin):
     name = "admin_config"
     slot = PluginSlot.ADMIN_CONFIG
@@ -221,4 +307,6 @@ class AdminConfigPlugin(BasePlugin):
             "/relay add",
             "/relay remove",
             "/relay test",
+            "/relay setup",
+            "/relay cleanup_wreckingball",
         ]

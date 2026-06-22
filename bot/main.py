@@ -170,6 +170,9 @@ async def build_health_payload(
             "enabled": settings.faust_agi_enabled,
             "route_mode": settings.faust_agi_route_mode,
             "provider": settings.faust_agi_provider,
+            "unprompted_continuations_enabled": settings.faust_agi_unprompted_continuations_enabled,
+            "unprompted_max_turns": settings.faust_agi_unprompted_max_turns,
+            "unprompted_max_delay_seconds": settings.faust_agi_unprompted_max_delay_seconds,
         },
     }
 

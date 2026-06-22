@@ -1,3 +1,4 @@
+import discord
 import pytest
 from aiohttp import web
 
@@ -12,6 +13,16 @@ class FakeFollowup:
 
     async def send(self, content, **kwargs):
         self.messages.append((content, kwargs))
+
+
+class FailingFollowup:
+    def __init__(self):
+        self.calls = 0
+
+    async def send(self, content, **kwargs):
+        self.calls += 1
+        response = type("Response", (), {"status": 500, "reason": "send failed"})()
+        raise discord.HTTPException(response, "boom")
 
 
 class FakeResponse:
@@ -53,6 +64,38 @@ class FakeFaustClient:
 
 class FakeUnavailableFaustClient:
     available = False
+
+
+class FakeContinuingFaustClient:
+    available = True
+
+    def __init__(self, *, continuation_prompt: str = "Continue from run-1", continuation_requests_again: bool = False):
+        self.continuation_prompt = continuation_prompt
+        self.continuation_requests_again = continuation_requests_again
+        self.council_kwargs = None
+        self.continuation_kwargs = []
+
+    async def run_council(self, **kwargs):
+        self.council_kwargs = kwargs
+        return {
+            "text": "Initial council answer",
+            "run_id": "run-1",
+            "fallback_used": False,
+            "continue_unprompted": True,
+            "continuation_prompt": self.continuation_prompt,
+            "continuation_delay_seconds": 0,
+        }
+
+    async def run_continuation(self, **kwargs):
+        self.continuation_kwargs.append(kwargs)
+        return {
+            "text": "Autonomous follow-up",
+            "run_id": f"run-{len(self.continuation_kwargs) + 1}",
+            "fallback_used": False,
+            "continue_unprompted": self.continuation_requests_again,
+            "continuation_prompt": "Continue again" if self.continuation_requests_again else None,
+            "continuation_delay_seconds": 0,
+        }
 
 
 @pytest.mark.asyncio
@@ -100,7 +143,103 @@ async def test_faust_client_posts_council_request(unused_tcp_port):
         "route_mode": "local_first",
         "execute": True,
     }
-    assert result == {"text": "Faust says hi", "run_id": "run-123", "fallback_used": False}
+    assert result == {
+        "text": "Faust says hi",
+        "run_id": "run-123",
+        "fallback_used": False,
+        "continue_unprompted": False,
+        "continuation_prompt": None,
+        "continuation_delay_seconds": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_faust_client_normalizes_unprompted_continuation_metadata(unused_tcp_port):
+    async def handle_run(request):
+        return web.json_response(
+            {
+                "run_id": "run-123",
+                "output": "Initial council answer",
+                "fallback_used": False,
+                "continue_unprompted": True,
+                "continuation_prompt": "Continue reasoning from the last council answer.",
+                "continuation_delay_seconds": 0,
+            }
+        )
+
+    app = web.Application()
+    app.router.add_post("/api/faust/run", handle_run)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = unused_tcp_port
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        client = FaustAGIClient(Settings(faust_agi_enabled=True, faust_agi_base_url=f"http://127.0.0.1:{port}"))
+        result = await client.run_council(prompt="hello", user_id=1, guild_id=2, channel_id=3)
+    finally:
+        await runner.cleanup()
+
+    assert result == {
+        "text": "Initial council answer",
+        "run_id": "run-123",
+        "fallback_used": False,
+        "continue_unprompted": True,
+        "continuation_prompt": "Continue reasoning from the last council answer.",
+        "continuation_delay_seconds": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_faust_client_posts_unprompted_continuation_request(unused_tcp_port):
+    captured = {}
+
+    async def handle_run(request):
+        captured["body"] = await request.json()
+        return web.json_response({"run_id": "run-124", "output": "Unprompted continuation answer"})
+
+    app = web.Application()
+    app.router.add_post("/api/faust/run", handle_run)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = unused_tcp_port
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        client = FaustAGIClient(Settings(faust_agi_enabled=True, faust_agi_base_url=f"http://127.0.0.1:{port}"))
+        result = await client.run_continuation(
+            prompt="Continue reasoning from the last council answer.",
+            parent_run_id="run-123",
+            guild_id=2,
+            channel_id=3,
+        )
+    finally:
+        await runner.cleanup()
+
+    assert captured["body"] == {
+        "prompt": "Continue reasoning from the last council answer.",
+        "context": {
+            "source": "discord_unprompted",
+            "user_id": None,
+            "guild_id": 2,
+            "channel_id": 3,
+            "parent_run_id": "run-123",
+        },
+        "selected_mode": "chat",
+        "active_workspace": "",
+        "target_component": "discord",
+        "provider": "",
+        "route_mode": "local_first",
+        "execute": False,
+    }
+    assert result == {
+        "text": "Unprompted continuation answer",
+        "run_id": "run-124",
+        "fallback_used": False,
+        "continue_unprompted": False,
+        "continuation_prompt": None,
+        "continuation_delay_seconds": 0,
+    }
 
 
 @pytest.mark.asyncio
@@ -173,6 +312,8 @@ def test_settings_enables_llm_chat_when_faust_enabled(monkeypatch):
     monkeypatch.setenv("FAUST_AGI_ENABLED", "true")
     monkeypatch.setenv("FAUST_AGI_BASE_URL", "http://faust.local")
     monkeypatch.setenv("FAUST_AGI_API_KEY", "do-not-log")
+    monkeypatch.setenv("FAUST_AGI_PROVIDER", "")
+    monkeypatch.setenv("FAUST_AGI_EXECUTE", "true")
 
     settings = Settings.from_env()
 
@@ -184,8 +325,26 @@ def test_settings_enables_llm_chat_when_faust_enabled(monkeypatch):
         "route_mode": "local_first",
         "provider": "",
         "execute": True,
+        "unprompted_continuations_enabled": False,
+        "unprompted_max_turns": 1,
+        "unprompted_max_delay_seconds": 30,
     }
     assert "do-not-log" not in str(settings.safe_log_dict())
+
+
+def test_settings_reads_unprompted_faust_continuation_config(monkeypatch):
+    monkeypatch.setenv("FAUST_AGI_UNPROMPTED_CONTINUATIONS_ENABLED", "true")
+    monkeypatch.setenv("FAUST_AGI_UNPROMPTED_MAX_TURNS", "3")
+    monkeypatch.setenv("FAUST_AGI_UNPROMPTED_MAX_DELAY_SECONDS", "45")
+
+    settings = Settings.from_env()
+
+    assert settings.faust_agi_unprompted_continuations_enabled is True
+    assert settings.faust_agi_unprompted_max_turns == 3
+    assert settings.faust_agi_unprompted_max_delay_seconds == 45
+    assert settings.safe_log_dict()["faust_agi"]["unprompted_continuations_enabled"] is True
+    assert settings.safe_log_dict()["faust_agi"]["unprompted_max_turns"] == 3
+    assert settings.safe_log_dict()["faust_agi"]["unprompted_max_delay_seconds"] == 45
 
 
 def test_chunk_discord_text_keeps_messages_below_limit():
@@ -193,6 +352,70 @@ def test_chunk_discord_text_keeps_messages_below_limit():
 
     assert "".join(chunks) == "x" * 4500
     assert all(len(chunk) <= 1900 for chunk in chunks)
+
+
+@pytest.mark.asyncio
+async def test_faust_client_strictly_parses_continuation_metadata(unused_tcp_port):
+    async def handle_run(request):
+        return web.json_response(
+            {
+                "run_id": "run-123",
+                "output": "No continuation",
+                "continue_unprompted": "false",
+                "continuation_prompt": "Should not run",
+                "continuation_delay_seconds": "soon",
+            }
+        )
+
+    app = web.Application()
+    app.router.add_post("/api/faust/run", handle_run)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = unused_tcp_port
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        client = FaustAGIClient(Settings(faust_agi_enabled=True, faust_agi_base_url=f"http://127.0.0.1:{port}"))
+        result = await client.run_council(prompt="hello", user_id=1, guild_id=2, channel_id=3)
+    finally:
+        await runner.cleanup()
+
+    assert result["continue_unprompted"] is False
+    assert result["continuation_delay_seconds"] == 0
+
+
+@pytest.mark.asyncio
+async def test_faust_client_clamps_continuation_delay(unused_tcp_port):
+    async def handle_run(request):
+        return web.json_response(
+            {
+                "run_id": "run-123",
+                "output": "Delayed continuation",
+                "continue_unprompted": True,
+                "continuation_prompt": "Continue",
+                "continuation_delay_seconds": 999999,
+            }
+        )
+
+    app = web.Application()
+    app.router.add_post("/api/faust/run", handle_run)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = unused_tcp_port
+    site = web.TCPSite(runner, "127.0.0.1", port)
+    await site.start()
+    try:
+        settings = Settings(
+            faust_agi_enabled=True,
+            faust_agi_base_url=f"http://127.0.0.1:{port}",
+            faust_agi_unprompted_max_delay_seconds=30,
+        )
+        client = FaustAGIClient(settings)
+        result = await client.run_council(prompt="hello", user_id=1, guild_id=2, channel_id=3)
+    finally:
+        await runner.cleanup()
+
+    assert result["continuation_delay_seconds"] == 30
 
 
 @pytest.mark.asyncio
@@ -212,6 +435,105 @@ async def test_agent_council_command_defers_and_sends_faust_response():
     }
     assert interaction.followup.messages[0][0] == "Faust AGI council (run run-1, fallback used):\nCouncil answer"
     assert interaction.followup.messages[0][1]["allowed_mentions"].everyone is False
+
+
+@pytest.mark.asyncio
+async def test_agent_council_sends_unprompted_continuation_when_enabled():
+    faust_client = FakeContinuingFaustClient()
+    settings = Settings(
+        faust_agi_enabled=True,
+        faust_agi_unprompted_continuations_enabled=True,
+        faust_agi_unprompted_max_turns=1,
+    )
+    cog = LLMChatCog(bot=object(), services={"settings": settings, "faust_agi_client": faust_client})
+    interaction = FakeInteraction()
+
+    await cog.handle_council(interaction, prompt="What should we build?")
+
+    assert faust_client.council_kwargs == {
+        "prompt": "What should we build?",
+        "user_id": 123,
+        "guild_id": 456,
+        "channel_id": 789,
+    }
+    assert faust_client.continuation_kwargs == [
+        {
+            "prompt": "Continue from run-1",
+            "parent_run_id": "run-1",
+            "guild_id": 456,
+            "channel_id": 789,
+        }
+    ]
+    assert interaction.followup.messages[0][0] == "Faust AGI council (run run-1):\nInitial council answer"
+    assert interaction.followup.messages[1][0] == "Faust AGI continuation (run run-2):\nAutonomous follow-up"
+    assert interaction.followup.messages[1][1]["allowed_mentions"].everyone is False
+
+
+@pytest.mark.asyncio
+async def test_agent_council_does_not_continue_unprompted_when_disabled():
+    faust_client = FakeContinuingFaustClient()
+    settings = Settings(faust_agi_enabled=True, faust_agi_unprompted_continuations_enabled=False)
+    cog = LLMChatCog(bot=object(), services={"settings": settings, "faust_agi_client": faust_client})
+    interaction = FakeInteraction()
+
+    await cog.handle_council(interaction, prompt="What should we build?")
+
+    assert faust_client.council_kwargs is not None
+    assert faust_client.continuation_kwargs == []
+    assert len(interaction.followup.messages) == 1
+
+
+@pytest.mark.asyncio
+async def test_agent_council_does_not_continue_without_continuation_prompt():
+    faust_client = FakeContinuingFaustClient(continuation_prompt="")
+    settings = Settings(
+        faust_agi_enabled=True,
+        faust_agi_unprompted_continuations_enabled=True,
+        faust_agi_unprompted_max_turns=1,
+    )
+    cog = LLMChatCog(bot=object(), services={"settings": settings, "faust_agi_client": faust_client})
+    interaction = FakeInteraction()
+
+    await cog.handle_council(interaction, prompt="What should we build?")
+
+    assert faust_client.continuation_kwargs == []
+    assert len(interaction.followup.messages) == 1
+
+
+@pytest.mark.asyncio
+async def test_agent_council_limits_unprompted_continuations_to_configured_max_turns():
+    faust_client = FakeContinuingFaustClient(continuation_requests_again=True)
+    settings = Settings(
+        faust_agi_enabled=True,
+        faust_agi_unprompted_continuations_enabled=True,
+        faust_agi_unprompted_max_turns=1,
+    )
+    cog = LLMChatCog(bot=object(), services={"settings": settings, "faust_agi_client": faust_client})
+    interaction = FakeInteraction()
+
+    await cog.handle_council(interaction, prompt="What should we build?")
+
+    assert len(faust_client.continuation_kwargs) == 1
+    assert len(interaction.followup.messages) == 2
+    assert all("Continue again" not in message[0] for message in interaction.followup.messages)
+
+
+@pytest.mark.asyncio
+async def test_agent_council_stops_unprompted_continuation_when_initial_send_fails():
+    faust_client = FakeContinuingFaustClient()
+    settings = Settings(
+        faust_agi_enabled=True,
+        faust_agi_unprompted_continuations_enabled=True,
+        faust_agi_unprompted_max_turns=1,
+    )
+    cog = LLMChatCog(bot=object(), services={"settings": settings, "faust_agi_client": faust_client})
+    interaction = FakeInteraction()
+    interaction.followup = FailingFollowup()
+
+    await cog.handle_council(interaction, prompt="What should we build?")
+
+    assert interaction.followup.calls == 1
+    assert faust_client.continuation_kwargs == []
 
 
 @pytest.mark.asyncio

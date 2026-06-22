@@ -95,4 +95,7 @@ async def test_health_payload_includes_safe_llm_status():
         "enabled": True,
         "route_mode": "cloud_first",
         "provider": "",
+        "unprompted_continuations_enabled": False,
+        "unprompted_max_turns": 1,
+        "unprompted_max_delay_seconds": 30,
     }

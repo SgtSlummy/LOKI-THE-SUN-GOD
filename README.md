@@ -90,6 +90,9 @@ Key variables:
 - `FAUST_AGI_API_KEY`: optional bearer token if the Faust API is protected by a gateway/proxy.
 - `FAUST_AGI_TIMEOUT_SECONDS`: default `300` for slow local/provider runs.
 - `FAUST_AGI_ROUTE_MODE`, `FAUST_AGI_PROVIDER`, `FAUST_AGI_EXECUTE`: forwarded to `POST /api/faust/run`.
+- `FAUST_AGI_UNPROMPTED_CONTINUATIONS_ENABLED`: opt-in switch for Faust-requested follow-up turns after `/agent council`; default `false`.
+- `FAUST_AGI_UNPROMPTED_MAX_TURNS`: hard cap for unprompted continuation turns; default `1`.
+- `FAUST_AGI_UNPROMPTED_MAX_DELAY_SECONDS`: hard cap for Faust-requested delay before each continuation; default `30`. Continuations always post with safe mentions and send `execute=false` to Faust.
 - `MEDIA_MODE`: `clean`, `button`, or `native_unfurl`.
 - `MEDIA_LINK_BUTTONS`: adds an `Open media` button for clean cards when true.
 - `WEBHOOK_RELAY_MODE`: sends relays through a per-channel webhook when possible.

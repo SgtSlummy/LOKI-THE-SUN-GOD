@@ -8,6 +8,17 @@ from aiohttp import ClientError, ClientSession, ClientTimeout, ContentTypeError
 from bot.settings import Settings
 
 
+def _safe_int(value: Any, *, default: int = 0, maximum: int | None = None) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    parsed = max(0, parsed)
+    if maximum is not None:
+        parsed = min(parsed, max(0, maximum))
+    return parsed
+
+
 class FaustAGIError(RuntimeError):
     pass
 
@@ -28,6 +39,38 @@ class FaustAGIClient:
         guild_id: int | None,
         channel_id: int | None,
     ) -> dict[str, Any]:
+        return await self._post_run(
+            prompt=prompt,
+            context={
+                "source": "discord",
+                "user_id": user_id,
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+            },
+            execute=self.settings.faust_agi_execute,
+        )
+
+    async def run_continuation(
+        self,
+        *,
+        prompt: str,
+        parent_run_id: str | None,
+        guild_id: int | None,
+        channel_id: int | None,
+    ) -> dict[str, Any]:
+        return await self._post_run(
+            prompt=prompt,
+            context={
+                "source": "discord_unprompted",
+                "user_id": None,
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "parent_run_id": parent_run_id,
+            },
+            execute=False,
+        )
+
+    async def _post_run(self, *, prompt: str, context: dict[str, Any], execute: bool) -> dict[str, Any]:
         if not self.available:
             raise FaustAGIError("FAUST_AGI_BASE_URL is not configured.")
 
@@ -36,18 +79,13 @@ class FaustAGIClient:
         url = f"{base_url}{run_path if run_path.startswith('/') else '/' + run_path}"
         payload = {
             "prompt": prompt,
-            "context": {
-                "source": "discord",
-                "user_id": user_id,
-                "guild_id": guild_id,
-                "channel_id": channel_id,
-            },
+            "context": context,
             "selected_mode": "chat",
             "active_workspace": "",
             "target_component": self.settings.faust_agi_target_component,
             "provider": self.settings.faust_agi_provider,
             "route_mode": self.settings.faust_agi_route_mode,
-            "execute": self.settings.faust_agi_execute,
+            "execute": execute,
         }
         headers = {"Accept": "application/json"}
         if self.settings.faust_agi_api_key:
@@ -81,4 +119,9 @@ class FaustAGIClient:
             "text": str(text),
             "run_id": data.get("run_id"),
             "fallback_used": bool(data.get("fallback_used")),
+            "continue_unprompted": data.get("continue_unprompted") is True,
+            "continuation_prompt": data.get("continuation_prompt") or None,
+            "continuation_delay_seconds": _safe_int(
+                data.get("continuation_delay_seconds"), maximum=self.settings.faust_agi_unprompted_max_delay_seconds
+            ),
         }

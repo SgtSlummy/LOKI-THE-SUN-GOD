@@ -1,0 +1,1426 @@
+LOKI DISCORD RELAY + MEDIA CHANNEL SYSTEM QUESTIONNAIRE
+=========================================================
+
+Purpose
+-------
+This document expands the open design questions for the Loki Discord Bot relay/media-channel feature. Fill this out later and upload/paste it back into the project or chat so the implementation can be built safely and exactly the way you want.
+
+Nothing in this questionnaire requires immediate action. It is meant to capture decisions before Loki creates channels, relays messages, deletes old bot posts, manages webhooks, or changes live Discord behavior.
+
+Project context
+---------------
+Target project:
+C:\Users\carme\Documents\Loki 2.0
+
+Related local AGI project:
+C:\Users\carme\Documents\Faust AGI
+
+Current safe AGI posture at time of drafting:
+FAUST_AGI_EXECUTE=false
+
+That means AGI-assisted planning/testing should stay dry-run unless explicitly changed.
+
+How to answer
+-------------
+You can fill answers under each "Your answer" section.
+
+If unsure, write one of:
+- "Use recommended default"
+- "Not for phase 1"
+- "Ask me again before implementation"
+- "I need to check Discord first"
+
+Recommended implementation posture:
+- Prefer dry-run first.
+- Prefer non-destructive behavior first.
+- Prefer admin-only commands for setup/cleanup.
+- Prefer no deletion until after a dry-run report.
+
+
+1. CHANNEL LAYOUT AND NAMES
+===========================
+
+Question
+--------
+What exact Discord channels should Loki create or use for relay output?
+
+Why this matters
+----------------
+Channel names, category names, and permissions determine the user-facing structure of the Discord server. If Loki creates the wrong channels or posts into existing channels unexpectedly, cleanup can be annoying and confusing.
+
+Proposed default
+----------------
+Create or reuse a category named:
+Loki Relay
+
+Inside that category, create or reuse:
+- loki-messages
+- loki-pictures
+- loki-gifs
+- loki-emotes
+- loki-music-relay
+
+Possible alternatives
+---------------------
+A. Minimal layout:
+   - loki-relay
+   - loki-media
+
+B. Detailed layout:
+   - loki-messages
+   - loki-links
+   - loki-pictures
+   - loki-gifs
+   - loki-videos
+   - loki-emotes
+   - loki-stickers
+   - loki-music-relay
+
+C. Existing channels only:
+   - Do not create channels.
+   - Use channel IDs I provide.
+
+D. Category-specific:
+   - Create category "Loki Archive"
+   - Put channels there.
+
+Decisions needed
+----------------
+1. Should Loki create channels if they do not exist?
+2. Should Loki reuse existing channels if the names already exist?
+3. Should the channels live in a new category?
+4. Should Loki set channel topics/rules automatically?
+5. Should Loki pin a rules/description embed in each new channel?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Category name: Loki Relay
+Channels to create/use:
+- loki-messages
+- loki-pictures
+- loki-gifs
+- loki-emotes
+- loki-music-relay
+Should Loki create missing channels? yes, but only from explicit admin setup with dry_run:false and confirm: CREATE
+Should Loki reuse existing channels? yes, exact-name reuse is preferred
+Should Loki pin rules messages? not for initial live mutation; prepare text later if desired
+Notes: Setup must be idempotent and non-destructive. Never rename/delete existing channels in phase 1.
+Category name:
+
+Channels to create/use:
+
+Should Loki create missing channels? yes/no:
+
+Should Loki reuse existing channels? yes/no:
+
+Should Loki pin rules messages? yes/no:
+
+Notes:
+
+
+2. WATCH SCOPE: WHICH CHANNELS SHOULD LOKI MONITOR?
+====================================================
+
+Question
+--------
+Which channels should Loki watch for messages, links, pictures, GIFs, emotes, videos, stickers, and music-bot content?
+
+Why this matters
+----------------
+Watching every channel may be convenient but can include admin/private/staff/noisy channels. Watching only selected channels is safer but requires configuration.
+
+Proposed default
+----------------
+Watch all public text channels where Loki has permission, except:
+- Loki relay output channels
+- admin/private/staff channels
+- bot-log channels
+- channels explicitly excluded
+- channels Loki cannot read
+
+Always ignore Loki's own messages and relay webhook messages to prevent loops.
+
+Possible options
+----------------
+A. Watch every public text channel.
+B. Watch only channels I list.
+C. Watch everything except channels I list.
+D. Watch only one test channel during phase 1.
+E. Watch only channels in specific categories.
+
+Specific exclusions to consider
+-------------------------------
+- admin
+- mod-log
+- staff
+- bot-commands
+- welcome
+- announcements
+- rules
+- private project channels
+- Loki relay channels themselves
+
+Decisions needed
+----------------
+1. Should Loki watch all public text channels?
+2. Which channels must be excluded?
+3. Which channels must be included even if they look like bot/admin channels?
+4. Should threads be watched?
+5. Should forum channels be watched?
+6. Should DMs be ignored? Recommended: yes.
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Watch mode: all except listed, but start with one configured/test channel during rollout
+Included channels or categories: admin-selected source channels first; expand after dry-run
+Excluded channels or categories: Loki Relay outputs, admin, staff, mod-log, bot-log, bot-commands, welcome, announcements, rules, private project channels, channels Loki cannot read
+Should Loki watch threads? no for phase 1 unless explicitly configured
+Should Loki watch forum channels? no for phase 1
+Should Loki ignore DMs? yes
+Notes: Always ignore Loki messages and Loki Relay webhook messages to prevent loops.
+Watch mode: all public / only listed / all except listed / test channel only
+
+Included channels or categories:
+
+Excluded channels or categories:
+
+Should Loki watch threads? yes/no:
+
+Should Loki watch forum channels? yes/no:
+
+Should Loki ignore DMs? yes/no:
+
+Notes:
+
+
+3. ORIGINAL MESSAGE HANDLING
+============================
+
+Question
+--------
+After Loki relays or cleans a message, what should happen to the original user message?
+
+Why this matters
+----------------
+Deleting or altering original messages is destructive and can annoy users. Leaving originals in place is safest but means raw links may still be visible in source channels.
+
+Proposed default
+----------------
+Phase 1:
+- Leave original user messages untouched.
+- Relay a cleaned embed version into the correct Loki channel.
+- Do not delete originals.
+- Do not suppress embeds on originals unless explicitly enabled later.
+
+Phase 2 optional:
+- For configured channels only, Loki may suppress original embeds or delete original messages after relaying.
+
+Possible behaviors
+------------------
+A. Leave originals untouched.
+B. Suppress Discord embeds on originals, but leave the text.
+C. Delete originals after relaying.
+D. Delete originals only if they contain raw URLs.
+E. Replace original behavior by asking user to repost through Loki only. Not recommended.
+F. Apply cleanup only in specific channels.
+
+Important Discord constraint
+----------------------------
+Bots cannot edit another user's message text. They can sometimes suppress embeds if they have Manage Messages, and they can delete messages if permitted.
+
+So if the goal is "no raw URLs anywhere," the only practical options are:
+- delete originals after relaying, or
+- ask users to post only through a bot workflow, or
+- allow raw URLs in source channels but hide them in relay channels.
+
+Decisions needed
+----------------
+1. Should Loki ever delete normal user messages?
+2. If yes, should it be only in certain channels?
+3. Should Loki suppress original embeds when possible?
+4. Should deletion require an admin-configured opt-in per channel?
+5. Should users receive a DM or notice when their message is relayed/deleted?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Original handling mode: leave untouched
+Channels where deletion is allowed: none for normal user messages in phase 1
+Should users be notified? no automatic DM/notice in phase 1
+Should admins be able to dry-run this first? yes, mandatory before any future destructive mode
+Notes: Loki cannot edit user text. Raw URLs may remain in source channels, but relay output hides them.
+Original handling mode: leave untouched / suppress embeds / delete after relay / delete only in selected channels
+
+Channels where deletion is allowed:
+
+Should users be notified? yes/no:
+
+Should admins be able to dry-run this first? yes/no:
+
+Notes:
+
+
+4. RAW LINK / HYPERTEXT POLICY
+==============================
+
+Question
+--------
+How should Loki handle raw URLs in message text and relay posts?
+
+Why this matters
+----------------
+You requested that content be loaded with no hypertext showing in the post, including reposts into relay channels. Loki can fully control its own relay embeds, but cannot edit user-authored messages.
+
+Proposed default
+----------------
+For relay posts:
+- Remove raw URLs from visible text.
+- Fetch metadata where possible.
+- Create clean clickable title links in embeds.
+- If metadata fails, show a fallback title like:
+  - View on YouTube
+  - View on TikTok
+  - View on example.com
+
+For original user posts:
+- Leave untouched in phase 1.
+
+Possible link display styles
+----------------------------
+A. Embed title is the only clickable link.
+B. Embed field list contains clean links.
+C. One embed per URL.
+D. One combined embed for the whole message.
+E. Hide all links entirely, but include source jump link.
+
+Multi-link examples
+-------------------
+If user posts:
+"Look at this https://youtube.com/... and this https://reddit.com/..."
+
+Possible relay text:
+"Look at this and this"
+
+Embed fields:
+- YouTube: Video title
+- Reddit: Post title
+
+Decisions needed
+----------------
+1. Should raw URLs be removed from relay text always?
+2. Should raw URLs be removed from original source channels by deleting originals? See section 3.
+3. Should Loki include a clickable title for each URL?
+4. Should failed metadata still produce a domain-based link?
+5. How many URLs should Loki process per message before truncating?
+6. Should Loki ignore unsafe/private/local URLs?
+
+Recommended safety
+------------------
+Loki should reject or avoid fetching:
+- localhost URLs
+- private IP URLs
+- internal network URLs
+- huge downloads
+- suspicious protocols other than http/https
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Remove raw URLs from relay text always: yes
+Remove raw URLs from original source channels by deleting originals: no
+Include clickable title for each URL: yes, via embed title/url when metadata or fallback exists
+Failed metadata fallback: yes, domain/provider title
+Max URLs per message: process up to Discord embed limit; send at most 10 embeds
+Unsafe/private/local URLs: ignore or avoid fetching them
+Notes: No localhost/private-IP metadata fetches. No non-http(s) protocols.
+Relay raw URL policy:
+
+Original channel raw URL policy:
+
+Maximum URLs per message:
+
+Fallback title style:
+
+Should unsafe/private URLs be blocked? yes/no:
+
+Notes:
+
+
+5. SOCIAL MEDIA AND VIDEO EMBED SUPPORT
+=======================================
+
+Question
+--------
+Which platforms should Loki support for rich embeds, previews, images, GIFs, and videos?
+
+Why this matters
+----------------
+Different platforms expose different metadata. Discord may or may not play videos inline. Some platforms need proxy/fixer URLs for better embeds.
+
+Proposed phase 1 platforms
+--------------------------
+- Discord CDN attachments
+- YouTube
+- Reddit
+- Tenor
+- Giphy
+- direct image/video/GIF links
+
+Proposed phase 2 platforms
+--------------------------
+- X/Twitter
+- TikTok
+- Instagram
+- Spotify/SoundCloud
+
+Potential external embed helpers
+--------------------------------
+Some communities use link-fixer domains to improve Discord embeds, for example:
+- X/Twitter alternatives such as fxtwitter/vxtwitter style services
+- Instagram alternatives such as ddinstagram style services
+- TikTok alternatives depending on current availability
+
+Important note:
+External services can break, may have privacy implications, and may not be official. We should only use them if you explicitly approve.
+
+Possible handling modes
+-----------------------
+A. Official metadata only: fetch OpenGraph/oEmbed where available.
+B. Use safe direct metadata only; no third-party proxies.
+C. Use third-party embed fixers for selected platforms.
+D. Do not fetch remote pages; only classify by URL and rely on Discord's own embeds.
+
+Decisions needed
+----------------
+1. Which platforms are must-have for phase 1?
+2. Are third-party embed fixer/proxy services allowed?
+3. Should Loki download/re-upload media, or only embed external links?
+4. Should NSFW channels have different media rules?
+5. Should Loki avoid embedding content from unknown domains?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Required platforms: YouTube, X/Twitter, TikTok, Instagram, Tenor, Giphy, Discord CDN, direct image/GIF/video links
+Optional/not phase 1: Spotify/SoundCloud rich handling beyond clean links
+Link-fixer/proxy services: not for phase 1 unless explicitly approved later
+Videos playable inline: best effort only; Discord platform support controls playback
+Notes: Use safe fallback cards when provider metadata is unavailable.
+Phase 1 required platforms:
+
+Phase 2/later platforms:
+
+Are third-party embed fixer services allowed? yes/no/ask first:
+
+Should Loki download/re-upload media? yes/no/only small files:
+
+Should unknown domains be embedded? yes/no:
+
+Notes:
+
+
+6. MOVING MEDIA DEFINITION AND ROUTING
+======================================
+
+Question
+--------
+What counts as "moving media" and where should it go?
+
+Why this matters
+----------------
+You said "any moving media like gifs or emotes (anything that changes over time)." This can include many things: GIFs, animated WebP, videos, animated custom emoji, animated stickers, social video previews, and Tenor/Giphy links.
+
+Proposed default
+----------------
+Route these to `loki-gifs`:
+- .gif files
+- animated .webp files if detectable
+- .mp4 / .mov / .webm videos
+- Tenor links
+- Giphy links
+- social video links
+
+Route these to `loki-emotes`:
+- Discord custom static emoji `<:name:id>`
+- Discord custom animated emoji `<a:name:id>`
+- stickers
+
+Questionable overlap
+--------------------
+Animated emoji are both emotes and moving media. We need to decide if they go to:
+- loki-emotes only
+- loki-gifs only
+- both channels
+
+Possible options
+----------------
+A. Animated emojis go to emotes only.
+B. Animated emojis go to GIFs only.
+C. Animated emojis are posted to both emotes and GIFs.
+D. Animated emojis stay in the general message relay unless no other content exists.
+
+Decisions needed
+----------------
+1. Should videos be grouped with GIFs/moving media?
+2. Should animated emojis go to emotes or GIFs?
+3. Should stickers go to emotes?
+4. Should a message containing both picture and GIF go to one channel or multiple channels?
+5. Should Loki duplicate one original message into multiple relay channels if it contains multiple content types?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Moving media: .gif, video attachments, direct .mp4/.mov/.webm/.m4v links, Tenor/Giphy links, YouTube/video cards, animated Discord emoji/stickers when detectable
+Animated emojis route to: loki-emotes first; GIF/video posts route to loki-gifs
+Duplicate animated emoji to loki-gifs: no for phase 1
+Notes: Specific media beats general messages in routing.
+Videos route to:
+
+Animated emojis route to:
+
+Static emojis route to:
+
+Stickers route to:
+
+If message contains multiple media types, relay to: one best channel / multiple channels / general plus media
+
+Notes:
+
+
+7. PICTURE / IMAGE HANDLING
+===========================
+
+Question
+--------
+How should Loki handle pictures and static image posts?
+
+Why this matters
+----------------
+Image posts can come from direct attachments, Discord CDN links, social media previews, screenshots, memes, or embeds. Some image formats are static; others may be animated.
+
+Proposed default
+----------------
+Route static images to `loki-pictures`.
+
+Supported static types:
+- .png
+- .jpg
+- .jpeg
+- static .webp
+- .avif if Discord/embed support works
+
+Embed behavior:
+- Use the image as the embed image when possible.
+- Keep original poster/channel attribution.
+- Strip raw URLs from text.
+- Include clean title/source link.
+
+Decisions needed
+----------------
+1. Should pictures from social-media previews route to pictures?
+2. Should screenshots/memes route to pictures?
+3. Should images with spoilers keep spoiler treatment?
+4. Should multiple image attachments create multiple embeds?
+5. Should Loki repost image files, or link to the original attachment/CDN URL?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Static pictures route to: loki-pictures
+Supported static formats: jpg, jpeg, png, static webp, bmp, avif where Discord supports it
+Re-upload attachments: yes when under Discord upload size limit; otherwise use clean embed link/card
+Preserve attribution/source: yes in relay embed
+Notes: Animated webp detection can be improved later; default unknown webp as image.
+Static images route to:
+
+Multiple image behavior:
+
+Spoiler image handling:
+
+Re-upload files or link original CDN? re-upload/link/ask:
+
+Notes:
+
+
+8. GENERAL MESSAGE RELAY RULES
+==============================
+
+Question
+--------
+What ordinary text messages should be relayed to `loki-messages`?
+
+Why this matters
+----------------
+If every message is relayed, the relay channel can become very noisy. If only media/link messages are relayed, text-only conversation is not archived.
+
+Proposed default
+----------------
+In phase 1, relay only messages containing at least one of:
+- URL
+- attachment
+- embed/media candidate
+- custom emoji/sticker
+- music bot source match
+
+Do not relay every plain text message unless explicitly requested.
+
+Alternative modes
+-----------------
+A. Relay every message from watched channels.
+B. Relay only links/media/emotes/music bot messages.
+C. Relay only messages that match rules per channel.
+D. Relay only messages from selected users/bots.
+
+Decisions needed
+----------------
+1. Should every text message be relayed?
+2. Should bot messages be relayed?
+3. Should messages by Loki itself be ignored? Recommended: yes.
+4. Should replies preserve reply context?
+5. Should edited messages update relay posts?
+6. Should deleted source messages delete relay posts?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Text-only messages route to: loki-messages
+Messages with specific media route to: the specific media channel, not duplicated to loki-messages by default
+Relay format: embed-first with original author, source channel, jump link, timestamp, cleaned text, and media cards
+Mentions: neutralized/no pings
+Notes: Keep relay content safe and bounded by Discord limits.
+Relay mode: every message / media+links only / selected channels only / other
+
+Should bot messages be relayed? yes/no/only selected bots:
+
+Should edits update relay posts? yes/no/later:
+
+Should source deletion delete relay posts? yes/no/later:
+
+Notes:
+
+
+9. WRECKINGBALL / DIVA MUSIC BOT CLEANUP
+========================================
+
+Question
+--------
+How exactly should Loki clean up old posts from the `Diva Music Bot` named `Wreckingball`?
+
+Why this matters
+----------------
+Deleting messages is destructive. Discord also has rate limits and special bulk-delete restrictions for messages older than 14 days.
+
+Proposed default
+----------------
+Implement an admin-only dry-run command first:
+
+/loki-relay cleanup-wreckingball channel:<channel> keep:2 dry_run:true
+
+The dry-run reports:
+- how many Wreckingball messages were scanned
+- which newest 2 would be kept
+- which older messages would be deleted
+- whether any messages are older than 14 days
+- estimated delete method/rate limit behavior
+
+Actual deletion requires a second explicit command:
+
+/loki-relay cleanup-wreckingball channel:<channel> keep:2 dry_run:false confirm:true
+
+Possible matching criteria
+--------------------------
+A. Author bot username is exactly `Diva Music Bot`.
+B. Display name/nickname is exactly `Wreckingball`.
+C. Webhook username is exactly `Wreckingball`.
+D. Message content/embed footer/title matches music bot patterns.
+E. Specific bot user ID is provided.
+
+Best practice
+-------------
+Use bot user ID if possible, because names can change.
+
+Decisions needed
+----------------
+1. What channel(s) contain Wreckingball posts?
+2. Should Loki keep newest 2 per channel or newest 2 total?
+3. What exact identity should match Wreckingball?
+4. Is deletion allowed for messages older than 14 days using individual delete?
+5. Should cleanup run once, on command only, or scheduled?
+6. Should cleanup exclude pinned messages?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Cleanup scope: explicit channel selected by admin command
+Keep newest: 2 per channel
+Cleanup mode: admin command only, not scheduled/continuous in phase 1
+Dry-run required: yes
+Live deletion requires: dry_run:false and confirm: DELETE
+Notes: Only delete matching bot-authored Wreckingball/Diva Music Bot messages, never user messages.
+Wreckingball channel(s):
+
+Keep newest: 2 per channel / 2 total / other:
+
+Matching identity: bot ID / username / nickname / webhook name / other:
+
+Bot/user/webhook ID if known:
+
+Allow deletion older than 14 days? yes/no/ask:
+
+Exclude pinned messages? yes/no:
+
+Dry-run required before deletion? yes/no:
+
+Notes:
+
+
+10. MUSIC BOT WEBHOOK RELAY
+===========================
+
+Question
+--------
+How should Loki relay the music bot set channel using webhooks?
+
+Why this matters
+----------------
+Webhook relay can make music status posts cleaner and separate from noisy source channels. But webhook identity and cleanup need clear rules.
+
+Possible interpretations of the request
+---------------------------------------
+The phrase "relay the music bot set channel using hooks" may mean one of:
+
+A. Relay messages from the music bot's current channel into `loki-music-relay` using a webhook.
+B. Use webhooks to repost music bot messages with nicer formatting.
+C. Move/centralize music bot output to a new channel.
+D. Create a webhook in the music channel for Loki-generated now-playing embeds.
+
+Proposed default
+----------------
+- Source: configured music bot channel.
+- Destination: `loki-music-relay`.
+- Sender: Loki-owned webhook named `Loki Music Relay`.
+- Embed shows original bot/source attribution.
+- No deletion during phase 1 except Wreckingball cleanup command.
+
+Decisions needed
+----------------
+1. What is the source music bot channel name/ID?
+2. What is the destination music relay channel name/ID?
+3. Should all music bot messages be relayed or only now-playing/queue messages?
+4. Should webhook name/avatar mimic Wreckingball/Diva Music Bot or use Loki identity?
+5. Should relayed music messages be deduplicated or updated in place?
+6. Should music relay keep only the latest N messages?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Source music channel: admin-configured later/test channel first
+Destination: loki-music-relay
+Webhook display: Loki Relay, with Wreckingball/Diva attribution inside embed
+Dry-run before creation: yes
+Notes: Do not impersonate users or bots by default.
+Music source channel:
+
+Music destination channel:
+
+Relay all music bot messages or selected patterns:
+
+Webhook display name:
+
+Webhook avatar policy:
+
+Keep only latest N music relay messages? yes/no; N:
+
+Notes:
+
+
+11. WEBHOOK IDENTITY AND ATTRIBUTION
+====================================
+
+Question
+--------
+Should relay posts be sent via webhooks, and what identity should those webhooks display?
+
+Why this matters
+----------------
+Webhooks can make relay posts look nicer, but can also look like impersonation if they mimic users too closely.
+
+Proposed default
+----------------
+Use webhook posts, but make the webhook identity clearly Loki-owned:
+- Webhook name: Loki Relay
+- Avatar: Loki/bot avatar
+- Embed author: original poster name/avatar
+- Embed fields: source channel + original jump link
+
+Possible identity modes
+-----------------------
+A. Safe Loki identity:
+   Webhook name is `Loki Relay`; original user shown in embed.
+
+B. Soft mirror:
+   Webhook name is `Loki Relay - OriginalName`; original avatar in embed.
+
+C. Full mirror:
+   Webhook username/avatar matches original poster.
+   This looks clean but can be deceptive.
+
+D. No webhooks:
+   Loki bot sends all relay messages normally.
+
+Decisions needed
+----------------
+1. Should Loki use webhooks at all?
+2. Should webhooks mimic users?
+3. Should music bot relay mimic Wreckingball?
+4. Should webhook messages include a visible `Relayed by Loki` footer?
+5. Should webhook messages include a jump link to the original?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Webhook identity: Loki Relay
+Original poster attribution: inside embed author/fields
+Use original user avatar/name as webhook username/avatar: no by default
+Allow opt-in impersonation later: ask again before implementation
+Notes: This preserves clarity without deceptive impersonation.
+Webhook mode: Loki identity / soft mirror / full mirror / no webhooks
+
+Music webhook identity:
+
+Include Relayed by Loki footer? yes/no:
+
+Include original jump link? yes/no:
+
+Notes:
+
+
+12. CHANNEL RULES / PINNED TEXT
+===============================
+
+Question
+--------
+What rules or explanatory text should Loki post/pin in the new channels?
+
+Why this matters
+----------------
+Relay channels can confuse users if they do not know why posts appear there, why links are cleaned, or how attribution works.
+
+Proposed default rules embed
+----------------------------
+Title:
+Loki Relay Channel
+
+Body:
+This channel is managed by Loki. Posts here are cleaned relay copies from server channels. Raw URLs are hidden when possible and replaced with clean title links. Each embed shows the original poster, source channel, and a link back to the original message.
+
+Footer:
+If something looks wrong, contact a server admin.
+
+Possible per-channel descriptions
+---------------------------------
+`loki-messages`:
+General cleaned relay posts and links.
+
+`loki-pictures`:
+Static image posts and image previews.
+
+`loki-gifs`:
+GIFs, videos, and moving media.
+
+`loki-emotes`:
+Custom emojis, animated emojis, and stickers.
+
+`loki-music-relay`:
+Music bot status and Wreckingball/Diva Music Bot relay output.
+
+Decisions needed
+----------------
+1. Should Loki post rules embeds?
+2. Should they be pinned?
+3. Do you want custom wording?
+4. Should the rules mention that originals may be deleted if that mode is enabled?
+5. Should channels have topics matching the rules?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Set channel topics: yes for newly created channels
+Pin rules messages: not in initial live setup; prepare later if desired
+Rules text: "Loki relay output. Original messages stay in source channels. Raw links are hidden in relay embeds where possible. Contact admins for removals."
+Notes: Avoid extra pinned-message mutation until explicitly requested.
+Post rules embed? yes/no:
+
+Pin rules embed? yes/no:
+
+Custom rules text:
+
+Channel topics:
+
+Notes:
+
+
+13. PERMISSIONS AND DISCORD SERVER SAFETY
+=========================================
+
+Question
+--------
+What is Loki allowed to do in Discord after you approve implementation?
+
+Why this matters
+----------------
+Some requested features require elevated Discord permissions. We should explicitly decide what Loki may do.
+
+Potential permissions needed
+----------------------------
+For reading/classifying:
+- View Channels
+- Read Message History
+- Message Content Intent enabled in Developer Portal
+
+For relay posting:
+- Send Messages
+- Embed Links
+- Attach Files
+- Use External Emojis/Stickers if needed
+
+For setup:
+- Manage Channels
+- Manage Webhooks
+
+For cleanup:
+- Manage Messages
+
+For suppressing embeds:
+- Manage Messages
+
+Recommended default
+-------------------
+Allow Loki to:
+- read watched channels
+- send relay embeds
+- create/reuse webhooks only after admin setup command
+- create/reuse relay channels only after admin setup command
+
+Do not allow Loki to:
+- delete user messages automatically in phase 1
+- delete Wreckingball posts without dry-run and explicit confirmation
+
+Decisions needed
+----------------
+1. Can Loki create channels?
+2. Can Loki create/manage webhooks?
+3. Can Loki delete messages?
+4. Can Loki suppress embeds?
+5. Should any destructive command be admin-only?
+6. Which role/user IDs count as admins for this feature?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Required for setup: Manage Channels, Manage Webhooks
+Required for relay: View Channel, Read Message History, Send Messages, Embed Links, Attach Files
+Required for cleanup only: Manage Messages
+Admin-only commands: yes
+Leak prevention: exclude staff/private/admin channels unless explicitly included
+Notes: Dry-run should report missing bot permissions before mutation.
+Can create channels? yes/no:
+
+Can manage webhooks? yes/no:
+
+Can delete messages? yes/no/only admin command:
+
+Can suppress embeds? yes/no:
+
+Destructive commands admin-only? yes/no:
+
+Admin roles/user IDs:
+
+Notes:
+
+
+14. DRY-RUN AND ROLLOUT STRATEGY
+================================
+
+Question
+--------
+How should we test this safely before full live rollout?
+
+Why this matters
+----------------
+The feature touches live Discord messages, webhooks, channel creation, and possibly deletion. A staged rollout prevents mistakes.
+
+Proposed rollout
+----------------
+Phase 0: Planning only.
+- Complete this questionnaire.
+- Agent council reviews design.
+
+Phase 1: Unit tests only.
+- Build parser/classifier/embed-generation tests.
+- No Discord writes.
+
+Phase 2: Dry-run commands.
+- `/loki-relay setup dry_run:true`
+- `/loki-relay cleanup-wreckingball dry_run:true`
+- `/loki-relay test dry_run:true`
+
+Phase 3: Private test channel.
+- Use one admin/test channel.
+- Create one test webhook.
+- Send controlled test messages.
+
+Phase 4: Limited live rollout.
+- Enable for selected source channels.
+- Monitor health/logs.
+- No deletion yet.
+
+Phase 5: Full rollout.
+- Enable broader watch scope.
+- Consider cleanup/deletion modes only after confidence.
+
+Decisions needed
+----------------
+1. Do you want all phases above?
+2. What channel should be used for private testing?
+3. Who should approve each phase?
+4. Should Loki log every relay decision during the first rollout?
+5. Should Loki expose a status command showing counters/errors?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Rollout: unit tests -> local dry-run -> Discord setup dry_run:true -> one test source channel -> limited live relay -> broader rollout
+Live mutations allowed now: no user-message deletion; setup only with confirm CREATE; cleanup only with confirm DELETE
+Rollback: disable routes/remove config first; do not delete channels automatically
+Notes: Current implementation remains safe by default.
+Use staged rollout? yes/no:
+
+Private test channel:
+
+Approval required before live rollout? yes/no:
+
+Log every relay decision during rollout? yes/no:
+
+Status command desired? yes/no:
+
+Notes:
+
+
+15. CONFIGURATION STORAGE
+=========================
+
+Question
+--------
+Where should Loki store relay configuration?
+
+Why this matters
+----------------
+Relay channel IDs, webhook IDs, source exclusions, and cleanup settings should persist across restarts.
+
+Possible storage options
+------------------------
+A. Environment variables only.
+   Simple but hard to manage many channel IDs.
+
+B. Existing database.
+   Best for server-specific settings and slash commands.
+
+C. JSON/YAML config file.
+   Easy to edit manually but less ideal for multi-guild bots.
+
+D. Hybrid.
+   Defaults in env, guild-specific config in database.
+
+Proposed default
+----------------
+Use existing Loki database/config service if present. Store guild-specific settings by guild ID.
+
+Potential config fields
+-----------------------
+- guild_id
+- relay_enabled
+- category_id
+- messages_channel_id
+- pictures_channel_id
+- gifs_channel_id
+- emotes_channel_id
+- music_relay_channel_id
+- watched_channel_ids
+- excluded_channel_ids
+- source_mode
+- webhook_ids per destination
+- original_handling_mode
+- link_policy
+- wreckingball_source_channel_ids
+- wreckingball_identity_match
+- cleanup_keep_count
+- dry_run_default
+
+Decisions needed
+----------------
+1. Should config be editable through Discord commands?
+2. Should config be manually editable in .env or file?
+3. Is Loki used in one guild only or multiple guilds?
+4. Should each guild have separate config?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Store stable routes in existing relay_routes/database where applicable
+Store channel names/defaults in code/env for phase 1
+Persist media routing/channel IDs later after live Discord IDs are known
+Secrets: environment only, never logs
+Notes: Avoid schema expansion until the first dry-run/live IDs are known.
+Config storage preference:
+
+Single guild or multi-guild:
+
+Editable through Discord commands? yes/no:
+
+Manual config file desired? yes/no:
+
+Notes:
+
+
+16. LOGGING, AUDIT, AND MODERATION
+==================================
+
+Question
+--------
+What should Loki log when it relays, suppresses, or deletes content?
+
+Why this matters
+----------------
+For cleanup and moderation, admins may need to know what Loki did and why.
+
+Proposed default
+----------------
+Loki should log:
+- message ID
+- source channel ID
+- destination channel ID
+- original author ID
+- classification result
+- relay message ID/webhook message ID
+- whether URLs were stripped
+- whether cleanup/delete happened
+- errors/failures
+
+Loki should not log full sensitive message content unless debug mode is enabled.
+
+Possible audit outputs
+----------------------
+A. Normal log file only.
+B. Discord admin audit channel.
+C. Database audit table.
+D. All of the above.
+
+Decisions needed
+----------------
+1. Should relays be logged to an admin Discord channel?
+2. Should full message content be stored? Recommended: no.
+3. Should deleted Wreckingball message IDs be recorded?
+4. How verbose should logs be during rollout?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Audit setup dry-runs/applies: yes
+Audit relay sends/failures: yes existing behavior
+Audit cleanup dry-runs/applies: yes
+Log message content: avoid raw content where possible; log IDs/counts/status
+Notes: Include actor ID, guild/channel, planned/deleted IDs, and errors.
+Audit channel name/ID:
+
+Store full message content? yes/no:
+
+Store deleted message IDs? yes/no:
+
+Rollout log verbosity: low/normal/high/debug
+
+Notes:
+
+
+17. CONTENT SAFETY AND FILTERING
+================================
+
+Question
+--------
+Should Loki filter or avoid relaying certain content?
+
+Why this matters
+----------------
+Media relay can accidentally amplify unwanted content, private links, NSFW posts, or moderation-sensitive content.
+
+Possible filters
+----------------
+- NSFW channel only content stays in NSFW channels.
+- Do not relay from staff/private categories.
+- Do not fetch metadata from unknown domains.
+- Do not relay messages containing certain words.
+- Do not relay messages from blocked users/bots.
+- Do not relay ephemeral/private interaction content.
+- Do not relay attachments over size limit.
+
+Proposed default
+----------------
+- Do not relay from NSFW channels into non-NSFW relay channels.
+- Do not fetch private/internal URLs.
+- Ignore staff/admin/private channels unless explicitly included.
+- Ignore messages from Loki and Loki webhooks.
+
+Decisions needed
+----------------
+1. Should NSFW content be relayed at all?
+2. Should there be separate NSFW relay channels?
+3. Should unknown domains be blocked or allowed?
+4. Should blocked users/bots be configurable?
+5. Should content filters be included in phase 1?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Mention safety: disable mentions in relay/admin output
+URL safety: no private/local/non-http fetches
+NSFW/private leakage: exclude private/staff/admin channels unless explicitly included
+Moderation filtering: not for phase 1 beyond safe routing/sanitizing
+Notes: Relay should not amplify pings or unsafe hidden links.
+NSFW relay policy:
+
+Unknown domain policy:
+
+Blocked users/bots:
+
+Content filters phase 1? yes/no:
+
+Notes:
+
+
+18. EDITS, DELETES, AND DEDUPLICATION
+=====================================
+
+Question
+--------
+What should happen if the original message is edited or deleted after Loki relays it?
+
+Why this matters
+----------------
+Relay posts can become stale or misleading if originals change. Updating/deleting relay posts requires storing mappings.
+
+Possible behaviors
+------------------
+A. Do nothing after initial relay.
+B. If original is edited, edit the relay embed.
+C. If original is deleted, delete the relay embed.
+D. If original is deleted, mark relay embed as deleted but keep it.
+E. Deduplicate repeated links/media within a time window.
+
+Proposed phase 1 default
+------------------------
+- Do nothing on edits/deletes.
+- Store enough mapping to add update/delete behavior later.
+
+Decisions needed
+----------------
+1. Should edited source messages update relay posts?
+2. Should deleted source messages remove relay posts?
+3. Should Loki deduplicate repeated URLs/media?
+4. What dedupe window should be used if enabled?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Edits: not mirrored in phase 1
+Deletes: do not delete relay copy automatically in phase 1
+Deduplication: use relay message map and explicit output-channel exclusion
+Relay loops: always skip Loki relay output channels/webhook messages
+Notes: Add edit/delete mirroring later only after separate design.
+Update relay on source edit? yes/no/later:
+
+Delete relay on source delete? yes/no/later:
+
+Deduplicate repeated media/links? yes/no:
+
+Dedupe window:
+
+Notes:
+
+
+19. RATE LIMITS AND PERFORMANCE
+===============================
+
+Question
+--------
+How aggressive should Loki be when fetching metadata, creating embeds, and cleaning up messages?
+
+Why this matters
+----------------
+Discord and websites rate-limit bots. Metadata fetching can slow message handling. Cleanup can trigger Discord limits if too fast.
+
+Proposed default
+----------------
+- Use async queue for relay jobs.
+- Use per-domain metadata fetch rate limits.
+- Cache metadata for repeated URLs.
+- Limit URLs per message.
+- Limit cleanup delete speed.
+- Make cleanup resumable and report progress.
+
+Decisions needed
+----------------
+1. Maximum URLs processed per message?
+2. Maximum metadata fetch timeout?
+3. Should metadata be cached?
+4. Cleanup delete delay/rate?
+5. Maximum cleanup messages per command?
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Rate limits: create/reuse idempotently; avoid mass channel/webhook creation loops
+Cleanup: individual deletes with limit/max count; no broad purge in phase 1
+Metadata fetch: short timeouts, production-only or conservative; fallback on failure
+Circuit breaker: keep existing relay circuit breaker
+Notes: Keep operations bounded and auditable.
+Max URLs per message:
+
+Metadata fetch timeout seconds:
+
+Cache metadata? yes/no:
+
+Cleanup max messages per command:
+
+Cleanup speed/delay preference:
+
+Notes:
+
+
+20. SUCCESS CRITERIA
+====================
+
+Question
+--------
+How will we know the feature is complete and polished?
+
+Proposed success criteria
+-------------------------
+A complete implementation should satisfy:
+
+1. Loki can dry-run setup and show exactly what channels/webhooks would be created.
+2. Loki can create/reuse configured relay channels after admin approval.
+3. Loki classifies messages into messages/pictures/GIFs/emotes/music correctly.
+4. Relay embeds show source channel, original poster, jump link, and timestamp.
+5. Relay text contains no raw URLs.
+6. URL title links work where metadata is available.
+7. Images/GIFs/videos appear in embeds where Discord supports them.
+8. Relay loops are prevented.
+9. Wreckingball cleanup dry-run keeps newest 2 and reports older deletions.
+10. Actual cleanup requires explicit admin confirmation.
+11. All unit tests pass.
+12. Loki remains healthy after restart.
+13. No duplicate Loki bot/guardian processes exist.
+14. Faust AGI remains safe/dry-run unless explicitly enabled.
+15. Code review and agent council review pass before push.
+
+Your answer
+-----------
+
+Filled answer (safe Phase 1)
+--------------------------------
+Success means: tests pass; setup dry-run reports exact actions; setup live requires confirm; media routes classify text/pictures/gifs/emotes/music; relay embeds hide raw URLs; Wreckingball cleanup dry-run keeps newest 2 and deletes nothing; live cleanup requires confirm; no user originals are touched
+Verification: pytest suite, focused unit tests, dry-run command output, one test-channel smoke before full rollout
+Notes: No push/live mutation without explicit approval.
+Additional success criteria:
+
+Things that would make this feel polished:
+
+Things to avoid:
+
+
+SUMMARY ANSWER TEMPLATE
+=======================
+
+If you want a shorter way to answer, fill this section only.
+
+1. Use default channel names/category? yes/no/custom:
+
+2. Watch scope:
+
+3. Should originals be deleted/suppressed/left alone?
+
+4. Link policy:
+
+5. Phase 1 platforms:
+
+6. Moving media routing:
+
+7. Wreckingball channel and cleanup rule:
+
+8. Music bot source/destination:
+
+9. Webhook identity mode:
+
+10. Permissions Loki may use:
+
+11. Dry-run/staged rollout preference:
+
+12. Rules/pinned text:
+
+13. Any must-have details not covered above:
+
+
+NEXT IMPLEMENTATION STEP AFTER THIS IS FILLED
+=============================================
+
+After this questionnaire is answered, the next safe sequence should be:
+
+1. Run read-only agent council against Loki codebase and Discord API constraints.
+2. Produce exact implementation spec.
+3. Write tests first.
+4. Implement in small modules.
+5. Run full tests.
+6. Run spec-compliance review.
+7. Run code-quality/security review.
+8. Perform dry-run only in Discord.
+9. Ask for explicit approval before live channel creation, webhook creation, cleanup deletion, commit, or push.

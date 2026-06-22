@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -15,7 +16,11 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".avif"}
 GIF_EXTENSIONS = {".gif"}
 DIRECT_IMAGE_RE = re.compile(r"\.(?:jpg|jpeg|png|webp|bmp|avif)(?:\?.*)?$", re.IGNORECASE)
 DIRECT_GIF_RE = re.compile(r"\.gif(?:\?.*)?$", re.IGNORECASE)
+DIRECT_VIDEO_RE = re.compile(r"\.(?:mp4|mov|webm|m4v)(?:\?.*)?$", re.IGNORECASE)
+CUSTOM_EMOJI_RE = re.compile(r"<(a?):([A-Za-z0-9_]{2,32}):(\d{15,25})>")
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"}
+TENOR_HOSTS = {"tenor.com", "www.tenor.com", "media.tenor.com"}
+GIPHY_HOSTS = {"giphy.com", "www.giphy.com", "media.giphy.com", "i.giphy.com"}
 SOCIAL_PROVIDERS = {
     "x.com": "X",
     "www.x.com": "X",
@@ -67,6 +72,8 @@ class MediaResolver:
             if item is not None:
                 media_items.append(item)
 
+        media_items.extend(self._custom_emojis_to_media_items(content or ""))
+
         for link in detected_links:
             item = await self._link_to_media_item(link, embeds)
             if item is not None:
@@ -103,7 +110,32 @@ class MediaResolver:
             return MediaKind.IMAGE
         if (content_type or "").startswith("video/"):
             return MediaKind.VIDEO
+        if lower.endswith((".mp4", ".mov", ".webm", ".m4v")):
+            return MediaKind.VIDEO
         return MediaKind.FILE
+
+    def _custom_emojis_to_media_items(self, content: str) -> list[MediaItem]:
+        items: list[MediaItem] = []
+        seen: set[str] = set()
+        for match in CUSTOM_EMOJI_RE.finditer(content):
+            animated = bool(match.group(1))
+            name = match.group(2)
+            emoji_id = match.group(3)
+            if emoji_id in seen:
+                continue
+            seen.add(emoji_id)
+            extension = "gif" if animated else "png"
+            items.append(
+                MediaItem(
+                    kind=MediaKind.EMOTE,
+                    source_url=f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}",
+                    provider="Discord",
+                    title=name,
+                    uploadable=False,
+                    metadata={"emoji_id": emoji_id, "animated": animated},
+                )
+            )
+        return items
 
     def _sticker_to_media_item(self, sticker: Any) -> MediaItem | None:
         url = getattr(sticker, "url", None)
@@ -121,14 +153,22 @@ class MediaResolver:
         )
 
     async def _link_to_media_item(self, url: str, embeds: list[Any]) -> MediaItem | None:
+        if not self._is_safe_external_url(url):
+            return None
         parsed = urlparse(url)
         host = parsed.netloc.lower()
         if host in YOUTUBE_HOSTS:
             return await self._youtube_card(url)
+        if host in TENOR_HOSTS:
+            return self._moving_media_card(url, "Tenor")
+        if host in GIPHY_HOSTS:
+            return self._moving_media_card(url, "Giphy")
         if host in SOCIAL_PROVIDERS:
             return await self._social_card(url, SOCIAL_PROVIDERS[host])
         if DIRECT_GIF_RE.search(parsed.path):
             return self._direct_media_item(url, MediaKind.GIF)
+        if DIRECT_VIDEO_RE.search(parsed.path):
+            return self._direct_media_item(url, MediaKind.VIDEO)
         if DIRECT_IMAGE_RE.search(parsed.path):
             return self._direct_media_item(url, MediaKind.IMAGE)
 
@@ -148,6 +188,17 @@ class MediaResolver:
             filename=filename,
             uploadable=False,
             metadata={"original_url_hash": self._url_hash(url)},
+        )
+
+    def _moving_media_card(self, url: str, provider: str) -> MediaItem:
+        return MediaItem(
+            kind=MediaKind.GIF,
+            source_url=url,
+            provider=provider,
+            title=f"{provider} GIF",
+            visible_url=None,
+            uploadable=False,
+            metadata={"original_url_hash": self._url_hash(url), "moving": True},
         )
 
     async def _youtube_card(self, url: str) -> MediaItem:
@@ -252,6 +303,19 @@ class MediaResolver:
             return parts[1]
         return None
 
+    def _is_safe_external_url(self, url: str) -> bool:
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            return False
+        host = (parsed.hostname or "").strip().casefold()
+        if not host or host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+            return False
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return True
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+
     async def _fetch_oembed(self, url: str, provider: str) -> dict[str, Any] | None:
         endpoints = {
             "X": "https://publish.twitter.com/oembed",
@@ -264,6 +328,8 @@ class MediaResolver:
         return await self._fetch_json(endpoint, params={"url": url})
 
     async def _fetch_json(self, url: str, *, params: dict[str, str]) -> dict[str, Any] | None:
+        if not self._is_safe_external_url(url):
+            return None
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
                 async with session.get(url, params=params) as response:
@@ -271,16 +337,21 @@ class MediaResolver:
                         return None
                     data = await response.json(content_type=None)
                     return data if isinstance(data, dict) else None
-        except (aiohttp.ClientError, TimeoutError):
+        except (aiohttp.ClientError, TimeoutError, ValueError):
             return None
 
     async def _fetch_open_graph(self, url: str) -> dict[str, str] | None:
+        if not self._is_safe_external_url(url):
+            return None
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
                 async with session.get(url) as response:
                     if response.status >= 400:
                         return None
-                    html = await response.text()
+                    content_type = response.headers.get("Content-Type", "")
+                    if "text/html" not in content_type and "application/xhtml" not in content_type:
+                        return None
+                    html = (await response.content.read(262_144)).decode(response.charset or "utf-8", errors="replace")
         except (aiohttp.ClientError, TimeoutError, UnicodeDecodeError):
             return None
 
