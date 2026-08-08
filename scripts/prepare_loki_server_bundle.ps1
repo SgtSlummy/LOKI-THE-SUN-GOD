@@ -25,11 +25,11 @@ if (-not (Test-Path -LiteralPath $OutputPath)) {
     throw "Git archive was not created: $OutputPath"
 }
 
-Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($OutputPath)
 try {
     $unsafe = $archive.Entries | Where-Object {
-        $_.FullName -match '(^|/)(\.env($|\.)|data/|runtime-logs/|\.venv/|\.git/)'
+        $_.FullName -match '(^|/)(\.env($|/)|data/|runtime-logs/|\.venv/|\.git/)'
     }
     if ($unsafe) {
         throw "Handoff archive contains forbidden paths: $($unsafe.FullName -join ', ')"
