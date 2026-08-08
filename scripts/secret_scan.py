@@ -14,6 +14,8 @@ EXCLUDED_DIRS = {
     "node_modules",
     "dist",
     "build",
+    "handoff",
+    "runtime-logs",
 }
 EXCLUDED_FILES = {
     ".env",
@@ -30,7 +32,7 @@ def iter_files() -> list[Path]:
     files: list[Path] = []
     for path in ROOT.rglob("*"):
         relative = path.relative_to(ROOT)
-        if any(part in EXCLUDED_DIRS for part in relative.parts):
+        if any(part in EXCLUDED_DIRS or part.startswith(".venv") for part in relative.parts):
             continue
         if relative.name in EXCLUDED_FILES:
             continue

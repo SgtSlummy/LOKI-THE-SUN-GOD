@@ -28,6 +28,27 @@ Set-Location "C:\Users\carme\OneDrive\Documents\LokiTHESunGod (Discord Bot)\runt
 & .\scripts\stop_loki_local.ps1
 ```
 
+## Prepare an install and server handoff
+
+The installer creates a Python 3.12 environment, installs the checked-in
+requirements, runs compile and secret checks, and performs redacted preflight.
+It never starts Discord:
+
+```powershell
+& .\scripts\install_loki_local.ps1 -VenvPath .venv-local312 -IncludeDev -RunReleaseCheck
+```
+
+Create a clean transfer archive from the committed source when the server is
+ready to receive it:
+
+```powershell
+& .\scripts\prepare_loki_server_bundle.ps1
+```
+
+The archive is written under `handoff/` and excludes `.env`, `.venv`, data,
+logs, and `.git`. It is local-only and is not uploaded or deployed by this
+script.
+
 The runner reads `DISCORD_TOKEN` from the repository `.env` or process
 environment. It refuses to start the gateway if the token is absent. Never put
 the token in a command argument or log.
