@@ -17,7 +17,7 @@ runtime_paths.load_app_dotenv(override=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("loki")
 
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN") or os.getenv("DISCORD_BOT_TOKEN")
 DEFAULT_PREFIX = os.getenv("PREFIX", "!")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 TRUTHY = {"1", "true", "yes", "on"}
@@ -181,7 +181,7 @@ class LokiBot(commands.Bot):
 
 async def main():
     if not TOKEN:
-        raise SystemExit("DISCORD_TOKEN missing in .env")
+        raise SystemExit("DISCORD_TOKEN or DISCORD_BOT_TOKEN missing in the environment")
     validate_startup_config()
     killed = worker_singleton.stop_local_duplicate_workers(Path(__file__).resolve().parent)
     if killed:
