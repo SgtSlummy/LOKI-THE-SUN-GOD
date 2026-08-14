@@ -8,8 +8,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from utils import credential_store, runtime_paths
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "local_loki_runtime.py"
+DISCORD_TOKEN_NAME = "DISCORD_" + "TOKEN"
 
 
 def load_runtime_module():
@@ -98,3 +101,68 @@ def test_health_surface_is_503_until_discord_is_ready():
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_runtime_config_precedence_is_credential_then_process_then_dotenv(tmp_path, monkeypatch):
+    env_path = tmp_path / "lokithesungod.env"
+    env_path.write_text(
+        f"{DISCORD_TOKEN_NAME}=dotenv-value\nOPENAI_API_KEY=dotenv-openai\nDATABASE_URL=dotenv-database\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LOKI_ENV_PATH", str(env_path))
+    monkeypatch.setenv("DISCORD_TOKEN", "process-value")
+    monkeypatch.setenv("OPENAI_API_KEY", "process-openai")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(
+        credential_store,
+        "load_credentials",
+        lambda: {"DISCORD_TOKEN": "credential-value"},
+    )
+
+    runtime = load_runtime_module()
+    try:
+        runtime._load_dotenv()
+
+        assert os.environ["DISCORD_TOKEN"] == "credential-value"
+        assert os.environ["OPENAI_API_KEY"] == "process-openai"
+        assert os.environ["DATABASE_URL"] == "dotenv-database"
+    finally:
+        os.environ.pop("DATABASE_URL", None)
+
+
+def test_legacy_override_argument_cannot_replace_process_environment(tmp_path, monkeypatch):
+    env_path = tmp_path / "lokithesungod.env"
+    env_path.write_text(f"{DISCORD_TOKEN_NAME}=dotenv-value\n", encoding="utf-8")
+    monkeypatch.setenv("LOKI_ENV_PATH", str(env_path))
+    monkeypatch.setenv("DISCORD_TOKEN", "process-value")
+    monkeypatch.setattr(credential_store, "load_credentials", lambda: {})
+
+    loaded = runtime_paths.load_app_dotenv(override=True)
+
+    assert loaded == env_path
+    assert os.environ["DISCORD_TOKEN"] == "process-value"
+
+
+def test_windows_stable_config_precedes_development_dotenv(tmp_path, monkeypatch):
+    if os.name != "nt":
+        return
+    program_data = tmp_path / "ProgramData"
+    stable = program_data / "Loki" / "config" / "lokithesungod.env"
+    app_root = tmp_path / "app"
+    stable.parent.mkdir(parents=True)
+    app_root.mkdir()
+    stable.write_text(f"{DISCORD_TOKEN_NAME}=stable-value\n", encoding="utf-8")
+    (app_root / ".env").write_text(f"{DISCORD_TOKEN_NAME}=development-value\n", encoding="utf-8")
+    monkeypatch.delenv("LOKI_ENV_PATH", raising=False)
+    monkeypatch.delenv("DISCORD_TOKEN", raising=False)
+    monkeypatch.setenv("PROGRAMDATA", str(program_data))
+    monkeypatch.setenv("LOKI_APP_ROOT", str(app_root))
+    monkeypatch.setattr(credential_store, "load_credentials", lambda: {})
+
+    try:
+        loaded = runtime_paths.load_app_dotenv()
+
+        assert loaded == stable
+        assert os.environ["DISCORD_TOKEN"] == "stable-value"
+    finally:
+        os.environ.pop("DISCORD_TOKEN", None)

@@ -23,6 +23,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from utils import runtime_paths
+
 ROOT = Path(__file__).resolve().parent
 DEFAULT_PORT = 9101
 TRUTHY = {"1", "true", "yes", "on"}
@@ -217,12 +219,7 @@ class HealthServer(ThreadingHTTPServer):
 
 
 def _load_dotenv() -> None:
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(ROOT / ".env", override=True)
-    except ImportError:
-        return
+    runtime_paths.load_app_dotenv()
 
 
 async def _run_discord(mode: str, token: str, state: RuntimeState) -> None:
