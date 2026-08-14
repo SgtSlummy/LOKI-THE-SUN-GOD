@@ -133,24 +133,43 @@ def _path_name(value: object) -> str:
     return str(value).strip('"').replace("\\", "/").rsplit("/", 1)[-1].casefold()
 
 
-def _is_absolute_path(value: object) -> bool:
+def _absolute_command_path(
+    value: object,
+    cwd: object | None = None,
+) -> Path | PureWindowsPath | None:
     text = str(value).strip('"')
-    return Path(text).is_absolute() or PureWindowsPath(text).is_absolute()
+    native_path = Path(text)
+    if native_path.is_absolute():
+        return native_path
+    windows_path = PureWindowsPath(text)
+    if windows_path.is_absolute():
+        return windows_path
+    if cwd is None:
+        return None
+
+    cwd_text = str(cwd).strip('"')
+    native_cwd = Path(cwd_text)
+    if native_cwd.is_absolute():
+        return native_cwd / native_path
+    windows_cwd = PureWindowsPath(cwd_text)
+    if windows_cwd.is_absolute():
+        return windows_cwd / windows_path
+    return None
 
 
-def _command_is_service_child(command: Iterable[object], script_name: str) -> bool:
+def _command_is_service_child(
+    command: Iterable[object],
+    script_name: str,
+    *,
+    cwd: object | None = None,
+) -> bool:
     values = list(command)
     if len(values) < 2:
         return False
     if _path_name(values[0]) not in {"python", "python.exe", "pythonw.exe"}:
         return False
-    if not _is_absolute_path(values[0]):
-        return False
-    expected_script = script_name.casefold()
-    return any(
-        _is_absolute_path(value) and _path_name(value) == expected_script
-        for value in values[1:]
-    )
+    target_script = _absolute_command_path(values[1], cwd)
+    return target_script is not None and target_script.name.casefold() == script_name.casefold()
 
 
 def find_duplicate_process(
@@ -160,12 +179,12 @@ def find_duplicate_process(
     current_pid: int | None = None,
 ) -> int | None:
     own_pid = os.getpid() if current_pid is None else current_pid
-    for process in process_iter(["pid", "cmdline"]):
+    for process in process_iter(["pid", "cmdline", "cwd"]):
         try:
             if process.pid == own_pid:
                 continue
             command = process.info.get("cmdline") or []
-            if _command_is_service_child(command, script_name):
+            if _command_is_service_child(command, script_name, cwd=process.info.get("cwd")):
                 return int(process.pid)
         except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
             continue

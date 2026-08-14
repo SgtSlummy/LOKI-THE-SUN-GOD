@@ -87,9 +87,9 @@ class FakePopen:
 
 
 class FakePsutilProcess:
-    def __init__(self, pid: int, command: list[str] | None) -> None:
+    def __init__(self, pid: int, command: list[str] | None, *, cwd: str | None = None) -> None:
         self.pid = pid
-        self.info = {"pid": pid, "cmdline": command}
+        self.info = {"pid": pid, "cmdline": command, "cwd": cwd}
 
 
 def prepare_release(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -267,6 +267,44 @@ def test_duplicate_matching_ignores_editor_and_relative_test_commands(tmp_path):
         tmp_path,
         DASHBOARD_SERVICE_SPEC,
         process_iter=lambda _attrs: processes,
+    )
+
+    host.start()
+
+    assert len(popen.calls) == 1
+
+
+def test_duplicate_matching_resolves_manual_relative_script_from_process_cwd(tmp_path):
+    requested_attrs: list[list[str]] = []
+    manual_runtime = FakePsutilProcess(
+        6003,
+        ["python.exe", "local_loki_runtime.py", "--mode", "full"],
+        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+    )
+
+    def process_iter(attrs):
+        requested_attrs.append(attrs)
+        return [manual_runtime]
+
+    host, _process, popen, _log = make_host(tmp_path, process_iter=process_iter)
+
+    with pytest.raises(service_common.DuplicateProcessError, match="6003"):
+        host.start()
+
+    assert popen.calls == []
+    assert requested_attrs == [["pid", "cmdline", "cwd"]]
+
+
+def test_duplicate_matching_uses_script_argv_slot_not_later_absolute_argument(tmp_path):
+    runner = FakePsutilProcess(
+        6004,
+        ["python.exe", "runner.py", "C:\\repo\\dashboard_app.py"],
+        cwd="C:\\repo",
+    )
+    host, _process, popen, _log = make_host(
+        tmp_path,
+        DASHBOARD_SERVICE_SPEC,
+        process_iter=lambda _attrs: [runner],
     )
 
     host.start()
