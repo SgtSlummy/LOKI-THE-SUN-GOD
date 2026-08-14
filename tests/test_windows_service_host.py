@@ -562,6 +562,10 @@ def test_svc_stop_returns_promptly_and_starts_only_one_stop_worker(monkeypatch):
             self.entered = threading.Event()
             self.release = threading.Event()
             self.timeouts: list[float] = []
+            self.request_stop_calls = 0
+
+        def request_stop(self) -> None:
+            self.request_stop_calls += 1
 
         def stop(self, timeout: float) -> None:
             self.timeouts.append(timeout)
@@ -599,6 +603,7 @@ def test_svc_stop_returns_promptly_and_starts_only_one_stop_worker(monkeypatch):
 
         assert service._svc_stop_worker is first_worker
         assert host.timeouts == [30]
+        assert host.request_stop_calls == 1
         assert all(wait_hint >= 40_000 for _status, wait_hint in reports)
     finally:
         host.release.set()
@@ -610,6 +615,62 @@ def test_svc_stop_returns_promptly_and_starts_only_one_stop_worker(monkeypatch):
     service.SvcStop()
     assert service._svc_stop_worker is first_worker
     assert host.timeouts == [30]
+    assert wait_event_signals == [service.hWaitStop]
+
+
+def test_svc_stop_marks_intent_before_delayed_worker_can_run(tmp_path, monkeypatch):
+    if os.name != "nt" or not service_common.PYWIN32_AVAILABLE:
+        pytest.skip("native SCM control test requires pywin32")
+
+    class DelayedWorker:
+        def __init__(self, *, target, name, daemon) -> None:
+            self.target = target
+            self.name = name
+            self.daemon = daemon
+            self.started = False
+            self.finished = False
+
+        def start(self) -> None:
+            self.started = True
+
+        def is_alive(self) -> bool:
+            return self.started and not self.finished
+
+        def join(self, timeout=None) -> None:
+            return
+
+        def run_now(self) -> None:
+            self.target()
+            self.finished = True
+
+    host, process, popen, _log = make_host(tmp_path, process=FakeProcess(returncode=17))
+    wait_event_signals: list[object] = []
+    monkeypatch.setattr(service_common.win32event, "SetEvent", wait_event_signals.append)
+    monkeypatch.setattr(service_common.threading, "Thread", DelayedWorker)
+    service = object.__new__(service_common.NativeServiceFramework)
+    service.service_spec = BOT_SERVICE_SPEC
+    service.host = host
+    service.hWaitStop = object()
+    service._svc_stop_lock = threading.Lock()
+    service._svc_stop_started = False
+    service._svc_stop_worker = None
+    service.ReportServiceStatus = lambda _status, waitHint=0: None
+
+    service.SvcStop()
+    worker = service._svc_stop_worker
+    assert worker is not None and worker.started and worker.is_alive()
+    try:
+        assert host.stop_requested.is_set()
+        with pytest.raises(service_common.ServiceStopRequested):
+            host.start()
+        assert host.run() == 0
+        assert popen.calls == []
+
+        host.child = process
+        assert host.wait_for_exit() == 17
+    finally:
+        worker.run_now()
+
     assert wait_event_signals == [service.hWaitStop]
 
 

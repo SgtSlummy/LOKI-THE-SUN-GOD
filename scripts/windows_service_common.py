@@ -363,11 +363,16 @@ class ChildServiceHost:
         finally:
             self._cleanup_resources()
 
+    def request_stop(self) -> None:
+        with self._lifecycle_lock:
+            self.stop_requested.set()
+            if self._lifecycle != "stopped":
+                self._lifecycle = "stopping"
+
     def stop(self, timeout: float = 30) -> None:
+        self.request_stop()
         try:
             with self._lifecycle_lock:
-                self.stop_requested.set()
-                self._lifecycle = "stopping"
                 child = self.child
                 stop_event = self._stop_event
             if child is None:
@@ -435,6 +440,7 @@ if PYWIN32_AVAILABLE:
                 self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING, waitHint=40_000)
                 if self._svc_stop_started:
                     return
+                self.host.request_stop()
                 self._svc_stop_started = True
                 worker = threading.Thread(
                     target=self._stop_child_worker,
