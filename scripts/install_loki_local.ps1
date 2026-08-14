@@ -253,7 +253,7 @@ try {
     # compileall writes bytecode beside sources even with -B; remove only
     # generated caches before immutable release verification.
     foreach ($cache in @(Get-ChildItem -LiteralPath $root -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction Stop)) {
-        Remove-Item -LiteralPath $cache.FullName -Recurse -Force -ErrorAction Stop
+        [System.IO.Directory]::Delete($cache.FullName, $true)
     }
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", "-m", "ruff", "check", ".") -Label "Ruff"
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", ".\scripts\secret_scan.py") -Label "Secret scan"
