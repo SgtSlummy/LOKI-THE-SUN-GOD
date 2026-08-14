@@ -1989,6 +1989,8 @@ if ($ReuseExistingVenv) {
     try {
         $env:LOKI_APP_ROOT = $ReleaseRoot
         $env:LOKI_ENV_PATH = $ConfigPath
+        $verificationBase = Join-Path $env:ProgramData "LokiVerification"
+        Ensure-ProtectedDirectory -Path $verificationBase
         Invoke-Native -FilePath $trustedPowerShell -Arguments @(
             "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", (Join-Path $ReleaseRoot "scripts\install_loki_local.ps1"),
@@ -1996,7 +1998,7 @@ if ($ReuseExistingVenv) {
             "-TrustedPythonRuntime", $pythonRuntime,
             "-TrustedGitExecutable", $trustedGitExecutable,
             "-VenvPath", $stagingVenvPath,
-            "-VerificationRoot", (Join-Path $env:ProgramData "Loki\verification\$candidateId")
+            "-VerificationRoot", (Join-Path $verificationBase $candidateId)
         ) -Label "Release-specific Python 3.12 environment preparation"
     } finally {
         $env:LOKI_APP_ROOT = $previousAppRoot
