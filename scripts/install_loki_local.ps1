@@ -250,6 +250,11 @@ try {
     Set-Location $root
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", "-c", "import win32service, win32cred") -Label "pywin32 import validation"
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", "-m", "compileall", "-q", "-x", "[\\/](?:.venv|venv|build|dist|__pycache__)[\\/]", ".") -Label "Python compile"
+    # compileall writes bytecode beside sources even with -B; remove only
+    # generated caches before immutable release verification.
+    foreach ($cache in @(Get-ChildItem -LiteralPath $root -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction Stop)) {
+        Remove-Item -LiteralPath $cache.FullName -Recurse -Force -ErrorAction Stop
+    }
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", "-m", "ruff", "check", ".") -Label "Ruff"
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", ".\scripts\secret_scan.py") -Label "Secret scan"
     Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", ".\local_loki_runtime.py", "--preflight") -Label "Local runtime preflight"
