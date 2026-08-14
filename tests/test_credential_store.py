@@ -26,7 +26,9 @@ class FakeWin32Cred:
 
     def CredWrite(self, credential: dict[str, object], flags: int) -> None:
         self.writes.append((credential, flags))
-        self.credentials[str(credential["TargetName"])] = credential["CredentialBlob"]  # type: ignore[assignment]
+        blob = credential["CredentialBlob"]
+        assert isinstance(blob, str)
+        self.credentials[str(credential["TargetName"])] = blob.encode("utf-16-le")
 
 
 def test_supported_secret_names_are_exact() -> None:
@@ -55,15 +57,16 @@ def test_read_and_write_generic_credential_without_output(monkeypatch, capsys) -
     backend = FakeWin32Cred()
     monkeypatch.setattr(credential_store, "win32cred", backend)
 
-    credential_store.write_credential("DISCORD_TOKEN", "managed-value")
+    credential_store.write_credential("DISCORD_TOKEN", "managed-☀-value")
 
     target = "LOKI/LokiTHESunGod/DISCORD_TOKEN"
-    assert credential_store.read_credential("DISCORD_TOKEN") == "managed-value"
+    assert credential_store.read_credential("DISCORD_TOKEN") == "managed-☀-value"
     written, flags = backend.writes[0]
     assert written["Type"] == backend.CRED_TYPE_GENERIC
     assert written["TargetName"] == target
     assert written["Persist"] == backend.CRED_PERSIST_LOCAL_MACHINE
-    assert written["CredentialBlob"] != "managed-value"
+    assert written["CredentialBlob"] == "managed-☀-value"
+    assert isinstance(written["CredentialBlob"], str)
     assert flags == 0
     assert capsys.readouterr() == ("", "")
 
@@ -80,7 +83,15 @@ def test_missing_or_unavailable_credential_manager_returns_no_values(monkeypatch
 
 def test_load_credentials_only_returns_present_supported_values(monkeypatch) -> None:
     backend = FakeWin32Cred()
-    backend.credentials["LOKI/LokiTHESunGod/OPENAI_API_KEY"] = b"managed-key"
+    backend.credentials["LOKI/LokiTHESunGod/OPENAI_API_KEY"] = "managed-key".encode("utf-16-le")
     monkeypatch.setattr(credential_store, "win32cred", backend)
 
     assert credential_store.load_credentials() == {"OPENAI_API_KEY": "managed-key"}
+
+
+def test_read_credential_removes_only_one_optional_trailing_nul(monkeypatch) -> None:
+    backend = FakeWin32Cred()
+    backend.credentials["LOKI/LokiTHESunGod/DISCORD_TOKEN"] = "managed-value\0\0".encode("utf-16-le")
+    monkeypatch.setattr(credential_store, "win32cred", backend)
+
+    assert credential_store.read_credential("DISCORD_TOKEN") == "managed-value\0"

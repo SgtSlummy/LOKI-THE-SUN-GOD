@@ -1,7 +1,6 @@
 import importlib.util
 import json
 import os
-import subprocess
 import sys
 import threading
 import urllib.error
@@ -24,45 +23,39 @@ def load_runtime_module():
     return module
 
 
-def test_preflight_is_redacted_and_fail_closed_without_token(tmp_path):
-    env = os.environ.copy()
-    env.pop("DISCORD_TOKEN", None)
-    env["LOCALAPPDATA"] = str(tmp_path)
-    result = subprocess.run(
-        [sys.executable, str(RUNTIME), "--preflight"],
-        cwd=ROOT,
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    payload = json.loads(result.stdout)
+def test_preflight_is_redacted_and_fail_closed_without_token(tmp_path, monkeypatch):
+    isolated_env = tmp_path / "isolated.env"
+    isolated_env.write_text("# intentionally empty\n", encoding="utf-8")
+    monkeypatch.delenv("DISCORD_TOKEN", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("LOKI_ENV_PATH", str(isolated_env))
+    monkeypatch.setattr(credential_store, "load_credentials", lambda: {})
+
+    payload = load_runtime_module().preflight()
+
     assert payload["ok"] is False
     assert payload["token_configured"] is False
     assert payload["provider_policy"]["cloud_provider_fallback"] is False
-    assert "DISCORD_TOKEN" not in result.stdout
+    assert "DISCORD_TOKEN" not in json.dumps(payload)
 
 
-def test_preflight_reports_local_council_gate(tmp_path):
+def test_preflight_reports_local_council_gate(tmp_path, monkeypatch):
     config = tmp_path / "council.yaml"
     config.write_text(
         'mutation_gate:\n  must_route_through: "THE FOOL"\n'
         'approval_style: "human_ok_per_interaction_batch"\n',
         encoding="utf-8",
     )
-    env = os.environ.copy()
-    env.pop("DISCORD_TOKEN", None)
-    env["LOCALAPPDATA"] = str(tmp_path)
-    env["LOKI_AGENT_COUNCIL_CONFIG"] = str(config)
-    result = subprocess.run(
-        [sys.executable, str(RUNTIME), "--preflight"],
-        cwd=ROOT,
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    payload = json.loads(result.stdout)
+    isolated_env = tmp_path / "isolated.env"
+    isolated_env.write_text("# intentionally empty\n", encoding="utf-8")
+    monkeypatch.delenv("DISCORD_TOKEN", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("LOKI_AGENT_COUNCIL_CONFIG", str(config))
+    monkeypatch.setenv("LOKI_ENV_PATH", str(isolated_env))
+    monkeypatch.setattr(credential_store, "load_credentials", lambda: {})
+
+    payload = load_runtime_module().preflight()
+
     assert payload["components"]["agents_council"]["human_batch_gate"] is True
     assert payload["components"]["agents_council"]["mutation_authority"] is False
 
@@ -141,6 +134,40 @@ def test_legacy_override_argument_cannot_replace_process_environment(tmp_path, m
 
     assert loaded == env_path
     assert os.environ["DISCORD_TOKEN"] == "process-value"
+
+
+def test_credential_failure_preserves_other_managed_and_fallback_values(tmp_path, monkeypatch, caplog):
+    env_path = tmp_path / "lokithesungod.env"
+    env_path.write_text("DATABASE_URL=dotenv-database\n", encoding="utf-8")
+    monkeypatch.setenv("LOKI_ENV_PATH", str(env_path))
+    monkeypatch.setenv("DISCORD_TOKEN", "process-value")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(credential_store, "win32cred", object())
+
+    def read_credential(name):
+        if name == "DISCORD_TOKEN":
+            raise PermissionError("sensitive-exception-text")
+        if name == "OPENAI_API_KEY":
+            return "managed-openai"
+        return None
+
+    monkeypatch.setattr(credential_store, "read_credential", read_credential)
+
+    try:
+        runtime_paths.load_app_dotenv()
+
+        assert os.environ["DISCORD_TOKEN"] == "process-value"
+        assert os.environ["DATABASE_URL"] == "dotenv-database"
+        assert os.environ["OPENAI_API_KEY"] == "managed-openai"
+        assert "DISCORD_TOKEN" in caplog.text
+        assert "PermissionError" in caplog.text
+        assert "sensitive-exception-text" not in caplog.text
+        messages = [record.getMessage() for record in caplog.records if record.name == credential_store.__name__]
+        assert messages == ["Credential Manager read failed for DISCORD_TOKEN (PermissionError)"]
+    finally:
+        os.environ.pop("DATABASE_URL", None)
+        os.environ.pop("OPENAI_API_KEY", None)
 
 
 def test_windows_stable_config_precedes_development_dotenv(tmp_path, monkeypatch):

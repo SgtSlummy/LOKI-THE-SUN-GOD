@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -11,6 +12,7 @@ except ImportError:  # pragma: no cover - exercised through the explicit None te
     win32cred = None
 
 TARGET_PREFIX = "LOKI/LokiTHESunGod"
+LOG = logging.getLogger(__name__)
 SUPPORTED_SECRET_NAMES = (
     "DISCORD_TOKEN",
     "DISCORD_CLIENT_SECRET",
@@ -43,10 +45,12 @@ def _credential_was_not_found(error: Exception) -> bool:
 
 def _decode_blob(blob: Any) -> str:
     if isinstance(blob, str):
-        return blob
-    if isinstance(blob, (bytes, bytearray)):
-        return bytes(blob).decode("utf-8")
-    raise TypeError("CredentialBlob must be text or UTF-8 bytes")
+        value = blob
+    elif isinstance(blob, (bytes, bytearray)):
+        value = bytes(blob).decode("utf-16-le")
+    else:
+        raise TypeError("CredentialBlob must be text or UTF-16LE bytes")
+    return value.removesuffix("\0")
 
 
 def read_credential(name: str) -> str | None:
@@ -77,7 +81,7 @@ def write_credential(name: str, value: str) -> None:
             "Type": win32cred.CRED_TYPE_GENERIC,
             "TargetName": target,
             "UserName": os.getenv("USERNAME", ""),
-            "CredentialBlob": value.encode("utf-8"),
+            "CredentialBlob": value,
             "Persist": win32cred.CRED_PERSIST_LOCAL_MACHINE,
         },
         0,
@@ -91,7 +95,11 @@ def load_credentials() -> dict[str, str]:
         return {}
     loaded: dict[str, str] = {}
     for name in SUPPORTED_SECRET_NAMES:
-        value = read_credential(name)
+        try:
+            value = read_credential(name)
+        except Exception as error:
+            LOG.warning("Credential Manager read failed for %s (%s)", name, type(error).__name__)
+            continue
         if value:
             loaded[name] = value
     return loaded
