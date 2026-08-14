@@ -2015,6 +2015,11 @@ if ($ReuseExistingVenv) {
     }
     [System.IO.Directory]::Move($stagingVenvPath, $VenvPath)
 }
+# Tests may create source-adjacent bytecode after local preparation; remove
+# only generated release caches before the immutable post-test verification.
+foreach ($cache in @(Get-ChildItem -LiteralPath $ReleaseRoot -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction Stop)) {
+    [System.IO.Directory]::Delete($cache.FullName, $true)
+}
 Protect-AdministratorTree -Root $lokiRoot
 $postVerificationJson = Invoke-NativeText -FilePath $pythonRuntime -Arguments @(
     "-I", "-B", $manifestHelper,
