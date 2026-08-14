@@ -4,11 +4,17 @@
 
 The rebuilt repo is deployment-ready after local verification, but no live Railway project was created from this workspace during the rebuild.
 
+The native Windows service candidate has a separate immutable-release runbook:
+[WINDOWS_SERVICE_DEPLOYMENT.md](WINDOWS_SERVICE_DEPLOYMENT.md). Passing local or
+CI checks establishes repository/package readiness only. Live Windows service
+state, Discord gateway readiness, dashboard OAuth, recovery, and test-guild
+acceptance require operator-observed commissioning.
+
 Highest-priority remaining items:
 
-1. Railway deployment.
-2. Hosted Discord OAuth callback test.
-3. Live Discord `/dashboard` plus post-restart relay message test in the actual channels.
+1. Operator-run Windows service commissioning in the configured test guild.
+2. Railway deployment, if the hosted target is still required.
+3. Hosted Discord OAuth and separately approved production-guild checks.
 
 The Vercel target is limited to the sanitized static operator preview in
 [VERCEL_PREVIEW.md](/C:/LOKI%20THE%20SUN%20GOD/docs/VERCEL_PREVIEW.md). Do not
@@ -37,10 +43,14 @@ The shared database schema is bootstrapped from [utils/db.py](/C:/LOKI%20THE%20S
 ## Install
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
+
+Production Windows services must use the versioned Python 3.12 environment and
+stable config described in the Windows service runbook. Do not reuse an older
+Python 3.14 environment or register services from a dirty checkout.
 
 Copy [.env.example](/C:/LOKI%20THE%20SUN%20GOD/.env.example) to `.env` and set:
 
@@ -135,11 +145,17 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_standalone.ps1
 - Dashboard: `GET /healthz`
 - Desktop control center: `GET /api/status`
 
+Native Windows services add loopback bot health at
+`http://127.0.0.1:9101/healthz` and dashboard health at
+`http://127.0.0.1:5000/healthz`. Bot health reaches HTTP 200 only after Discord
+is ready.
+
 The dashboard health response includes whether OAuth is configured and whether the local LOKI THE SUN GOD bridge is available.
 
 ## Database Notes
 
-SQLite lives at `data/bot.db`.
+SQLite lives at `data/bot.db` for manual development. Native Windows services
+pin it outside the immutable release at `C:\ProgramData\Loki\data\bot.db`.
 
 On Railway, `DATABASE_URL` switches the shared database adapter to Postgres while preserving the same bot and dashboard code paths. See [RAILWAY_DEPLOYMENT.md](/C:/LOKI%20THE%20SUN%20GOD/docs/RAILWAY_DEPLOYMENT.md) for the two-service setup.
 

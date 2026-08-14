@@ -30,12 +30,16 @@ Set-Location "C:\Users\carme\OneDrive\Documents\LokiTHESunGod (Discord Bot)\runt
 
 ## Prepare an install and server handoff
 
-The installer creates a Python 3.12 environment, installs the checked-in
-requirements, runs compile and secret checks, and performs redacted preflight.
-It never starts Discord:
+The installer requires `py -3.12`, creates or verifies a release-specific
+Python 3.12 environment, installs checked-in runtime and development
+requirements, and runs pywin32 imports, compile, Ruff, secret scan, redacted
+preflight, release checks, and repository tests. It never starts Discord or
+registers a Windows service:
 
 ```powershell
-& .\scripts\install_loki_local.ps1 -VenvPath .venv-local312 -IncludeDev -RunReleaseCheck
+& .\scripts\install_loki_local.ps1 `
+  -VenvPath .venv-local312 `
+  -VerificationRoot "$env:LOCALAPPDATA\Loki\verification\manual"
 ```
 
 Create a clean transfer archive from the committed source when the server is
@@ -45,13 +49,22 @@ ready to receive it:
 & .\scripts\prepare_loki_server_bundle.ps1
 ```
 
-The archive is written under `handoff/` and excludes `.env`, `.venv`, data,
-logs, and `.git`. It is local-only and is not uploaded or deployed by this
-script.
+The archive is written under `handoff/` with a JSON SHA-256 sidecar and portable
+digest. It excludes `.env`, virtual environments, data, logs, and Git metadata.
+The script does not upload, extract, deploy, register services, or start
+Discord.
 
-The runner reads `DISCORD_TOKEN` from the repository `.env` or process
-environment. It refuses to start the gateway if the token is absent. Never put
-the token in a command argument or log.
+For manual development, the runner keeps repository `.env` fallback. Managed
+Windows precedence is Credential Manager, then process environment, then
+`.env`; stable service config lives at
+`C:\ProgramData\Loki\config\lokithesungod.env`. Never put a credential in a
+command argument or log.
+
+Full immutable Windows deployment, credential seeding, service registration,
+verification, human-gated test-guild acceptance, upgrade, and rollback are in
+[WINDOWS_SERVICE_DEPLOYMENT.md](WINDOWS_SERVICE_DEPLOYMENT.md). Build the
+candidate venv before seeding Credential Manager, then install and start the
+services.
 
 ## Local collaborators
 
