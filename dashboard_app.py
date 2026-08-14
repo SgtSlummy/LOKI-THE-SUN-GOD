@@ -22,8 +22,9 @@ from urllib.parse import urlencode
 
 import requests
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, send_file, session, url_for
+from werkzeug.serving import WSGIRequestHandler, make_server
 
-from utils import runtime_paths
+from utils import runtime_paths, service_stop
 
 runtime_paths.load_app_dotenv()
 
@@ -64,6 +65,35 @@ HTTP_TIMEOUT = (5, 20)
 STRUCTURE_TTL_SECONDS = 60
 DASHBOARD_SESSION_TTL_SECONDS = 24 * 60 * 60
 _GUILD_STRUCTURE_CACHE: dict[int, tuple[float, dict[str, object]]] = {}
+
+
+class QueryRedactingRequestHandler(WSGIRequestHandler):
+    def log_request(self, code="-", size="-"):
+        original_path = getattr(self, "path", "")
+        try:
+            self.path = original_path.split("?", 1)[0]
+            super().log_request(code, size)
+        finally:
+            self.path = original_path
+
+
+def create_dashboard_service_server(host, port):
+    return make_server(
+        host,
+        port,
+        app,
+        threaded=True,
+        request_handler=QueryRedactingRequestHandler,
+    )
+
+
+def run_dashboard_service(host, port):
+    server = create_dashboard_service_server(host, port)
+    service_stop.start_service_stop_watcher(server.shutdown)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 if REDIRECT_URI.startswith("https://"):
     app.config["SESSION_COOKIE_SECURE"] = True
@@ -518,7 +548,7 @@ def callback():
         user = discord_request(access_token, "/users/@me")
         guilds = discord_request(access_token, "/users/@me/guilds")
     except (requests.RequestException, KeyError, ValueError) as exc:
-        app.logger.warning("OAuth callback failed: %s", exc)
+        app.logger.warning("OAuth callback failed (%s)", type(exc).__name__)
         flash("Discord OAuth exchange failed.", "danger")
         return redirect(url_for("index"))
     _store_dashboard_session(user, guilds)
@@ -1989,7 +2019,7 @@ def form_response_decide(guild_id, form_name, resp_id):
                             msg += f"\n\n> {note}"
                         _bot_post(f"/channels/{dm_id}/messages", {"content": msg})
         except Exception as e:
-            app.logger.warning(f"DM applicant failed: {e}")
+            app.logger.warning("DM applicant failed (%s)", type(e).__name__)
     flash(f"Marked as {decision}.", "success")
     return redirect(url_for("form_responses_page", guild_id=guild_id, form_name=form_name))
 
@@ -2022,6 +2052,9 @@ if __name__ == "__main__":
         with app.app_context():
             _ensure_streams_table()
     except Exception as e:
-        print(f"WARN: stream table bootstrap: {e}")
+        print(f"WARN: stream table bootstrap failed ({type(e).__name__})")
     print(f"Dashboard running on http://{host}:{port}")
-    app.run(host=host, port=port, debug=debug)
+    if service_stop.configured_stop_event():
+        run_dashboard_service(host, port)
+    else:
+        app.run(host=host, port=port, debug=debug)

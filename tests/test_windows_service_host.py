@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import io
 import os
-import signal
 import subprocess
+import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -11,30 +12,68 @@ import pytest
 from scripts import windows_service_common as service_common
 from scripts.loki_bot_service import BOT_SERVICE_SPEC, LokiBotService
 from scripts.loki_dashboard_service import DASHBOARD_SERVICE_SPEC, LokiDashboardService
+from utils import service_stop
 
 
 class FakeProcess:
-    def __init__(self, *, returncode: int = 0, time_out_once: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        returncode: int = 0,
+        wait_timeouts: int = 0,
+        terminate_error: Exception | None = None,
+        kill_error: Exception | None = None,
+    ) -> None:
         self.pid = 4321
         self.returncode = returncode
-        self.time_out_once = time_out_once
+        self.wait_timeouts = wait_timeouts
+        self.terminate_error = terminate_error
+        self.kill_error = kill_error
         self.events: list[object] = []
-
-    def send_signal(self, sent_signal: int) -> None:
-        self.events.append(("signal", sent_signal))
 
     def terminate(self) -> None:
         self.events.append("terminate")
+        if self.terminate_error:
+            raise self.terminate_error
 
     def wait(self, timeout: float | None = None) -> int:
         self.events.append(("wait", timeout))
-        if timeout is not None and self.time_out_once:
-            self.time_out_once = False
+        if timeout is not None and self.wait_timeouts:
+            self.wait_timeouts -= 1
             raise subprocess.TimeoutExpired("child", timeout)
         return self.returncode
 
     def kill(self) -> None:
         self.events.append("kill")
+        if self.kill_error:
+            raise self.kill_error
+
+
+class FakeNamedStopEvent:
+    def __init__(self, service_name: str, *, signal_error: Exception | None = None) -> None:
+        self.name = f"Local\\{service_name}-unit-test"
+        self.signal_error = signal_error
+        self.signaled = False
+        self.closed = False
+
+    def signal(self) -> None:
+        self.signaled = True
+        if self.signal_error:
+            raise self.signal_error
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeNamedStopEventFactory:
+    def __init__(self, *, signal_error: Exception | None = None) -> None:
+        self.signal_error = signal_error
+        self.events: list[FakeNamedStopEvent] = []
+
+    def __call__(self, service_name: str) -> FakeNamedStopEvent:
+        event = FakeNamedStopEvent(service_name, signal_error=self.signal_error)
+        self.events.append(event)
+        return event
 
 
 class FakePopen:
@@ -74,11 +113,13 @@ def make_host(
     process: FakeProcess | None = None,
     process_iter=None,
     diagnostic_writer=None,
+    stop_event_factory=None,
 ):
     release_root, python_executable, env_path = prepare_release(tmp_path)
     fake_process = process or FakeProcess()
     popen = FakePopen(fake_process)
     log_stream = io.StringIO()
+    event_factory = stop_event_factory or FakeNamedStopEventFactory()
     host = service_common.ChildServiceHost(
         spec,
         release_root=release_root,
@@ -89,7 +130,9 @@ def make_host(
         process_iter=process_iter or (lambda _attrs: []),
         log_opener=lambda *_args, **_kwargs: log_stream,
         diagnostic_writer=diagnostic_writer,
+        stop_event_factory=event_factory,
     )
+    host.test_stop_event_factory = event_factory
     return host, fake_process, popen, log_stream
 
 
@@ -114,6 +157,7 @@ def test_bot_command_is_exact_and_absolute(tmp_path):
     assert kwargs["stderr"] == subprocess.STDOUT
     assert kwargs["stdout"] is not None
     assert "desktop_app.py" not in " ".join(command)
+    assert kwargs["env"][service_stop.STOP_EVENT_ENV] == "Local\\LokiTHESunGodBot-unit-test"
 
 
 def test_dashboard_command_and_loopback_environment_are_enforced(tmp_path):
@@ -199,7 +243,7 @@ def test_duplicate_process_is_refused_without_exposing_its_command(tmp_path):
     secret = "do-not-print-this-credential"
     duplicate = FakePsutilProcess(
         6789,
-        ["python.exe", "C:\\old-release\\local_loki_runtime.py", "--token", secret],
+        ["C:\\old-venv\\Scripts\\python.exe", "C:\\old-release\\local_loki_runtime.py", "--token", secret],
     )
     host, _process, popen, _log = make_host(
         tmp_path,
@@ -214,27 +258,112 @@ def test_duplicate_process_is_refused_without_exposing_its_command(tmp_path):
     assert secret not in str(error.value)
 
 
-def test_graceful_stop_signals_then_waits_without_kill(tmp_path):
+def test_duplicate_matching_ignores_editor_and_relative_test_commands(tmp_path):
+    processes = [
+        FakePsutilProcess(6001, ["C:\\Program Files\\Editor\\code.exe", "C:\\repo\\dashboard_app.py"]),
+        FakePsutilProcess(6002, ["C:\\Python312\\python.exe", "tests\\dashboard_app.py"]),
+    ]
+    host, _process, popen, _log = make_host(
+        tmp_path,
+        DASHBOARD_SERVICE_SPEC,
+        process_iter=lambda _attrs: processes,
+    )
+
+    host.start()
+
+    assert len(popen.calls) == 1
+
+
+def test_stop_during_start_barrier_prevents_child_launch(tmp_path):
+    scan_entered = threading.Event()
+    release_scan = threading.Event()
+
+    def blocking_process_iter(_attrs):
+        scan_entered.set()
+        assert release_scan.wait(timeout=2)
+        return []
+
+    host, _process, popen, _log = make_host(tmp_path, process_iter=blocking_process_iter)
+    errors: list[Exception] = []
+
+    def start_host() -> None:
+        try:
+            host.start()
+        except Exception as error:
+            errors.append(error)
+
+    start_thread = threading.Thread(target=start_host)
+    start_thread.start()
+    assert scan_entered.wait(timeout=2)
+
+    host.stop()
+    release_scan.set()
+    start_thread.join(timeout=2)
+
+    assert popen.calls == []
+    assert len(errors) == 1
+    assert isinstance(errors[0], service_common.ServiceStopRequested)
+
+
+def test_run_returns_cleanly_when_stop_was_requested_before_launch(tmp_path):
+    host, _process, popen, _log = make_host(tmp_path)
+    host.stop()
+
+    assert host.run() == 0
+    assert popen.calls == []
+
+
+def test_graceful_stop_sets_named_event_then_waits_without_kill(tmp_path):
     host, process, _popen, _log = make_host(tmp_path)
     host.start()
+    named_event = host.test_stop_event_factory.events[0]
 
     host.stop(timeout=30)
 
-    if os.name == "nt":
-        assert process.events == [("signal", signal.CTRL_BREAK_EVENT), ("wait", 30)]
-    else:
-        assert process.events == ["terminate", ("wait", 30)]
+    assert named_event.signaled is True
+    assert named_event.closed is True
+    assert process.events == [("wait", 30)]
 
 
 def test_stop_forces_kill_only_after_graceful_timeout(tmp_path):
-    process = FakeProcess(time_out_once=True)
+    process = FakeProcess(wait_timeouts=1)
     host, process, _popen, _log = make_host(tmp_path, process=process)
     host.start()
 
     host.stop(timeout=30)
 
-    graceful_request = ("signal", signal.CTRL_BREAK_EVENT) if os.name == "nt" else "terminate"
-    assert process.events == [graceful_request, ("wait", 30), "kill", ("wait", 30)]
+    assert process.events == [("wait", 30), "kill", ("wait", 5)]
+
+
+def test_stop_fallback_errors_are_tolerated_and_resources_always_close(tmp_path):
+    event_factory = FakeNamedStopEventFactory(signal_error=OSError("sensitive event failure"))
+    process = FakeProcess(terminate_error=ProcessLookupError("already exited"))
+    host, _process, _popen, log_stream = make_host(
+        tmp_path,
+        process=process,
+        stop_event_factory=event_factory,
+    )
+    host.start()
+
+    host.stop(timeout=30)
+
+    assert process.events == ["terminate", ("wait", 30)]
+    assert event_factory.events[0].closed is True
+    assert log_stream.closed is True
+
+
+def test_stop_cleanup_runs_even_when_child_survives_force_kill(tmp_path):
+    process = FakeProcess(wait_timeouts=2)
+    host, _process, _popen, log_stream = make_host(tmp_path, process=process)
+    host.start()
+    named_event = host.test_stop_event_factory.events[0]
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        host.stop(timeout=30)
+
+    assert process.events == [("wait", 30), "kill", ("wait", 5)]
+    assert named_event.closed is True
+    assert log_stream.closed is True
 
 
 def test_unexpected_child_exit_raises_for_scm_recovery(tmp_path):
@@ -253,6 +382,31 @@ def test_requested_child_exit_is_not_reported_as_failure(tmp_path):
     host.stop_requested.set()
 
     assert host.wait_for_exit() == 0
+
+
+def test_real_windows_named_event_stops_waiting_subprocess():
+    if os.name != "nt" or not service_common.PYWIN32_AVAILABLE:
+        pytest.skip("Windows named events require pywin32")
+
+    named_event = service_common.WindowsNamedStopEvent("LokiNamedEventIntegrationTest")
+    environment = dict(os.environ)
+    environment[service_stop.STOP_EVENT_ENV] = named_event.name
+    code = (
+        "from utils.service_stop import wait_for_service_stop; "
+        "raise SystemExit(0 if wait_for_service_stop(5000) else 2)"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", code],
+        cwd=Path(__file__).resolve().parents[1],
+        env=environment,
+    )
+    try:
+        named_event.signal()
+        assert process.wait(timeout=10) == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+        named_event.close()
 
 
 def test_host_diagnostics_never_include_command_or_environment_secrets(tmp_path):
@@ -281,3 +435,19 @@ def test_service_classes_use_native_pywin32_framework_when_available():
     assert issubclass(LokiDashboardService, win32serviceutil.ServiceFramework)
     assert LokiBotService._svc_name_ == "LokiTHESunGodBot"
     assert LokiDashboardService._svc_name_ == "LokiTHESunGodDashboard"
+
+
+def test_service_wrapper_imports_when_launched_outside_release_root(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "loki_bot_service.py")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    output = result.stdout + result.stderr
+    assert "No module named 'utils'" not in output
+    assert "Usage:" in output or "pywin32 is required" in output

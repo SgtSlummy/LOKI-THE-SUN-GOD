@@ -23,7 +23,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from utils import runtime_paths
+from utils import runtime_paths, service_stop
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_PORT = 9101
@@ -222,6 +222,27 @@ def _load_dotenv() -> None:
     runtime_paths.load_app_dotenv()
 
 
+def _watch_discord_service_stop(client: Any) -> asyncio.Event:
+    loop = asyncio.get_running_loop()
+    stop_requested = asyncio.Event()
+
+    async def close_client() -> None:
+        try:
+            await client.close()
+        except Exception:
+            return
+
+    def request_stop() -> None:
+        def dispatch() -> None:
+            stop_requested.set()
+            asyncio.create_task(close_client())
+
+        loop.call_soon_threadsafe(dispatch)
+
+    service_stop.start_service_stop_watcher(request_stop)
+    return stop_requested
+
+
 async def _run_discord(mode: str, token: str, state: RuntimeState) -> None:
     import discord
 
@@ -277,9 +298,12 @@ async def _run_discord(mode: str, token: str, state: RuntimeState) -> None:
 
         client = ManagedLokiBot()
 
+    stop_requested = _watch_discord_service_stop(client)
     try:
         await client.start(token)
     except Exception as exc:
+        if stop_requested.is_set():
+            return
         state.last_error = type(exc).__name__
         raise
     finally:
@@ -322,8 +346,8 @@ async def run(args: argparse.Namespace) -> int:
         await _run_discord(args.mode, token, state)
     except KeyboardInterrupt:
         return 0
-    except Exception:
-        LOG.exception("LOKI Discord runtime stopped with an error")
+    except Exception as error:
+        LOG.error("LOKI Discord runtime stopped with an error (%s)", type(error).__name__)
         return 1
     finally:
         state.stopped = True

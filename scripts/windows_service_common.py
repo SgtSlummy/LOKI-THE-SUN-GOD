@@ -1,34 +1,37 @@
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 import sys
 import threading
+import uuid
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, ClassVar, TextIO
 
 import psutil
 
 try:
     import servicemanager
+    import win32api
     import win32event
     import win32service
     import win32serviceutil
 except ImportError:  # pragma: no cover - exercised by Ubuntu CI collection
     servicemanager = None
+    win32api = None
     win32event = None
     win32service = None
     win32serviceutil = None
 
 
 PYWIN32_AVAILABLE = all(
-    module is not None for module in (servicemanager, win32event, win32service, win32serviceutil)
+    module is not None for module in (servicemanager, win32api, win32event, win32service, win32serviceutil)
 )
 DEFAULT_ENV_RELATIVE_PATH = Path("Loki") / "config" / "lokithesungod.env"
 DEFAULT_LOG_RELATIVE_PATH = Path("Loki") / "logs"
+STOP_EVENT_ENV = "LOKI_SERVICE_STOP_EVENT"
 
 
 class DuplicateProcessError(RuntimeError):
@@ -37,6 +40,47 @@ class DuplicateProcessError(RuntimeError):
 
 class UnexpectedChildExit(RuntimeError):
     """Raised so an unexpected child exit becomes an SCM-visible failure."""
+
+
+class ServiceStopRequested(RuntimeError):
+    """Raised when SCM stop wins the race with child launch."""
+
+
+class WindowsNamedStopEvent:
+    def __init__(self, service_name: str) -> None:
+        if not PYWIN32_AVAILABLE:
+            raise RuntimeError("pywin32 is required for Windows named service events")
+        self.name = f"Local\\{service_name}-{os.getpid()}-{uuid.uuid4().hex}"
+        self._handle = win32event.CreateEvent(None, True, False, self.name)
+
+    def signal(self) -> None:
+        if self._handle is not None:
+            win32event.SetEvent(self._handle)
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, None
+        if handle is not None:
+            win32api.CloseHandle(handle)
+
+
+class InProcessNamedStopEvent:
+    """Non-Windows test shim; native services never use this implementation."""
+
+    def __init__(self, service_name: str) -> None:
+        self.name = f"Local\\{service_name}-{os.getpid()}-{uuid.uuid4().hex}"
+        self._event = threading.Event()
+
+    def signal(self) -> None:
+        self._event.set()
+
+    def close(self) -> None:
+        return
+
+
+def create_named_stop_event(service_name: str) -> WindowsNamedStopEvent | InProcessNamedStopEvent:
+    if PYWIN32_AVAILABLE and os.name == "nt":
+        return WindowsNamedStopEvent(service_name)
+    return InProcessNamedStopEvent(service_name)
 
 
 @dataclass(frozen=True)
@@ -85,13 +129,28 @@ def resolve_python_executable(executable: str | os.PathLike[str] | None = None) 
     return candidate
 
 
-def _command_contains_script(command: Iterable[object], script_name: str) -> bool:
-    expected = script_name.casefold()
-    for value in command:
-        normalized = str(value).strip('"').replace("\\", "/")
-        if normalized.rsplit("/", 1)[-1].casefold() == expected:
-            return True
-    return False
+def _path_name(value: object) -> str:
+    return str(value).strip('"').replace("\\", "/").rsplit("/", 1)[-1].casefold()
+
+
+def _is_absolute_path(value: object) -> bool:
+    text = str(value).strip('"')
+    return Path(text).is_absolute() or PureWindowsPath(text).is_absolute()
+
+
+def _command_is_service_child(command: Iterable[object], script_name: str) -> bool:
+    values = list(command)
+    if len(values) < 2:
+        return False
+    if _path_name(values[0]) not in {"python", "python.exe", "pythonw.exe"}:
+        return False
+    if not _is_absolute_path(values[0]):
+        return False
+    expected_script = script_name.casefold()
+    return any(
+        _is_absolute_path(value) and _path_name(value) == expected_script
+        for value in values[1:]
+    )
 
 
 def find_duplicate_process(
@@ -106,7 +165,7 @@ def find_duplicate_process(
             if process.pid == own_pid:
                 continue
             command = process.info.get("cmdline") or []
-            if _command_contains_script(command, script_name):
+            if _command_is_service_child(command, script_name):
                 return int(process.pid)
         except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
             continue
@@ -127,6 +186,7 @@ class ChildServiceHost:
         process_iter: Callable[[list[str]], Iterable[Any]] = psutil.process_iter,
         log_opener: Callable[..., TextIO] = open,
         diagnostic_writer: Callable[[str], None] | None = None,
+        stop_event_factory: Callable[[str], Any] = create_named_stop_event,
     ) -> None:
         self.spec = spec
         self.release_root = resolve_release_root(release_root)
@@ -144,9 +204,13 @@ class ChildServiceHost:
         self.process_iter = process_iter
         self.log_opener = log_opener
         self.diagnostic_writer = diagnostic_writer or (lambda _message: None)
+        self.stop_event_factory = stop_event_factory
         self.stop_requested = threading.Event()
         self.child: Any | None = None
         self._log_handle: TextIO | None = None
+        self._stop_event: Any | None = None
+        self._lifecycle = "new"
+        self._lifecycle_lock = threading.RLock()
 
         script_path = self.release_root / self.spec.script_name
         if not script_path.is_file():
@@ -168,46 +232,61 @@ class ChildServiceHost:
         environment["LOKI_APP_ROOT"] = str(self.release_root)
         environment["LOKI_ENV_PATH"] = str(self.env_path)
         environment.update(self.spec.environment)
+        if self._stop_event is not None:
+            environment[STOP_EVENT_ENV] = self._stop_event.name
         return environment
 
     def _creation_flags(self) -> int:
         if os.name != "nt":
             return 0
-        return int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)) | int(
-            getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        )
+        return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def start(self) -> Any:
-        if self.child is not None:
-            raise RuntimeError(f"{self.spec.service_name} child already started")
-        duplicate_pid = find_duplicate_process(
-            self.spec.script_name,
-            process_iter=self.process_iter,
-        )
-        if duplicate_pid is not None:
-            raise DuplicateProcessError(
-                f"{self.spec.service_name} refused duplicate child process (pid={duplicate_pid})"
-            )
+        with self._lifecycle_lock:
+            if self.stop_requested.is_set() or self._lifecycle in {"stopping", "stopped"}:
+                raise ServiceStopRequested(f"{self.spec.service_name} stop requested before launch")
+            if self._lifecycle != "new" or self.child is not None:
+                raise RuntimeError(f"{self.spec.service_name} child already started")
+            self._lifecycle = "starting"
 
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        self._log_handle = self.log_opener(
-            self.log_path,
-            "a",
-            encoding="utf-8",
-            buffering=1,
-        )
         try:
-            self.child = self.popen_factory(
-                self.command,
-                cwd=str(self.release_root),
-                env=self.child_environment,
-                stdin=subprocess.DEVNULL,
-                stdout=self._log_handle,
-                stderr=subprocess.STDOUT,
-                creationflags=self._creation_flags(),
+            duplicate_pid = find_duplicate_process(
+                self.spec.script_name,
+                process_iter=self.process_iter,
             )
+            with self._lifecycle_lock:
+                if self.stop_requested.is_set() or self._lifecycle == "stopping":
+                    self._lifecycle = "stopped"
+                    raise ServiceStopRequested(f"{self.spec.service_name} stop requested before launch")
+                if duplicate_pid is not None:
+                    self._lifecycle = "failed"
+                    raise DuplicateProcessError(
+                        f"{self.spec.service_name} refused duplicate child process (pid={duplicate_pid})"
+                    )
+
+                self.log_path.parent.mkdir(parents=True, exist_ok=True)
+                self._log_handle = self.log_opener(
+                    self.log_path,
+                    "a",
+                    encoding="utf-8",
+                    buffering=1,
+                )
+                self._stop_event = self.stop_event_factory(self.spec.service_name)
+                self.child = self.popen_factory(
+                    self.command,
+                    cwd=str(self.release_root),
+                    env=self.child_environment,
+                    stdin=subprocess.DEVNULL,
+                    stdout=self._log_handle,
+                    stderr=subprocess.STDOUT,
+                    creationflags=self._creation_flags(),
+                )
+                self._lifecycle = "running"
         except Exception:
-            self._close_log()
+            with self._lifecycle_lock:
+                if self._lifecycle not in {"stopped", "failed"}:
+                    self._lifecycle = "failed"
+            self._cleanup_resources()
             raise
         self.diagnostic_writer(f"{self.spec.service_name}: child started (pid={self.child.pid})")
         return self.child
@@ -226,39 +305,65 @@ class ChildServiceHost:
         return exit_code
 
     def run(self) -> int:
-        self.start()
+        try:
+            self.start()
+        except ServiceStopRequested:
+            self._cleanup_resources()
+            return 0
         try:
             return self.wait_for_exit()
         finally:
-            self._close_log()
+            self._cleanup_resources()
 
     def stop(self, timeout: float = 30) -> None:
-        self.stop_requested.set()
-        child = self.child
-        if child is None:
-            return
-        self.diagnostic_writer(f"{self.spec.service_name}: stopping child")
         try:
-            if os.name == "nt" and hasattr(signal, "CTRL_BREAK_EVENT"):
-                child.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                child.terminate()
-        except (OSError, ProcessLookupError):
-            child.terminate()
+            with self._lifecycle_lock:
+                self.stop_requested.set()
+                self._lifecycle = "stopping"
+                child = self.child
+                stop_event = self._stop_event
+            if child is None:
+                return
 
-        try:
-            child.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            self.diagnostic_writer(f"{self.spec.service_name}: forcing child stop after timeout")
-            child.kill()
-            child.wait(timeout=timeout)
+            self.diagnostic_writer(f"{self.spec.service_name}: stopping child")
+            try:
+                if stop_event is None:
+                    raise RuntimeError("named stop event unavailable")
+                stop_event.signal()
+            except Exception:
+                try:
+                    child.terminate()
+                except Exception:
+                    pass
+
+            try:
+                child.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                self.diagnostic_writer(f"{self.spec.service_name}: forcing child stop after timeout")
+                try:
+                    child.kill()
+                except Exception:
+                    pass
+                child.wait(timeout=5)
         finally:
-            self._close_log()
+            with self._lifecycle_lock:
+                self._lifecycle = "stopped"
+            self._cleanup_resources()
 
-    def _close_log(self) -> None:
-        if self._log_handle is not None:
-            self._log_handle.close()
-            self._log_handle = None
+    def _cleanup_resources(self) -> None:
+        with self._lifecycle_lock:
+            log_handle, self._log_handle = self._log_handle, None
+            stop_event, self._stop_event = self._stop_event, None
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
+        if stop_event is not None:
+            try:
+                stop_event.close()
+            except Exception:
+                pass
 
 
 if PYWIN32_AVAILABLE:
