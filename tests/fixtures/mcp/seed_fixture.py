@@ -25,6 +25,7 @@ def seed_fixture(output_dir: Path) -> dict[str, str]:
 
     original_db_path = shared_db.DB_PATH
     original_database_url = os.environ.pop("DATABASE_URL", None)
+    original_db_override = os.environ.pop("LOKI_DB_PATH", None)
     shared_db.DB_PATH = database_path
     try:
         shared_db.init_sync()
@@ -32,6 +33,8 @@ def seed_fixture(output_dir: Path) -> dict[str, str]:
         shared_db.DB_PATH = original_db_path
         if original_database_url is not None:
             os.environ["DATABASE_URL"] = original_database_url
+        if original_db_override is not None:
+            os.environ["LOKI_DB_PATH"] = original_db_override
 
     conn = sqlite3.connect(database_path)
     try:

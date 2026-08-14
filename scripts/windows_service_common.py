@@ -31,6 +31,8 @@ PYWIN32_AVAILABLE = all(
 )
 DEFAULT_ENV_RELATIVE_PATH = Path("Loki") / "config" / "lokithesungod.env"
 DEFAULT_LOG_RELATIVE_PATH = Path("Loki") / "logs"
+DEFAULT_DB_RELATIVE_PATH = Path("Loki") / "data" / "bot.db"
+DEFAULT_CACHE_RELATIVE_PATH = Path("Loki") / "cache"
 STOP_EVENT_ENV = "LOKI_SERVICE_STOP_EVENT"
 
 
@@ -277,9 +279,13 @@ class ChildServiceHost:
     @property
     def child_environment(self) -> dict[str, str]:
         environment = dict(self.base_environment)
+        environment.update(self.spec.environment)
         environment["LOKI_APP_ROOT"] = str(self.release_root)
         environment["LOKI_ENV_PATH"] = str(self.env_path)
-        environment.update(self.spec.environment)
+        environment["LOKI_DB_PATH"] = str(self.program_data / DEFAULT_DB_RELATIVE_PATH)
+        environment["PYTHONPYCACHEPREFIX"] = str(
+            self.program_data / DEFAULT_CACHE_RELATIVE_PATH / self.spec.service_name
+        )
         if self._stop_event is not None:
             environment[STOP_EVENT_ENV] = self._stop_event.name
         return environment
@@ -313,6 +319,11 @@ class ChildServiceHost:
                     )
 
                 self.log_path.parent.mkdir(parents=True, exist_ok=True)
+                (self.program_data / DEFAULT_DB_RELATIVE_PATH).parent.mkdir(parents=True, exist_ok=True)
+                (self.program_data / DEFAULT_CACHE_RELATIVE_PATH / self.spec.service_name).mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
                 self._log_handle = self.log_opener(
                     self.log_path,
                     "a",

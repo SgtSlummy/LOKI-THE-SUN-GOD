@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import sys
+
+sys.dont_write_bytecode = True
+
 if __package__:
     from .windows_service_common import NativeServiceFramework, ServiceSpec, handle_command_line
 else:  # pragma: no cover - direct service-management invocation

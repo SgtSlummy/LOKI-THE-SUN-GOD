@@ -184,6 +184,8 @@ def test_child_environment_preserves_process_values_but_pins_stable_paths(tmp_pa
         "DISCORD_TOKEN": "process-secret",
         "LOKI_APP_ROOT": "C:\\wrong-release",
         "LOKI_ENV_PATH": "C:\\wrong.env",
+        "LOKI_DB_PATH": "C:\\wrong.db",
+        "PYTHONPYCACHEPREFIX": "C:\\wrong-cache",
     }
 
     host.start()
@@ -192,6 +194,12 @@ def test_child_environment_preserves_process_values_but_pins_stable_paths(tmp_pa
     assert child_env["DISCORD_TOKEN"] == "process-secret"
     assert child_env["LOKI_APP_ROOT"] == str(host.release_root)
     assert child_env["LOKI_ENV_PATH"] == str(host.env_path)
+    assert child_env["LOKI_DB_PATH"] == str(host.program_data / "Loki" / "data" / "bot.db")
+    assert child_env["PYTHONPYCACHEPREFIX"] == str(
+        host.program_data / "Loki" / "cache" / "LokiTHESunGodBot"
+    )
+    assert (host.program_data / "Loki" / "data").is_dir()
+    assert (host.program_data / "Loki" / "cache" / "LokiTHESunGodBot").is_dir()
 
 
 def test_pythonservice_executable_selects_sibling_python(tmp_path):
