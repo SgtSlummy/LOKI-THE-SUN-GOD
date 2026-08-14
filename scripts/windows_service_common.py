@@ -320,6 +320,9 @@ class ChildServiceHost:
         environment["PYTHONPYCACHEPREFIX"] = str(
             self.program_data / DEFAULT_CACHE_RELATIVE_PATH / self.spec.service_name
         )
+        environment["LOKI_LOCAL_ALLOW_FULL"] = "true"
+        environment["RELAY_ENABLED"] = "false"
+        environment["LOKI_ENABLE_SLASH_SYNC"] = "false"
         if self._stop_event is not None:
             environment[STOP_EVENT_ENV] = self._stop_event.name
         return environment

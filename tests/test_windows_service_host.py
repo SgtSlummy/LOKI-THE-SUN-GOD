@@ -186,6 +186,9 @@ def test_child_environment_preserves_process_values_but_pins_stable_paths(tmp_pa
         "LOKI_ENV_PATH": "C:\\wrong.env",
         "LOKI_DB_PATH": "C:\\wrong.db",
         "PYTHONPYCACHEPREFIX": "C:\\wrong-cache",
+        "LOKI_LOCAL_ALLOW_FULL": "false",
+        "RELAY_ENABLED": "true",
+        "LOKI_ENABLE_SLASH_SYNC": "true",
     }
 
     host.start()
@@ -198,6 +201,9 @@ def test_child_environment_preserves_process_values_but_pins_stable_paths(tmp_pa
     assert child_env["PYTHONPYCACHEPREFIX"] == str(
         host.program_data / "Loki" / "cache" / "LokiTHESunGodBot"
     )
+    assert child_env["LOKI_LOCAL_ALLOW_FULL"] == "true"
+    assert child_env["RELAY_ENABLED"] == "false"
+    assert child_env["LOKI_ENABLE_SLASH_SYNC"] == "false"
     assert (host.program_data / "Loki" / "data").is_dir()
     assert (host.program_data / "Loki" / "cache" / "LokiTHESunGodBot").is_dir()
 

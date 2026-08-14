@@ -25,11 +25,13 @@ scan, then executes:
 ```powershell
 python -m pytest tests/test_windows_service_host.py tests/test_service_stop_runtime.py -q
 python -m pytest tests/test_credential_store.py tests/test_local_runtime.py -q
+python -m pytest tests/test_installer_archive_trust.py tests/test_service_install_transaction.py tests/test_loki_service_bootstrap.py -q
 ```
 
-These are unit/runtime checks only. CI must never call
-`install_loki_services.ps1`, register an SCM service, start Discord, seed
-Credential Manager, or mutate a live guild.
+These are unit/runtime checks only. A test may invoke the service installer in
+its read-only `-EvidenceOnly` mode or prove that a noncanonical bootstrap copy
+fails closed. CI must never run either installer in production mode, register
+an SCM service, start Discord, seed Credential Manager, or mutate a live guild.
 
 ## Test Categories
 

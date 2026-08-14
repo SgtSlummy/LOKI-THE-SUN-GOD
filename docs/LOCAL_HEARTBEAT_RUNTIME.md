@@ -46,13 +46,16 @@ Create a clean transfer archive from the committed source when the server is
 ready to receive it:
 
 ```powershell
-& .\scripts\prepare_loki_server_bundle.ps1
+& C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe `
+  -NoProfile -ExecutionPolicy Bypass -File `
+  .\scripts\prepare_loki_server_bundle.ps1
+if ($LASTEXITCODE -ne 0) { throw "Immutable bundle preparation failed." }
 ```
 
-The archive is written under `handoff/` with a JSON SHA-256 sidecar and portable
-digest. It excludes `.env`, virtual environments, data, logs, and Git metadata.
-The script does not upload, extract, deploy, register services, or start
-Discord.
+The archive is written under `handoff/` with a JSON SHA-256 sidecar, portable
+digest, external service bootstrap, and separate bootstrap digest. It excludes
+`.env`, virtual environments, data, logs, and Git metadata. The script does not
+upload, extract, deploy, register services, or start Discord.
 
 For manual development, the runner keeps repository `.env` fallback. Managed
 Windows precedence is Credential Manager, then process environment, then
@@ -62,9 +65,10 @@ command argument or log.
 
 Full immutable Windows deployment, credential seeding, service registration,
 verification, human-gated test-guild acceptance, upgrade, and rollback are in
-[WINDOWS_SERVICE_DEPLOYMENT.md](WINDOWS_SERVICE_DEPLOYMENT.md). Build the
-candidate venv before seeding Credential Manager, then install and start the
-services.
+[WINDOWS_SERVICE_DEPLOYMENT.md](WINDOWS_SERVICE_DEPLOYMENT.md). Provision and
+verify the external bootstrap first; it creates the immutable release and venv
+and installs stopped services. Then seed Credential Manager and start the
+services in order.
 
 ## Local collaborators
 

@@ -50,7 +50,9 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 Production Windows services must use the versioned Python 3.12 environment and
 stable config described in the Windows service runbook. Do not reuse an older
-Python 3.14 environment or register services from a dirty checkout.
+Python 3.14 environment or register services from a dirty checkout. The live
+flow starts only from the independently hash-verified external bootstrap; do
+not execute deployment scripts from a manually extracted release.
 
 Copy [.env.example](/C:/LOKI%20THE%20SUN%20GOD/.env.example) to `.env` and set:
 

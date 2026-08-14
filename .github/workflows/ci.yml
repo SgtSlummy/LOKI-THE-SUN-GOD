@@ -42,3 +42,10 @@ jobs:
         run: python -m pytest tests/test_windows_service_host.py tests/test_service_stop_runtime.py -q
       - name: Runtime and credential tests
         run: python -m pytest tests/test_credential_store.py tests/test_local_runtime.py -q
+      - name: Windows deployment hardening tests
+        run: >-
+          python -m pytest
+          tests/test_installer_archive_trust.py
+          tests/test_service_install_transaction.py
+          tests/test_loki_service_bootstrap.py
+          -q

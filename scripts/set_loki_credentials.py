@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+
 try:
     import win32api
     import win32con
@@ -29,20 +31,16 @@ SERVICE_IDENTITY = r"LOKI\Administrator"
 
 
 def _candidate_pythons() -> list[Path]:
-    candidates: list[Path] = []
-    configured = os.environ.get("LOKI_CREDENTIAL_PYTHON")
-    if configured:
-        candidates.append(Path(configured))
-    candidates.append(ROOT / ".venv" / "Scripts" / "python.exe")
     manifest_path = ROOT / "release-manifest.json"
     try:
         candidate_id = str(json.loads(manifest_path.read_text(encoding="utf-8"))["candidate_id"])
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
-        candidate_id = ""
-    if candidate_id:
-        program_data = Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
-        candidates.append(program_data / "Loki" / "venvs" / candidate_id / "Scripts" / "python.exe")
-    return candidates
+        return []
+    program_data = Path(r"C:\ProgramData")
+    expected_root = program_data / "Loki" / "releases" / candidate_id
+    if os.path.normcase(str(ROOT.resolve())) != os.path.normcase(str(expected_root.resolve())):
+        return []
+    return [program_data / "Loki" / "venvs" / candidate_id / "Scripts" / "python.exe"]
 
 
 def maybe_reexec_with_pywin32(*, platform_name: str | None = None, pywin32_ready: bool | None = None) -> None:
@@ -59,7 +57,7 @@ def maybe_reexec_with_pywin32(*, platform_name: str | None = None, pywin32_ready
         if candidate == current or not candidate.is_file():
             continue
         check = subprocess.run(
-            [str(candidate), "-c", "import win32api, win32con, win32cred, win32security"],
+            [str(candidate), "-I", "-B", "-c", "import win32api, win32con, win32cred, win32security"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -67,7 +65,7 @@ def maybe_reexec_with_pywin32(*, platform_name: str | None = None, pywin32_ready
         )
         if check.returncode == 0:
             child = subprocess.run(
-                [str(candidate), str(Path(__file__).resolve()), *sys.argv[1:]],
+                [str(candidate), "-I", "-B", str(Path(__file__).resolve()), *sys.argv[1:]],
                 check=False,
             )
             raise SystemExit(child.returncode)

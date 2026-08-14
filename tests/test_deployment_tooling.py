@@ -82,6 +82,7 @@ def test_install_local_is_strict_python312_and_preserves_existing_venvs():
     [
         "install_loki_local.ps1",
         "prepare_loki_server_bundle.ps1",
+        "bootstrap_loki_services.ps1",
         "install_loki_services.ps1",
         "verify_loki_services.ps1",
     ],
@@ -185,6 +186,22 @@ def test_external_archive_sidecar_binds_sha256_and_size(tmp_path):
     assert sidecar["archive_name"] == archive.name
 
 
+def test_bundle_builder_emits_external_bootstrap_and_digest():
+    script = (SCRIPTS / "prepare_loki_server_bundle.ps1").read_text(encoding="utf-8")
+    assert '"scripts/bootstrap_loki_services.ps1"' in script
+    assert '"$OutputPath.bootstrap.ps1"' in script
+    assert '"$bootstrapPath.sha256"' in script
+    assert "System.IO.Compression.ZipFile" in script
+    assert "Export-TrustedBootstrap" in script
+    assert "Copy-Item -LiteralPath $bootstrapSource" not in script
+    assert "Bootstrap:" in script
+    assert "Bootstrap SHA-256:" in script
+    assert "$env:PSModulePath = [System.IO.Path]::Combine" in script
+    assert "Microsoft.PowerShell.Utility.psd1" in script
+    assert '$preparerCommandLine[1].Equals("-NoProfile"' in script
+    assert '$preparerCommandLine[4].Equals("-File"' in script
+
+
 def test_credential_cli_is_interactive_allowlisted_and_redacted(monkeypatch, capsys):
     cli = load_script("set_loki_credentials.py")
     secret = "value-that-must-never-appear"
@@ -208,13 +225,23 @@ def test_credential_cli_is_interactive_allowlisted_and_redacted(monkeypatch, cap
     assert "LOKI/LokiTHESunGod/DISCORD_TOKEN" in output.out
 
 
+def test_credential_cli_cannot_write_bytecode_into_immutable_release():
+    script = (SCRIPTS / "set_loki_credentials.py").read_text(encoding="utf-8")
+    assert script.index("sys.dont_write_bytecode = True") < script.index(
+        "from utils import credential_store"
+    )
+
+
 def test_credential_cli_uses_token_backed_identity_not_environment_names():
     script = (SCRIPTS / "set_loki_credentials.py").read_text(encoding="utf-8")
     assert "OpenProcessToken" in script
     assert "LookupAccountSid" in script
     assert "USERDOMAIN" not in script
     assert "raise SystemExit(child.returncode)" in script
-    assert "LOKI_CREDENTIAL_PYTHON" in script
+    assert "LOKI_CREDENTIAL_PYTHON" not in script
+    assert 'Path(r"C:\\ProgramData")' in script
+    assert '[str(candidate), "-I", "-B", "-c"' in script
+    assert '[str(candidate), "-I", "-B", str(Path(__file__).resolve())' in script
     assert "pip install" not in script
 
 
@@ -283,7 +310,8 @@ def test_service_installer_has_secure_identity_recovery_and_no_autostart():
     assert "Invoke-CimMethod" in script
     assert "SecureStringToBSTR" in script
     assert "ZeroFreeBSTR" in script
-    assert "StartPassword" in script
+    assert "ChangeServiceConfigW" in script
+    assert "StartPassword" not in script
     assert "--password" not in script
     assert "Start-Service" not in script
     assert "failureflag" in script
