@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
+import os
 import subprocess
 import zipfile
-from pathlib import Path, PurePosixPath
+from ctypes import wintypes
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 MANIFEST_NAME = "release-manifest.json"
@@ -80,18 +83,67 @@ def _safe_relative_path(value: str) -> str:
     path = PurePosixPath(value)
     if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise ManifestError(f"Unsafe archive path: {value!r}")
-    reserved = {
-        "CON",
-        "PRN",
-        "AUX",
-        "NUL",
-        *(f"COM{index}" for index in range(1, 10)),
-        *(f"LPT{index}" for index in range(1, 10)),
-    }
     for part in path.parts:
-        if ":" in part or part.endswith((" ", ".")) or part.split(".", 1)[0].upper() in reserved:
+        if ":" in part or part.endswith((" ", ".")) or PureWindowsPath(part).is_reserved():
             raise ManifestError(f"Unsafe Windows archive path: {value!r}")
     return path.as_posix()
+
+
+class _WIN32_FIND_STREAM_DATA(ctypes.Structure):
+    _fields_ = (
+        ("stream_size", ctypes.c_longlong),
+        ("stream_name", ctypes.c_wchar * 296),
+    )
+
+
+def _alternate_data_streams(path: Path) -> tuple[str, ...]:
+    if os.name != "nt":
+        return ()
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    find_first = kernel32.FindFirstStreamW
+    find_first.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(_WIN32_FIND_STREAM_DATA),
+        wintypes.DWORD,
+    )
+    find_first.restype = wintypes.HANDLE
+    find_next = kernel32.FindNextStreamW
+    find_next.argtypes = (wintypes.HANDLE, ctypes.POINTER(_WIN32_FIND_STREAM_DATA))
+    find_next.restype = wintypes.BOOL
+    find_close = kernel32.FindClose
+    find_close.argtypes = (wintypes.HANDLE,)
+    find_close.restype = wintypes.BOOL
+
+    data = _WIN32_FIND_STREAM_DATA()
+    handle = find_first(str(path), 0, ctypes.byref(data), 0)
+    invalid_handle = wintypes.HANDLE(-1).value
+    if handle == invalid_handle:
+        error_code = ctypes.get_last_error()
+        if error_code == 38:  # ERROR_HANDLE_EOF: the filesystem exposes no streams.
+            return ()
+        raise OSError(error_code, f"Unable to enumerate file streams for {path.name}")
+    names: list[str] = []
+    try:
+        names.append(data.stream_name)
+        while find_next(handle, ctypes.byref(data)):
+            names.append(data.stream_name)
+        error_code = ctypes.get_last_error()
+        if error_code != 38:  # ERROR_HANDLE_EOF is the expected terminal result.
+            raise OSError(error_code, f"Unable to finish file-stream enumeration for {path.name}")
+    finally:
+        find_close(handle)
+    return tuple(name for name in names if name != "::$DATA")
+
+
+def _assert_no_alternate_data_streams(root: Path) -> None:
+    if os.name != "nt":
+        return
+    for path in (root, *root.rglob("*")):
+        streams = _alternate_data_streams(path)
+        if streams:
+            relative = "." if path == root else path.relative_to(root).as_posix()
+            raise ManifestError(f"Release directory contains alternate data stream: {relative}")
 
 
 def is_forbidden_payload_path(value: str) -> bool:
@@ -319,6 +371,7 @@ def verify_directory(release_root: str | Path) -> dict[str, Any]:
     root = Path(release_root).expanduser().resolve()
     if not root.is_dir():
         raise ManifestError(f"Release root does not exist: {root}")
+    _assert_no_alternate_data_streams(root)
     manifest_path = root / MANIFEST_NAME
     try:
         manifest = _load_manifest_bytes(manifest_path.read_bytes())

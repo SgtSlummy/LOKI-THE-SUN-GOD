@@ -190,8 +190,11 @@ def _command_is_service_child(
     script_name: str,
     *,
     cwd: object | None = None,
+    expected_script: object | None = None,
+    managed_release_bases: Iterable[object] = (),
 ) -> bool:
     values = list(command)
+    release_bases = tuple(managed_release_bases)
     if len(values) < 2:
         return False
     if _path_name(values[0]) not in {"python", "python.exe", "pythonw.exe"}:
@@ -200,12 +203,37 @@ def _command_is_service_child(
     if script_argument is None:
         return False
     target_script = _absolute_command_path(script_argument, cwd)
-    return target_script is not None and target_script.name.casefold() == script_name.casefold()
+    if target_script is None or target_script.name.casefold() != script_name.casefold():
+        return False
+    if expected_script is None and not release_bases:
+        return True
+    if expected_script is not None and _path_identity(target_script) == _path_identity(expected_script):
+        return True
+    target_identity = _path_identity(target_script)
+    for base in release_bases:
+        base_identity = _path_identity(base)
+        if target_identity[0] != base_identity[0]:
+            continue
+        relative_parts = target_identity[1][len(base_identity[1]) :]
+        if target_identity[1][: len(base_identity[1])] == base_identity[1] and len(relative_parts) == 2:
+            return relative_parts[0].startswith("loki-") and relative_parts[-1] == script_name.casefold()
+    return False
+
+
+def _path_identity(value: object) -> tuple[str, tuple[str, ...]]:
+    text = str(value).strip('"')
+    windows_path = PureWindowsPath(text)
+    if windows_path.is_absolute():
+        return "windows", tuple(part.casefold() for part in windows_path.parts)
+    native_path = Path(text)
+    return "native", tuple(part.casefold() for part in native_path.parts)
 
 
 def find_duplicate_process(
     script_name: str,
     *,
+    expected_script: object | None = None,
+    managed_release_bases: Iterable[object] = (),
     process_iter: Callable[[list[str]], Iterable[Any]] = psutil.process_iter,
     current_pid: int | None = None,
 ) -> int | None:
@@ -215,7 +243,13 @@ def find_duplicate_process(
             if process.pid == own_pid:
                 continue
             command = process.info.get("cmdline") or []
-            if _command_is_service_child(command, script_name, cwd=process.info.get("cwd")):
+            if _command_is_service_child(
+                command,
+                script_name,
+                cwd=process.info.get("cwd"),
+                expected_script=expected_script,
+                managed_release_bases=managed_release_bases,
+            ):
                 return int(process.pid)
         except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
             continue
@@ -262,9 +296,9 @@ class ChildServiceHost:
         self._lifecycle = "new"
         self._lifecycle_lock = threading.RLock()
 
-        script_path = self.release_root / self.spec.script_name
-        if not script_path.is_file():
-            raise FileNotFoundError(f"service child script does not exist: {script_path}")
+        self.script_path = self.release_root / self.spec.script_name
+        if not self.script_path.is_file():
+            raise FileNotFoundError(f"service child script does not exist: {self.script_path}")
         if self.spec.script_name.casefold() == "desktop_app.py":
             raise ValueError("desktop_app.py cannot run as a Windows service")
 
@@ -272,7 +306,7 @@ class ChildServiceHost:
     def command(self) -> list[str]:
         return [
             str(self.python_executable),
-            str(self.release_root / self.spec.script_name),
+            str(self.script_path),
             *self.spec.arguments,
         ]
 
@@ -306,6 +340,11 @@ class ChildServiceHost:
         try:
             duplicate_pid = find_duplicate_process(
                 self.spec.script_name,
+                expected_script=self.script_path,
+                managed_release_bases=(
+                    self.program_data / "Loki" / "releases",
+                    PureWindowsPath(r"C:\ProgramData\Loki\releases"),
+                ),
                 process_iter=self.process_iter,
             )
             with self._lifecycle_lock:

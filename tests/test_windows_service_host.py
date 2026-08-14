@@ -251,7 +251,12 @@ def test_duplicate_process_is_refused_without_exposing_its_command(tmp_path):
     secret = "do-not-print-this-credential"
     duplicate = FakePsutilProcess(
         6789,
-        ["C:\\old-venv\\Scripts\\python.exe", "C:\\old-release\\local_loki_runtime.py", "--token", secret],
+        [
+            "C:\\ProgramData\\Loki\\venvs\\loki-old-candidate\\Scripts\\python.exe",
+            "C:\\ProgramData\\Loki\\releases\\loki-old-candidate\\local_loki_runtime.py",
+            "--token",
+            secret,
+        ],
     )
     host, _process, popen, _log = make_host(
         tmp_path,
@@ -287,7 +292,7 @@ def test_duplicate_matching_resolves_manual_relative_script_from_process_cwd(tmp
     manual_runtime = FakePsutilProcess(
         6003,
         ["python.exe", "local_loki_runtime.py", "--mode", "full"],
-        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+        cwd="C:\\ProgramData\\Loki\\releases\\loki-old-candidate",
     )
 
     def process_iter(attrs):
@@ -324,7 +329,7 @@ def test_duplicate_matching_accepts_unbuffered_option_before_relative_script(tmp
     runtime = FakePsutilProcess(
         6005,
         ["python.exe", "-u", "local_loki_runtime.py", "--mode", "full"],
-        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+        cwd="C:\\ProgramData\\Loki\\releases\\loki-old-candidate",
     )
     host, _process, popen, _log = make_host(
         tmp_path,
@@ -341,7 +346,7 @@ def test_duplicate_matching_accepts_x_option_value_before_dashboard_script(tmp_p
     dashboard = FakePsutilProcess(
         6006,
         ["python.exe", "-X", "utf8", "dashboard_app.py"],
-        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+        cwd="C:\\ProgramData\\Loki\\releases\\loki-old-candidate",
     )
     host, _process, popen, _log = make_host(
         tmp_path,
@@ -369,7 +374,7 @@ def test_duplicate_matching_accepts_supported_interpreter_option_forms(tmp_path,
     runtime = FakePsutilProcess(
         6007,
         ["python.exe", *options, "local_loki_runtime.py"],
-        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+        cwd="C:\\ProgramData\\Loki\\releases\\loki-old-candidate",
     )
     host, _process, _popen, _log = make_host(
         tmp_path,
