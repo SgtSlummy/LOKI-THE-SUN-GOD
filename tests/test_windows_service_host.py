@@ -312,6 +312,84 @@ def test_duplicate_matching_uses_script_argv_slot_not_later_absolute_argument(tm
     assert len(popen.calls) == 1
 
 
+def test_duplicate_matching_accepts_unbuffered_option_before_relative_script(tmp_path):
+    runtime = FakePsutilProcess(
+        6005,
+        ["python.exe", "-u", "local_loki_runtime.py", "--mode", "full"],
+        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+    )
+    host, _process, popen, _log = make_host(
+        tmp_path,
+        process_iter=lambda _attrs: [runtime],
+    )
+
+    with pytest.raises(service_common.DuplicateProcessError, match="6005"):
+        host.start()
+
+    assert popen.calls == []
+
+
+def test_duplicate_matching_accepts_x_option_value_before_dashboard_script(tmp_path):
+    dashboard = FakePsutilProcess(
+        6006,
+        ["python.exe", "-X", "utf8", "dashboard_app.py"],
+        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+    )
+    host, _process, popen, _log = make_host(
+        tmp_path,
+        DASHBOARD_SERVICE_SPEC,
+        process_iter=lambda _attrs: [dashboard],
+    )
+
+    with pytest.raises(service_common.DuplicateProcessError, match="6006"):
+        host.start()
+
+    assert popen.calls == []
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        ["-OOu"],
+        ["-Xutf8"],
+        ["-W", "ignore"],
+        ["-Wignore"],
+        ["--"],
+    ],
+)
+def test_duplicate_matching_accepts_supported_interpreter_option_forms(tmp_path, options):
+    runtime = FakePsutilProcess(
+        6007,
+        ["python.exe", *options, "local_loki_runtime.py"],
+        cwd="C:\\ProgramData\\Loki\\releases\\old-candidate",
+    )
+    host, _process, _popen, _log = make_host(
+        tmp_path,
+        process_iter=lambda _attrs: [runtime],
+    )
+
+    with pytest.raises(service_common.DuplicateProcessError, match="6007"):
+        host.start()
+
+
+@pytest.mark.parametrize("mode_option", ["-c", "-m"])
+def test_duplicate_matching_rejects_code_and_module_commands_with_later_script_argument(tmp_path, mode_option):
+    command = FakePsutilProcess(
+        6008,
+        ["python.exe", mode_option, "print('runner')", "C:\\repo\\dashboard_app.py"],
+        cwd="C:\\repo",
+    )
+    host, _process, popen, _log = make_host(
+        tmp_path,
+        DASHBOARD_SERVICE_SPEC,
+        process_iter=lambda _attrs: [command],
+    )
+
+    host.start()
+
+    assert len(popen.calls) == 1
+
+
 def test_stop_during_start_barrier_prevents_child_launch(tmp_path):
     scan_entered = threading.Event()
     release_scan = threading.Event()
@@ -473,6 +551,66 @@ def test_service_classes_use_native_pywin32_framework_when_available():
     assert issubclass(LokiDashboardService, win32serviceutil.ServiceFramework)
     assert LokiBotService._svc_name_ == "LokiTHESunGodBot"
     assert LokiDashboardService._svc_name_ == "LokiTHESunGodDashboard"
+
+
+def test_svc_stop_returns_promptly_and_starts_only_one_stop_worker(monkeypatch):
+    if os.name != "nt" or not service_common.PYWIN32_AVAILABLE:
+        pytest.skip("native SCM control test requires pywin32")
+
+    class BlockingHost:
+        def __init__(self) -> None:
+            self.entered = threading.Event()
+            self.release = threading.Event()
+            self.timeouts: list[float] = []
+
+        def stop(self, timeout: float) -> None:
+            self.timeouts.append(timeout)
+            self.entered.set()
+            assert self.release.wait(timeout=2)
+
+    host = BlockingHost()
+    reports: list[tuple[int, int]] = []
+    wait_event_signals: list[object] = []
+    monkeypatch.setattr(service_common.win32event, "SetEvent", wait_event_signals.append)
+    service = object.__new__(service_common.NativeServiceFramework)
+    service.service_spec = BOT_SERVICE_SPEC
+    service.host = host
+    service.hWaitStop = object()
+    service._svc_stop_lock = threading.Lock()
+    service._svc_stop_started = False
+    service._svc_stop_worker = None
+    service.ReportServiceStatus = lambda status, waitHint=0: reports.append((status, waitHint))
+
+    caller = threading.Thread(target=service.SvcStop)
+    caller.start()
+    assert host.entered.wait(timeout=1)
+    try:
+        caller.join(timeout=0.25)
+        assert not caller.is_alive(), "SCM control handler blocked on child shutdown"
+        first_worker = service._svc_stop_worker
+        assert first_worker is not None and first_worker.is_alive()
+
+        repeated_callers = [threading.Thread(target=service.SvcStop) for _index in range(4)]
+        for repeated_caller in repeated_callers:
+            repeated_caller.start()
+        for repeated_caller in repeated_callers:
+            repeated_caller.join(timeout=1)
+            assert not repeated_caller.is_alive()
+
+        assert service._svc_stop_worker is first_worker
+        assert host.timeouts == [30]
+        assert all(wait_hint >= 40_000 for _status, wait_hint in reports)
+    finally:
+        host.release.set()
+        caller.join(timeout=2)
+        worker = service._svc_stop_worker
+        if worker is not None:
+            worker.join(timeout=2)
+
+    service.SvcStop()
+    assert service._svc_stop_worker is first_worker
+    assert host.timeouts == [30]
+    assert wait_event_signals == [service.hWaitStop]
 
 
 def test_service_wrapper_imports_when_launched_outside_release_root(tmp_path):

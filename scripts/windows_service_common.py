@@ -157,6 +157,32 @@ def _absolute_command_path(
     return None
 
 
+def _python_script_argument(command: list[object]) -> object | None:
+    simple_flags = frozenset("bBdEiIOPqRsSuvx")
+    index = 1
+    while index < len(command):
+        argument = str(command[index]).strip('"')
+        if argument == "--":
+            return command[index + 1] if index + 1 < len(command) else None
+        if argument in {"-c", "-m"} or argument.startswith(("-c", "-m")):
+            return None
+        if argument in {"-X", "-W"}:
+            index += 2
+            continue
+        if argument.startswith(("-X", "-W")) and len(argument) > 2:
+            index += 1
+            continue
+        if argument.startswith("-") and len(argument) > 1 and all(
+            flag in simple_flags for flag in argument[1:]
+        ):
+            index += 1
+            continue
+        if argument.startswith("-"):
+            return None
+        return command[index]
+    return None
+
+
 def _command_is_service_child(
     command: Iterable[object],
     script_name: str,
@@ -168,7 +194,10 @@ def _command_is_service_child(
         return False
     if _path_name(values[0]) not in {"python", "python.exe", "pythonw.exe"}:
         return False
-    target_script = _absolute_command_path(values[1], cwd)
+    script_argument = _python_script_argument(values)
+    if script_argument is None:
+        return False
+    target_script = _absolute_command_path(script_argument, cwd)
     return target_script is not None and target_script.name.casefold() == script_name.casefold()
 
 
@@ -393,15 +422,35 @@ if PYWIN32_AVAILABLE:
         def __init__(self, args: list[str]) -> None:
             super().__init__(args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
+            self._svc_stop_lock = threading.Lock()
+            self._svc_stop_started = False
+            self._svc_stop_worker: threading.Thread | None = None
             self.host = ChildServiceHost(
                 self.service_spec,
                 diagnostic_writer=servicemanager.LogInfoMsg,
             )
 
         def SvcStop(self) -> None:
-            self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING, waitHint=30_000)
+            with self._svc_stop_lock:
+                self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING, waitHint=40_000)
+                if self._svc_stop_started:
+                    return
+                self._svc_stop_started = True
+                worker = threading.Thread(
+                    target=self._stop_child_worker,
+                    name=f"{self.service_spec.service_name}-stop",
+                    daemon=True,
+                )
+                self._svc_stop_worker = worker
+                worker.start()
+
+        def _stop_child_worker(self) -> None:
             try:
                 self.host.stop(timeout=30)
+            except Exception as error:
+                servicemanager.LogErrorMsg(
+                    f"{self.service_spec.service_name}: child stop failed ({type(error).__name__})"
+                )
             finally:
                 win32event.SetEvent(self.hWaitStop)
 
