@@ -4,6 +4,7 @@ param(
     [string]$VenvPath,
     [string]$ConfigPath = "C:\ProgramData\Loki\config\lokithesungod.env",
     [Parameter(Mandatory = $true)][string]$ArchivePath,
+    [Parameter(Mandatory = $true)][string]$ExpectedArchiveSha256,
     [string]$SidecarPath,
     [switch]$PreserveExistingIdentity,
     [switch]$AllowNonStandardReleaseRoot
@@ -212,30 +213,29 @@ function Set-RecoveryPolicy {
     }
 }
 
-Assert-WindowsAdministrator
-$ReleaseRoot = [System.IO.Path]::GetFullPath($ReleaseRoot)
+# Trust bootstrap: this block must use only built-in PowerShell/.NET facilities.
+# Do not invoke py, candidate scripts, or extracted release code before all three
+# digests (operator expectation, transferred archive, and sidecar) are equal.
 $ArchivePath = [System.IO.Path]::GetFullPath($ArchivePath)
-$ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
-$commissionedConfigPath = [System.IO.Path]::GetFullPath("C:\ProgramData\Loki\config\lokithesungod.env")
-if ($ConfigPath -ine $commissionedConfigPath) {
-    throw "ConfigPath must be the commissioned stable path $commissionedConfigPath."
-}
 if ([string]::IsNullOrWhiteSpace($SidecarPath)) {
     $SidecarPath = "$ArchivePath.sha256.json"
 }
 $SidecarPath = [System.IO.Path]::GetFullPath($SidecarPath)
-foreach ($requiredFile in @($ArchivePath, $SidecarPath, $ConfigPath)) {
+foreach ($requiredFile in @($ArchivePath, $SidecarPath)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
-        throw "Required deployment evidence/config file is missing: $requiredFile"
+        throw "Required deployment evidence file is missing: $requiredFile"
     }
 }
-if (-not (Test-Path -LiteralPath $ReleaseRoot -PathType Container)) {
-    throw "Extracted release root is missing: $ReleaseRoot"
+if ([string]$ExpectedArchiveSha256 -cnotmatch "^[0-9A-Fa-f]{64}$") {
+    throw "ExpectedArchiveSha256 must be exactly 64 hexadecimal characters."
 }
-
-$sidecar = Get-Content -LiteralPath $SidecarPath -Raw | ConvertFrom-Json
+$trustedArchiveHash = ([string]$ExpectedArchiveSha256).ToLowerInvariant()
 $archiveFile = Get-Item -LiteralPath $ArchivePath
 $archiveHash = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($archiveHash -cne $trustedArchiveHash) {
+    throw "Trusted archive SHA-256 mismatch. Candidate code was not invoked."
+}
+$sidecar = Get-Content -LiteralPath $SidecarPath -Raw | ConvertFrom-Json
 if ([string]$sidecar.schema -cne "loki-release-archive-digest/v1") {
     throw "Archive SHA-256 sidecar schema is unsupported."
 }
@@ -245,8 +245,27 @@ if ([string]$sidecar.archive_name -cne $archiveFile.Name) {
 if ([long]$sidecar.archive_size -ne [long]$archiveFile.Length) {
     throw "Archive SHA-256 sidecar size mismatch."
 }
-if ([string]$sidecar.archive_sha256 -cne $archiveHash) {
-    throw "Transferred archive SHA-256 mismatch."
+$sidecarArchiveHash = [string]$sidecar.archive_sha256
+if ($sidecarArchiveHash -cnotmatch "^[0-9A-Fa-f]{64}$") {
+    throw "Archive SHA-256 sidecar digest must be exactly 64 hexadecimal characters."
+}
+$sidecarArchiveHash = $sidecarArchiveHash.ToLowerInvariant()
+if ($sidecarArchiveHash -cne $trustedArchiveHash) {
+    throw "Trusted sidecar SHA-256 mismatch. Candidate code was not invoked."
+}
+
+Assert-WindowsAdministrator
+$ReleaseRoot = [System.IO.Path]::GetFullPath($ReleaseRoot)
+$ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
+$commissionedConfigPath = [System.IO.Path]::GetFullPath("C:\ProgramData\Loki\config\lokithesungod.env")
+if ($ConfigPath -ine $commissionedConfigPath) {
+    throw "ConfigPath must be the commissioned stable path $commissionedConfigPath."
+}
+if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+    throw "Required deployment config file is missing: $ConfigPath"
+}
+if (-not (Test-Path -LiteralPath $ReleaseRoot -PathType Container)) {
+    throw "Extracted release root is missing: $ReleaseRoot"
 }
 
 $launcher = (Get-Command py -ErrorAction Stop).Source
