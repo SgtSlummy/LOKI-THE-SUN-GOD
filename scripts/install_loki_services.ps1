@@ -1990,7 +1990,10 @@ if ($ReuseExistingVenv) {
         $env:LOKI_APP_ROOT = $ReleaseRoot
         $env:LOKI_ENV_PATH = $ConfigPath
         $verificationBase = Join-Path $env:ProgramData "LokiVerification"
-        Ensure-ProtectedDirectory -Path $verificationBase
+        if (-not [System.IO.Directory]::Exists($verificationBase)) {
+            [void][System.IO.Directory]::CreateDirectory($verificationBase)
+            Protect-RollbackEvidenceAcl -Path $verificationBase -Directory
+        }
         Invoke-Native -FilePath $trustedPowerShell -Arguments @(
             "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", (Join-Path $ReleaseRoot "scripts\install_loki_local.ps1"),
