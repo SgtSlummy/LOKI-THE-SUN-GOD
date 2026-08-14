@@ -63,6 +63,7 @@ function Assert-TrustedWindowsPowerShellHost {
         "S-1-5-32-544" = $true
         "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" = $true
     }
+    $approvedWriters[[string]([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)] = $true
     $writeMask = [Security.AccessControl.FileSystemRights]::Write -bor
         [Security.AccessControl.FileSystemRights]::Delete -bor
         [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
@@ -432,6 +433,7 @@ function Assert-NoUnapprovedAncestorMutationAcl {
         "S-1-5-32-544" = $true
         "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" = $true
     }
+    $approvedWriters[[string]([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)] = $true
     $acl = [System.IO.Directory]::GetAccessControl($Path)
     $ownerSid = [string]$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
     if (-not $approvedWriters.ContainsKey($ownerSid)) {
@@ -491,6 +493,7 @@ function Get-TrustedMachineExecutable {
         "S-1-5-32-544" = $true
         "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" = $true
     }
+    $approvedWriters[[string]([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)] = $true
     $volumeRoot = [System.IO.Path]::GetPathRoot($TrustedRoot)
     [void](Assert-NoReparsePoint -Path $volumeRoot)
     Assert-NoUnapprovedAncestorMutationAcl -Path $volumeRoot
@@ -531,6 +534,7 @@ function Assert-TrustedMachineRuntimeTree {
         "S-1-5-32-544" = $true
         "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" = $true
     }
+    $approvedWriters[[string]([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)] = $true
     $pending = [System.Collections.Generic.Queue[string]]::new()
     $pending.Enqueue($Root)
     while ($pending.Count -ne 0) {
