@@ -2020,6 +2020,14 @@ if ($ReuseExistingVenv) {
 foreach ($cache in @(Get-ChildItem -LiteralPath $ReleaseRoot -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction Stop)) {
     [System.IO.Directory]::Delete($cache.FullName, $true)
 }
+foreach ($generated in @(
+    (Join-Path $ReleaseRoot "data"),
+    (Join-Path $ReleaseRoot "tests\fixtures\mcp\generated")
+)) {
+    if ([System.IO.Directory]::Exists($generated)) {
+        [System.IO.Directory]::Delete($generated, $true)
+    }
+}
 Protect-AdministratorTree -Root $lokiRoot
 $postVerificationJson = Invoke-NativeText -FilePath $pythonRuntime -Arguments @(
     "-I", "-B", $manifestHelper,
