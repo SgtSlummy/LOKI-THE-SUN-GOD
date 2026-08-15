@@ -217,10 +217,9 @@ if (-not $VerifyOnly) {
         # installed into a fresh venv. Invoke the wheel's script entrypoint so
         # pythonservice.exe is materialized in the venv root.
         $pywin32Postinstall = Join-Path (Split-Path -Parent $venvPython) "pywin32_postinstall.py"
-        if (-not (Test-Path -LiteralPath $pywin32Postinstall -PathType Leaf)) {
-            throw "pywin32 post-install script is missing: $pywin32Postinstall"
+        if (Test-Path -LiteralPath $pywin32Postinstall -PathType Leaf) {
+            Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host post-install"
         }
-        Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host installation"
         $venvWin32Dir = Join-Path $venv "Lib\site-packages\win32"
         $venvPackageServiceHost = Join-Path $venvWin32Dir "pythonservice.exe"
         if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf)) {
