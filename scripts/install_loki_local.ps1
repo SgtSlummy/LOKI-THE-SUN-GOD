@@ -213,6 +213,14 @@ if (-not $VerifyOnly) {
     Push-Location $root
     try {
         Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", "-m", "pip", "--isolated", "install", "--no-cache-dir", "--disable-pip-version-check", "-r", ".\requirements.txt", "-r", ".\requirements-dev.txt") -Label "Dependency installation"
+        # pywin32's wheel does not always run its post-install copy step when
+        # installed into a fresh venv. Invoke the wheel's script entrypoint so
+        # pythonservice.exe is materialized in the venv root.
+        $pywin32Postinstall = Join-Path (Split-Path -Parent $venvPython) "pywin32_postinstall.py"
+        if (-not (Test-Path -LiteralPath $pywin32Postinstall -PathType Leaf)) {
+            throw "pywin32 post-install script is missing: $pywin32Postinstall"
+        }
+        Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host installation"
     } finally {
         Pop-Location
     }
