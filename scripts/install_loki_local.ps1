@@ -221,6 +221,23 @@ if (-not $VerifyOnly) {
             throw "pywin32 post-install script is missing: $pywin32Postinstall"
         }
         Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host installation"
+        $venvWin32Dir = Join-Path $venv "Lib\site-packages\win32"
+        $venvPackageServiceHost = Join-Path $venvWin32Dir "pythonservice.exe"
+        $machinePackageServiceHost = Join-Path (Split-Path -Parent $bootstrapPython) "Lib\site-packages\win32\pythonservice.exe"
+        if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf) -and
+            (Test-Path -LiteralPath $machinePackageServiceHost -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $venvWin32Dir -Force | Out-Null
+            Copy-Item -LiteralPath $machinePackageServiceHost -Destination $venvPackageServiceHost -Force
+        }
+        $venvRootServiceHost = Join-Path $venv "pythonservice.exe"
+        if (-not (Test-Path -LiteralPath $venvRootServiceHost -PathType Leaf) -and
+            (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf)) {
+            Copy-Item -LiteralPath $venvPackageServiceHost -Destination $venvRootServiceHost -Force
+        }
+        if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $venvRootServiceHost -PathType Leaf)) {
+            throw "pywin32 pythonservice.exe was not materialized in the release-specific venv. Expected: $venvPackageServiceHost and $venvRootServiceHost"
+        }
     } finally {
         Pop-Location
     }
