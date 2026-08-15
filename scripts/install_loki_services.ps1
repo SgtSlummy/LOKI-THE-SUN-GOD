@@ -2154,6 +2154,24 @@ try {
                 -ExpectedStartMode "Auto" -ExpectedDelayed 1
         }
 
+        # Service wrapper registration can import Python modules and create
+        # source-adjacent caches after the earlier post-test cleanup. Remove
+        # only known generated artifacts immediately before the final
+        # immutable-release verification.
+        foreach ($cache in @(Get-ChildItem -LiteralPath $ReleaseRoot -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction Stop)) {
+            [System.IO.Directory]::Delete($cache.FullName, $true)
+        }
+        foreach ($generated in @(
+            (Join-Path $ReleaseRoot "data"),
+            (Join-Path $ReleaseRoot "tests\fixtures\mcp\generated"),
+            (Join-Path $ReleaseRoot "desktop_config.json")
+        )) {
+            if ([System.IO.Directory]::Exists($generated)) {
+                [System.IO.Directory]::Delete($generated, $true)
+            } elseif ([System.IO.File]::Exists($generated)) {
+                [System.IO.File]::Delete($generated)
+            }
+        }
         $finalVerificationJson = Invoke-NativeText -FilePath $pythonRuntime -Arguments @(
             "-I", "-B", $manifestHelper,
             "verify-directory", "--root", $ReleaseRoot
