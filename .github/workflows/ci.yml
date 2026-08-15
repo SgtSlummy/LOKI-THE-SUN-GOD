@@ -22,3 +22,30 @@ jobs:
         run: python scripts/secret_scan.py
       - name: Run tests
         run: python -m pytest tests -q
+
+  windows-services:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile Python
+        run: python -m compileall -q .
+      - name: Secret scan
+        run: python scripts/secret_scan.py
+      - name: Windows service host tests
+        run: python -m pytest tests/test_windows_service_host.py tests/test_service_stop_runtime.py -q
+      - name: Runtime and credential tests
+        run: python -m pytest tests/test_credential_store.py tests/test_local_runtime.py -q
+      - name: Windows deployment hardening tests
+        run: >-
+          python -m pytest
+          tests/test_installer_archive_trust.py
+          tests/test_service_install_transaction.py
+          tests/test_loki_service_bootstrap.py
+          -q

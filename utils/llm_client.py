@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 
 from loki_npc.memory import redact_discord_content
 
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_TAROT_ROUTER_BASE_URL = "http://127.0.0.1:8642/v1"
 DEFAULT_MODEL = "gpt-5.5"
 DEFAULT_MAX_PROMPT_CHARS = 1800
 DEFAULT_MAX_COMPLETION_TOKENS = 500
 DISCORD_MESSAGE_LIMIT = 1900
+TRUTHY = {"1", "true", "yes", "on"}
 
 
 class LLMConfigError(RuntimeError):
@@ -22,8 +25,29 @@ class LLMProviderError(RuntimeError):
     pass
 
 
+def tarot_router_enabled() -> bool:
+    return os.getenv("TAROT_ROUTER_ENABLED", "false").strip().lower() in TRUTHY
+
+
 def openai_base_url() -> str:
+    if tarot_router_enabled():
+        return (os.getenv("TAROT_ROUTER_BASE_URL") or DEFAULT_TAROT_ROUTER_BASE_URL).strip().rstrip("/")
     return (os.getenv("OPENAI_BASE_URL") or DEFAULT_OPENAI_BASE_URL).strip().rstrip("/")
+
+
+def configured_api_key() -> str:
+    if tarot_router_enabled():
+        return (os.getenv("TAROT_ROUTER_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
+    return (os.getenv("OPENAI_API_KEY") or "").strip()
+
+
+def _loopback_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme in {"http", "https"} and (parsed.hostname or "").casefold() in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+    }
 
 
 def configured_model() -> str:
@@ -81,8 +105,9 @@ def _extract_chat_content(payload: dict[str, Any]) -> str:
 
 
 async def ask_loki_llm(prompt: str) -> str:
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not api_key:
+    base_url = openai_base_url()
+    key = configured_api_key()
+    if not key and not (tarot_router_enabled() and _loopback_url(base_url)):
         raise LLMConfigError("OPENAI_API_KEY is not configured. Add it in AI and Router Settings.")
 
     clean_prompt = sanitize_prompt(prompt)
@@ -103,14 +128,13 @@ async def ask_loki_llm(prompt: str) -> str:
         ],
         "max_completion_tokens": max_completion_tokens(),
     }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
     timeout = aiohttp.ClientTimeout(total=30)
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(f"{openai_base_url()}/chat/completions", json=body, headers=headers) as response:
+            async with session.post(f"{base_url}/chat/completions", json=body, headers=headers) as response:
                 data = await response.json(content_type=None)
                 if response.status >= 400:
                     error = data.get("error") if isinstance(data, dict) else None
