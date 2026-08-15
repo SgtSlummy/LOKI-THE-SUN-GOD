@@ -218,10 +218,16 @@ if (-not $VerifyOnly) {
         # pythonservice.exe is materialized in the venv root.
         $pywin32Postinstall = Join-Path (Split-Path -Parent $venvPython) "pywin32_postinstall.py"
         if (Test-Path -LiteralPath $pywin32Postinstall -PathType Leaf) {
-            Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host post-install"
+        Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host post-install"
         }
         $venvWin32Dir = Join-Path $venv "Lib\site-packages\win32"
         $venvPackageServiceHost = Join-Path $venvWin32Dir "pythonservice.exe"
+        $bundledServiceHost = Join-Path $root "assets\pywin32\pythonservice.exe"
+        if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf) -and
+            (Test-Path -LiteralPath $bundledServiceHost -PathType Leaf)) {
+            New-Item -ItemType Directory -Path $venvWin32Dir -Force | Out-Null
+            Copy-Item -LiteralPath $bundledServiceHost -Destination $venvPackageServiceHost -Force
+        }
         if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf)) {
             $wheelStaging = Join-Path (Split-Path -Parent $venv) ".pywin32-wheel-$candidateId"
             New-Item -ItemType Directory -Path $wheelStaging -Force | Out-Null
