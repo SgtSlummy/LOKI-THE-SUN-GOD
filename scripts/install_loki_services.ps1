@@ -2022,10 +2022,13 @@ foreach ($cache in @(Get-ChildItem -LiteralPath $ReleaseRoot -Recurse -Force -Di
 }
 foreach ($generated in @(
     (Join-Path $ReleaseRoot "data"),
-    (Join-Path $ReleaseRoot "tests\fixtures\mcp\generated")
+    (Join-Path $ReleaseRoot "tests\fixtures\mcp\generated"),
+    (Join-Path $ReleaseRoot "desktop_config.json")
 )) {
     if ([System.IO.Directory]::Exists($generated)) {
         [System.IO.Directory]::Delete($generated, $true)
+    } elseif ([System.IO.File]::Exists($generated)) {
+        [System.IO.File]::Delete($generated)
     }
 }
 Protect-AdministratorTree -Root $lokiRoot
