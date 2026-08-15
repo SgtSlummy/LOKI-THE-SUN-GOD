@@ -223,6 +223,26 @@ if (-not $VerifyOnly) {
         Invoke-Native -FilePath $venvPython -Arguments @("-E", "-s", "-B", $pywin32Postinstall, "-install", "-silent") -Label "pywin32 service-host installation"
         $venvWin32Dir = Join-Path $venv "Lib\site-packages\win32"
         $venvPackageServiceHost = Join-Path $venvWin32Dir "pythonservice.exe"
+        if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf)) {
+            $wheelStaging = Join-Path (Split-Path -Parent $venv) ".pywin32-wheel-$candidateId"
+            New-Item -ItemType Directory -Path $wheelStaging -Force | Out-Null
+            try {
+                Invoke-Native -FilePath $venvPython -Arguments @(
+                    "-E", "-s", "-B", "-m", "pip", "--isolated", "download",
+                    "--no-deps", "--no-cache-dir", "--only-binary=:all:",
+                    "--dest", $wheelStaging, "pywin32==312"
+                ) -Label "Pinned pywin32 wheel retrieval"
+                Invoke-Native -FilePath $venvPython -Arguments @(
+                    "-E", "-s", "-B", "-c",
+                    "import pathlib,sys,zipfile; d=pathlib.Path(sys.argv[1]); out=pathlib.Path(sys.argv[2]); wheels=list(d.glob('pywin32-312-*.whl')); assert len(wheels)==1, f'expected one pywin32 wheel, found {len(wheels)}'; z=zipfile.ZipFile(wheels[0]); data=z.read('win32/pythonservice.exe'); out.mkdir(parents=True,exist_ok=True); (out/'pythonservice.exe').write_bytes(data)",
+                    $wheelStaging, $venvWin32Dir
+                ) -Label "pywin32 service-host extraction"
+            } finally {
+                if (Test-Path -LiteralPath $wheelStaging) {
+                    [System.IO.Directory]::Delete($wheelStaging, $true)
+                }
+            }
+        }
         $machinePackageServiceHost = Join-Path (Split-Path -Parent $bootstrapPython) "Lib\site-packages\win32\pythonservice.exe"
         if (-not (Test-Path -LiteralPath $venvPackageServiceHost -PathType Leaf) -and
             (Test-Path -LiteralPath $machinePackageServiceHost -PathType Leaf)) {
